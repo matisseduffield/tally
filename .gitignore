@@ -1,0 +1,10 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+# Signing material stays out of git — CI gets it from encrypted secrets,
+# local builds from these untracked files.
+*.keystore
+keystore.properties

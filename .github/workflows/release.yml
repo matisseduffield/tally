@@ -1,0 +1,145 @@
+name: Build & Release APK
+
+# Pushing a v* tag builds a signed APK, attaches it to a release here, and
+# publishes it with latest.json to the public tally-releases repo, which is
+# where installed apps look for updates (this repo is private, so phones
+# can't read its releases). The web app (web/) goes there too: the sync
+# server serves the browser version of Tally from it.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore signing keystore from secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n' | base64 -d > "$RUNNER_TEMP/tally-release.keystore"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/tally-release.keystore" >> "$GITHUB_ENV"
+          # Fail early if the keystore didn't materialize. keytool reports
+          # errors on stdout, so capture everything and print on failure.
+          if ! keytool -list -keystore "$RUNNER_TEMP/tally-release.keystore" \
+              -storepass "${{ secrets.KEYSTORE_PASSWORD }}" > "$RUNNER_TEMP/keytool.log" 2>&1; then
+            echo "Keystore verification failed:"
+            cat "$RUNNER_TEMP/keytool.log"
+            exit 1
+          fi
+
+      - name: Derive version from tag
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VN="${GITHUB_REF_NAME#v}"
+            echo "VERSION_NAME=$VN" >> "$GITHUB_ENV"
+            # Monotonic versionCode from the dotted version: major*10000 + minor*100 + patch.
+            IFS='.' read -r MA MI PA <<< "$VN"
+            echo "VERSION_CODE=$(( ${MA:-0} * 10000 + ${MI:-0} * 100 + ${PA:-0} ))" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build signed APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease :app:lintRelease
+
+      - name: Name the artifact
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then VERSION="manual-${GITHUB_SHA::7}"; fi
+          cp app/build/outputs/apk/release/app-release.apk "Tally-${VERSION}.apk"
+          echo "APK_NAME=Tally-${VERSION}.apk" >> "$GITHUB_ENV"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: ${{ env.APK_NAME }}
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.APK_NAME }}
+          generate_release_notes: true
+
+      - name: Publish to tally-releases (what installed apps check)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          DEPLOY_KEY: ${{ secrets.RELEASES_DEPLOY_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          install -m 600 /dev/null "$RUNNER_TEMP/deploy_key"
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/deploy_key"
+          export GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+
+          # "What's new" comes from the annotated tag's message: its "- " lines,
+          # or failing that its first line. (Lightweight tags fall back to the
+          # commit message.) The app shows these in its update card.
+          TAG_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" -q .object.sha)
+          if [[ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" -q .object.type)" == "tag" ]]; then
+            MESSAGE=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$TAG_SHA" -q .message)
+          else
+            MESSAGE=$(git log -1 --format=%B)
+          fi
+          NOTES=$(printf '%s\n' "$MESSAGE" | { grep -v -i '^co-authored-by' || true; } | sed -n 's/^- //p' | head -5)
+          if [[ -z "$NOTES" ]]; then NOTES=$(printf '%s\n' "$MESSAGE" | head -1); fi
+
+          RAW="https://raw.githubusercontent.com/matisseduffield/tally-releases/main"
+          mkdir pub && cp "$APK_NAME" pub/ && cp "$APK_NAME" pub/Tally.apk
+          # The page and its files, served to browsers by the sync server.
+          mkdir pub/web && cp -r web/index.html web/lib.js web/fonts pub/web/
+          cd pub
+          SHA=$(sha256sum "$APK_NAME" | cut -d' ' -f1)
+          SIZE=$(stat -c%s "$APK_NAME")
+          printf '%s\n' "$NOTES" | jq -R 'select(length > 0)' | jq -s \
+            --argjson code "$VERSION_CODE" --arg name "$VERSION_NAME" --arg apk "$RAW/$APK_NAME" \
+            --argjson size "$SIZE" --arg sha "$SHA" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{versionCode: $code, versionName: $name, apk: $apk, size: $size, sha256: $sha, publishedAt: $at, notes: .}' \
+            > latest.json
+          cat latest.json
+
+          {
+            echo "# Tally releases"
+            echo
+            echo "Signed Android builds of Tally, a free way to split costs with anyone"
+            echo "(no sign-up, no limits, any currency). Installed copies update themselves"
+            echo "from here. In a browser: https://tally.matisseduffield.workers.dev"
+            echo
+            echo "**[Download Tally $VERSION_NAME]($RAW/Tally.apk)**"
+            echo
+            echo "On your phone: open the link, then open the downloaded file and allow"
+            echo "the install when Android asks. You only do this once; after that the app"
+            echo "offers updates itself."
+            echo
+            echo "## What's new in $VERSION_NAME"
+            echo
+            printf '%s\n' "$NOTES" | sed 's/^/- /'
+          } > README.md
+
+          # One orphan commit, force-pushed, so old APKs don't pile up in history.
+          git init -q -b main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Tally $VERSION_NAME"
+          git push --force git@github.com:matisseduffield/tally-releases.git main

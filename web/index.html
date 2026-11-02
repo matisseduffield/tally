@@ -1,0 +1,1573 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#EEEBE4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12110F" media="(prefers-color-scheme: dark)">
+<title>Tally</title>
+<style>
+/* Hanken Grotesk ships with the page (fonts/, SIL OFL) so the app looks the same offline. */
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("fonts/hanken-grotesk-latin.woff2") format("woff2");
+  font-weight: 400 600;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("fonts/hanken-grotesk-latin-ext.woff2") format("woff2");
+  font-weight: 400 600;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* Tally: Bureau's sibling. Warm paper tones, near-black primary actions, green for
+   money coming to you and a muted brick for money you owe. */
+:root {
+  --bg: #EEEBE4;
+  --surface: #FAF8F3;
+  --ink: #1E1B16;
+  --muted: #6B655B;
+  --faint: #A39C90;
+  --line: #DAD4C8;
+  --accent: #1F6F54;
+  --accent-soft: rgba(31, 111, 84, .09);
+  --pos: #1F7A55;
+  --neg: #B4472E;
+  --on-ink: #FAF8F3;
+  --backdrop: rgba(20, 18, 14, .4);
+  --shadow: rgba(30, 27, 22, .12);
+  --font: "Hanken Grotesk", "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12110F;
+    --surface: #1C1A17;
+    --ink: #ECE7DE;
+    --muted: #9A9387;
+    --faint: #6A645A;
+    --line: #2F2C27;
+    --accent: #6FC59C;
+    --accent-soft: rgba(111, 197, 156, .10);
+    --pos: #6FC59C;
+    --neg: #F08A70;
+    --on-ink: #12110F;
+    --backdrop: rgba(0, 0, 0, .6);
+    --shadow: rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12110F;
+  --surface: #1C1A17;
+  --ink: #ECE7DE;
+  --muted: #9A9387;
+  --faint: #6A645A;
+  --line: #2F2C27;
+  --accent: #6FC59C;
+  --accent-soft: rgba(111, 197, 156, .10);
+  --pos: #6FC59C;
+  --neg: #F08A70;
+  --on-ink: #12110F;
+  --backdrop: rgba(0, 0, 0, .6);
+  --shadow: rgba(0, 0, 0, .45);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 15px/1.5 var(--font);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  padding-block: 28px 104px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.wrap { max-width: 600px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.pos { color: var(--pos); }
+.neg { color: var(--neg); }
+
+/* Top bar */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; margin-bottom: -6px; }
+.top-left { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.mark { margin: 0; font-size: 1.2rem; font-weight: 600; letter-spacing: -.01em; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.icon-btn {
+  flex: none; display: grid; place-items: center;
+  width: 44px; height: 44px; margin: 0 -8px;
+  background: none; border: 0; border-radius: 50%; color: var(--muted);
+}
+.icon-btn:hover { color: var(--ink); }
+.top-left .icon-btn { margin-left: -12px; }
+.top-right { display: flex; align-items: center; gap: 4px; }
+.version { min-height: 44px; margin-right: -8px; padding: 0 8px; background: none; border: 0; font-size: .82rem; color: var(--muted); }
+.version:hover { color: var(--ink); }
+.version[data-state="available"] { color: var(--accent); font-weight: 600; }
+.status { margin: -14px 0 -6px; font-size: .8rem; color: var(--muted); }
+
+/* Buttons */
+.btn {
+  min-height: 46px; padding: 0 18px; border-radius: 6px;
+  font-size: .95rem; font-weight: 600;
+}
+.btn-primary { background: var(--ink); border: 1px solid var(--ink); color: var(--on-ink); }
+.btn-primary:hover { opacity: .9; }
+.btn-primary:disabled { opacity: .35; cursor: default; }
+.btn-secondary { background: transparent; border: 1px solid var(--line); color: var(--ink); }
+.btn-secondary:hover { border-color: var(--muted); }
+.link { padding: 6px 0; background: none; border: 0; font-size: .88rem; font-weight: 600; color: var(--accent); }
+.danger { color: var(--neg); }
+
+/* Cards and lists */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.section { display: grid; gap: 8px; }
+.section h2 { margin: 0; font-size: .95rem; font-weight: 600; }
+.rows { display: grid; }
+.row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px;
+  min-height: 56px; padding: 10px 2px;
+  background: none; border: 0; border-top: 1px solid var(--line);
+  text-align: left; width: 100%;
+}
+.rows > .row:last-child { border-bottom: 1px solid var(--line); }
+button.row:active { background: var(--accent-soft); }
+.row-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-sub { grid-column: 1; font-size: .82rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-amt { grid-row: 1 / span 2; grid-column: 2; text-align: right; font-weight: 500; white-space: nowrap; }
+.row-amt small { display: block; font-size: .78rem; font-weight: 400; color: var(--muted); }
+.day { padding: 14px 2px 4px; font-size: .8rem; font-weight: 500; color: var(--muted); }
+.empty { padding: 18px 0; font-size: .9rem; color: var(--muted); }
+
+/* Home */
+.intro { margin: 0; padding: 28px 22px; display: grid; gap: 14px; justify-items: start; }
+.intro p { margin: 0; color: var(--muted); }
+.intro strong { display: block; font-size: 1.15rem; font-weight: 600; color: var(--ink); line-height: 1.3; }
+.home-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+/* Group summary */
+.summary { padding: 20px 22px 18px; display: grid; gap: 4px; }
+.summary-label { font-size: .84rem; color: var(--muted); }
+.summary-amt { font-size: clamp(1.9rem, 8vw, 2.4rem); font-weight: 500; letter-spacing: -.02em; line-height: 1.15; }
+.summary-meta { font-size: .84rem; color: var(--muted); }
+.summary-actions { display: flex; gap: 10px; margin-top: 14px; }
+.summary-actions .btn { flex: 1; }
+.people { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .86rem; }
+.people span { white-space: nowrap; color: var(--muted); }
+.people b { font-weight: 600; }
+
+/* Bottom action bar */
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+.dock .btn { display: block; width: 100%; max-width: 600px; margin: 0 auto; }
+
+/* Sheets (full screen on phones, centred panels on wide screens) */
+dialog {
+  width: min(480px, calc(100vw - 32px));
+  max-height: min(720px, calc(100dvh - 48px));
+  padding: 0; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: var(--ink);
+}
+dialog[open] { display: flex; flex-direction: column; }
+dialog::backdrop { background: var(--backdrop); }
+dialog, dialog::backdrop {
+  transition: opacity .18s ease-out, transform .22s cubic-bezier(.2, .7, .2, 1), overlay .22s allow-discrete, display .22s allow-discrete;
+  opacity: 0;
+}
+dialog { transform: translateY(12px); }
+dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
+@starting-style {
+  dialog[open], dialog[open]::backdrop { opacity: 0; }
+  dialog[open] { transform: translateY(12px); }
+}
+.sheet-head {
+  display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 6px 8px 6px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.sheet-head h2 { flex: 1; margin: 0; font-size: 1rem; font-weight: 600; }
+.sheet-head .icon-btn { margin: 0; }
+.sheet-head .btn { min-height: 38px; padding: 0 16px; }
+.sheet-body { padding: 18px 20px 28px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; }
+.field { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.field { display: grid; gap: 6px; }
+.field-label { font-size: .8rem; font-weight: 500; color: var(--muted); }
+.input {
+  width: 100%; min-height: 46px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
+}
+.input:focus { outline: none; border-color: var(--accent); }
+.input::placeholder { color: var(--faint); }
+.hint { font-size: .82rem; color: var(--muted); }
+.hint.bad { color: var(--neg); }
+
+/* Amount line in the expense sheet: currency button + big number */
+.amount-row { display: flex; align-items: center; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.amount-row:focus-within { border-bottom-color: var(--accent); }
+.cur-btn {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 0 10px; margin-left: -10px;
+  background: none; border: 0; border-radius: 4px; font-weight: 600; font-size: 1.05rem;
+}
+.cur-btn::after {
+  content: ""; width: 6px; height: 6px; margin-top: -4px;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg);
+}
+.big-amount {
+  flex: 1; min-width: 0; padding: 4px 0; border: 0; background: transparent;
+  font-size: 2.2rem; font-weight: 500; letter-spacing: -.02em; text-align: right; caret-color: var(--accent);
+}
+.big-amount:focus { outline: none; }
+.big-amount::placeholder { color: var(--faint); }
+
+/* Chips: who paid, who's in */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  min-height: 38px; padding: 0 14px; border-radius: 19px;
+  background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: .9rem;
+}
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); font-weight: 600; }
+.chip.add { color: var(--muted); border-style: dashed; }
+
+/* Segmented control (split modes) */
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; padding: 3px; border-radius: 7px; background: var(--bg); }
+.seg button { min-height: 36px; border: 0; border-radius: 5px; background: none; font-size: .86rem; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+
+/* Split rows */
+.split { display: grid; }
+.split-row {
+  display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  min-height: 48px; border-top: 1px solid var(--line);
+}
+.split-row:last-child { border-bottom: 1px solid var(--line); }
+.split-row .tick {
+  width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--faint);
+  display: grid; place-items: center; background: none; padding: 0;
+}
+.split-row .tick[aria-checked="true"] { background: var(--ink); border-color: var(--ink); }
+.split-row .tick[aria-checked="true"]::after { content: ""; width: 5px; height: 9px; margin-top: -2px; border: solid var(--on-ink); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.split-row .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.split-row .val { font-size: .9rem; color: var(--muted); text-align: right; }
+.split-row input {
+  width: 96px; min-height: 36px; padding: 0 10px; text-align: right;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
+}
+.split-row input:focus { outline: none; border-color: var(--accent); }
+.split-foot { display: flex; justify-content: space-between; padding-top: 8px; font-size: .82rem; color: var(--muted); }
+
+/* Settle up suggestions */
+.pay-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 56px; border-top: 1px solid var(--line); }
+.pay-row:last-child { border-bottom: 1px solid var(--line); }
+.pay-row .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pay-row .btn { min-height: 36px; padding: 0 12px; font-size: .86rem; }
+
+/* Member rows in settings */
+.member-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.add-row { display: flex; gap: 8px; }
+.add-row .input { flex: 1; }
+
+/* Currency picker */
+.picker-head { display: flex; gap: 4px; padding: 10px 6px 10px 12px; border-bottom: 1px solid var(--line); }
+.picker-head .input { flex: 1; }
+.picker-head button { min-height: 44px; padding: 0 12px; border: 0; background: none; color: var(--muted); }
+.picker-list { list-style: none; margin: 0; padding: 4px 0 12px; overflow-y: auto; overscroll-behavior: contain; }
+.picker-list .group { padding: 14px 16px 4px; font-size: .8rem; font-weight: 500; color: var(--muted); }
+.picker-list button {
+  width: 100%; min-height: 48px; display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 10px;
+  padding: 0 16px; border: 0; background: none; text-align: left;
+}
+.picker-list button:hover, .picker-list button:focus-visible { background: var(--accent-soft); outline: none; }
+.picker-list .c { font-weight: 600; }
+.picker-list .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Toast */
+.toast {
+  position: fixed; left: 50%; bottom: calc(88px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+  transform: translateX(-50%);
+  padding: 10px 16px; border-radius: 6px; background: var(--ink); color: var(--on-ink);
+  font-size: .88rem; box-shadow: 0 8px 24px var(--shadow);
+}
+
+/* Update card (inside the app) */
+.update { display: grid; gap: 16px; padding: 18px; }
+.update p { margin: 0; }
+.update-head { display: flex; align-items: center; gap: 14px; }
+.update-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.update-title { font-weight: 600; line-height: 1.3; }
+.update-sub { font-size: .84rem; color: var(--muted); }
+.update-new { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.update-notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: .9rem; line-height: 1.4; }
+.update-notes li { position: relative; padding-left: 16px; }
+.update-notes li::before { content: ""; position: absolute; left: 3px; top: .6em; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.update-msg { font-size: .86rem; color: var(--muted); }
+.update-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.update-progress { display: flex; align-items: center; gap: 12px; min-height: 46px; }
+.update-track { flex: 1; height: 6px; border-radius: 3px; background: var(--accent-soft); overflow: hidden; }
+.update-track span { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--accent); transition: width .2s; }
+.update-pct { min-width: 3.2ch; text-align: right; font-size: .86rem; font-weight: 600; }
+
+@media (max-width: 520px) {
+  body { padding-top: 12px; }
+  dialog { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
+  .summary, .intro { padding-inline: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog, dialog::backdrop, .update-track span { transition: none; }
+  dialog { transform: none; }
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <div class="top-left">
+      <button class="icon-btn" id="back" type="button" aria-label="All groups" hidden>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5"/></svg>
+      </button>
+      <h1 class="mark" id="title">Tally</h1>
+    </div>
+    <div class="top-right">
+      <button class="icon-btn" id="shareBtn" type="button" aria-label="Share group link" hidden>
+        <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V3M6.5 6.5 10 3l3.5 3.5M4 11v5h12v-5"/></svg>
+      </button>
+      <button class="icon-btn" id="settingsBtn" type="button" aria-label="Group settings" hidden>
+        <svg width="19" height="19" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4.5" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="15.5" cy="10" r="1.6"/></svg>
+      </button>
+      <button class="version" id="version" type="button" title="Check for updates" aria-live="polite" hidden></button>
+    </div>
+  </header>
+  <p class="status" id="status" hidden></p>
+
+  <section class="card update" id="updateCard" aria-label="App update" hidden>
+    <div class="update-head">
+      <span class="update-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v9M5 8.5 9 12.5l4-4M4 15h10"/></svg>
+      </span>
+      <div>
+        <p class="update-title" id="updateTitle">Update available</p>
+        <p class="update-sub" id="updateSub"></p>
+      </div>
+    </div>
+    <div class="update-new" id="updateNew"><p class="field-label">What's new</p><ul class="update-notes" id="updateNotes"></ul></div>
+    <p class="update-msg" id="updateMsg" hidden></p>
+    <div class="update-progress" id="updateProgress" hidden>
+      <div class="update-track"><span id="updateBar"></span></div>
+      <span class="update-pct" id="updatePct">0%</span>
+    </div>
+    <div class="update-actions" id="updateActions">
+      <button class="btn btn-secondary" id="updateLater" type="button">Not now</button>
+      <button class="btn btn-primary" id="updateGo" type="button">Update</button>
+    </div>
+  </section>
+
+  <!-- Home: your groups -->
+  <div id="home" class="wrap" style="gap: 24px">
+    <section class="card intro" id="intro" hidden>
+      <p><strong>Split costs with anyone.</strong>No sign-up, no limits, any currency. Make a group, share its link, and everyone adds what they paid.</p>
+      <button class="btn btn-primary" type="button" data-action="newGroup">New group</button>
+    </section>
+    <section class="section" id="groupsSection" hidden>
+      <div class="rows" id="groupList"></div>
+      <div class="home-actions">
+        <button class="link" type="button" data-action="newGroup">New group</button>
+        <button class="link" type="button" id="joinBtn">Join with a link</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- One group -->
+  <div id="groupView" class="wrap" style="gap: 24px" hidden>
+    <section class="card summary">
+      <span class="summary-label" id="sumLabel">You're settled up</span>
+      <span class="summary-amt" id="sumAmt"></span>
+      <span class="summary-meta" id="sumMeta"></span>
+      <div class="people" id="people"></div>
+      <div class="summary-actions">
+        <button class="btn btn-secondary" type="button" id="settleBtn">Settle up</button>
+      </div>
+    </section>
+    <section class="section">
+      <h2>Activity</h2>
+      <div class="rows" id="activity"></div>
+    </section>
+  </div>
+</main>
+
+<div class="dock" id="dock" hidden>
+  <button class="btn btn-primary" type="button" id="addBtn">Add expense</button>
+</div>
+
+<!-- New group -->
+<dialog id="newDlg" aria-labelledby="newTitle">
+  <div class="sheet-head">
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <h2 id="newTitle">New group</h2>
+    <button class="btn btn-primary" type="button" id="createGo">Create</button>
+  </div>
+  <div class="sheet-body">
+    <label class="field"><span class="field-label">Name</span><input class="input" id="newName" placeholder="Thailand trip, Flat, Dinner club" maxlength="60" autocomplete="off"></label>
+    <div class="field"><span class="field-label">Currency for balances</span><div><button class="cur-btn" type="button" id="newCur">EUR</button></div></div>
+    <label class="field"><span class="field-label">Your name</span><input class="input" id="newMe" placeholder="Your name" maxlength="40" autocomplete="given-name"></label>
+    <div class="field">
+      <span class="field-label">Others</span>
+      <div class="add-row"><input class="input" id="newOther" placeholder="Add a name" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="newOtherAdd">Add</button></div>
+      <div class="chips" id="newOthers"></div>
+      <span class="hint">You can add more people later, or they can add themselves from the link.</span>
+    </div>
+  </div>
+</dialog>
+
+<!-- Join with a link / who are you -->
+<dialog id="joinDlg" aria-labelledby="joinTitle">
+  <div class="sheet-head">
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <h2 id="joinTitle">Join a group</h2>
+  </div>
+  <div class="sheet-body">
+    <div class="field" id="joinLinkField">
+      <label class="field-label" for="joinLink">Group link</label>
+      <div class="add-row"><input class="input" id="joinLink" placeholder="Paste the link" autocomplete="off" enterkeyhint="go"><button class="btn btn-primary" type="button" id="joinGo">Open</button></div>
+      <span class="hint" id="joinHint"></span>
+    </div>
+    <div class="field" id="whoField" hidden>
+      <span class="field-label">Which one is you?</span>
+      <div class="chips" id="whoChips"></div>
+      <div class="add-row"><input class="input" id="whoNew" placeholder="Not listed? Add your name" maxlength="40" autocomplete="given-name" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="whoAdd">Add</button></div>
+    </div>
+  </div>
+</dialog>
+
+<!-- Add / edit expense -->
+<dialog id="expDlg" aria-labelledby="expTitle">
+  <div class="sheet-head">
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <h2 id="expTitle">Add expense</h2>
+    <button class="btn btn-primary" type="button" id="expSave">Save</button>
+  </div>
+  <div class="sheet-body">
+    <input class="input" id="expWhat" placeholder="What was it for?" maxlength="80" autocomplete="off" aria-label="Description">
+    <div class="field">
+      <div class="amount-row">
+        <button class="cur-btn" type="button" id="expCur" aria-label="Currency">EUR</button>
+        <input class="big-amount" id="expAmount" inputmode="decimal" placeholder="0" autocomplete="off" aria-label="Amount">
+      </div>
+      <span class="hint" id="expConv" hidden></span>
+    </div>
+    <div class="field"><span class="field-label">Paid by</span><div class="chips" id="expPaid"></div></div>
+    <div class="field">
+      <span class="field-label">Split</span>
+      <div class="seg" id="expMode">
+        <button type="button" data-mode="equal">Equally</button>
+        <button type="button" data-mode="exact">Amounts</button>
+        <button type="button" data-mode="percent">%</button>
+        <button type="button" data-mode="shares">Shares</button>
+      </div>
+      <div class="split" id="expSplit"></div>
+      <div class="split-foot"><span id="expFoot"></span><span id="expFootRight"></span></div>
+    </div>
+    <label class="field"><span class="field-label">Date</span><input class="input" type="date" id="expDate"></label>
+    <div><button class="link danger" type="button" id="expDelete" hidden>Delete expense</button></div>
+  </div>
+</dialog>
+
+<!-- Settle up / record a payment -->
+<dialog id="payDlg" aria-labelledby="payTitle">
+  <div class="sheet-head">
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <h2 id="payTitle">Settle up</h2>
+  </div>
+  <div class="sheet-body">
+    <div class="field" id="paySuggest">
+      <span class="field-label">Fewest payments to square everyone</span>
+      <div id="payList"></div>
+    </div>
+    <div class="field">
+      <span class="field-label" id="payFormLabel">Record a payment</span>
+      <div class="field"><span class="hint">From</span><div class="chips" id="payFrom"></div></div>
+      <div class="field"><span class="hint">To</span><div class="chips" id="payTo"></div></div>
+      <div class="add-row"><input class="input" id="payAmount" inputmode="decimal" placeholder="Amount" autocomplete="off"><button class="btn btn-primary" type="button" id="payGo">Record</button></div>
+      <span class="hint" id="payHint"></span>
+    </div>
+    <div><button class="link danger" type="button" id="payDelete" hidden>Delete payment</button></div>
+  </div>
+</dialog>
+
+<!-- Group settings -->
+<dialog id="setDlg" aria-labelledby="setTitle">
+  <div class="sheet-head">
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <h2 id="setTitle">Group</h2>
+    <button class="btn btn-primary" type="button" id="setSave">Done</button>
+  </div>
+  <div class="sheet-body">
+    <label class="field"><span class="field-label">Name</span><input class="input" id="setName" maxlength="60" autocomplete="off"></label>
+    <div class="field"><span class="field-label">Currency for balances</span><div><button class="cur-btn" type="button" id="setCur">EUR</button></div><span class="hint" id="setCurHint"></span></div>
+    <div class="field">
+      <span class="field-label">People</span>
+      <div class="rows" id="setMembers"></div>
+      <div class="add-row"><input class="input" id="setNew" placeholder="Add a name" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="setAdd">Add</button></div>
+    </div>
+    <div class="field">
+      <span class="field-label">Link</span>
+      <span class="hint">Anyone with the link can see and add to this group.</span>
+      <div><button class="link" type="button" id="setShare">Share link</button></div>
+    </div>
+    <div class="field">
+      <button class="link danger" type="button" id="setForget" style="justify-self: start">Remove from this device</button>
+      <span class="hint">The group stays for everyone else; open its link to get it back.</span>
+    </div>
+  </div>
+</dialog>
+
+<!-- Currency picker -->
+<dialog id="picker" aria-label="Choose a currency">
+  <div class="picker-head">
+    <input class="input" id="pickerSearch" type="search" placeholder="Currency" autocomplete="off" aria-label="Search currencies">
+    <button type="button" data-close>Close</button>
+  </div>
+  <ul class="picker-list" id="pickerList"></ul>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="lib.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const L = TallyLib;
+  const locale = navigator.language || 'en-US';
+  const SITE = 'https://tally.matisseduffield.workers.dev';
+  // Served from the site itself the API is same-origin; in the app (bundled
+  // page) or a local preview it's the site's.
+  const API = location.origin === SITE ? '' : SITE;
+  const POLL_MS = 15_000;
+  const RATES_URL = 'https://api.coinbase.com/v2/exchange-rates?currency=USD';
+  const RATES_TTL = 60 * 60_000;
+  const COMMON = ['EUR', 'USD', 'GBP', 'AUD', 'NZD', 'CAD', 'JPY', 'CHF', 'THB', 'IDR', 'SGD', 'INR'];
+
+  let fmtLocale = locale;
+  try { fmtLocale = new Intl.Locale(locale, { numberingSystem: 'latn' }).toString(); } catch {}
+  const GROUP_SEP = (new Intl.NumberFormat(fmtLocale).formatToParts(12345.6).find(p => p.type === 'group') || { value: ',' }).value;
+  const parse = s => L.evaluate(s, GROUP_SEP);
+
+  let currencyNames = null;
+  try { currencyNames = new Intl.DisplayNames([locale], { type: 'currency' }); } catch {}
+  const curName = c => { try { return (currencyNames && currencyNames.of(c)) || c; } catch { return c; } };
+  let ALL_CURRENCIES = COMMON;
+  try { ALL_CURRENCIES = Intl.supportedValuesOf('currency').filter(c => curName(c) !== c); } catch {}
+
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem('tally.' + k)); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem('tally.' + k, JSON.stringify(v)); } catch {} },
+    del(k) { try { localStorage.removeItem('tally.' + k); } catch {} },
+  };
+
+  // ---- formatting ----
+  const formatters = new Map();
+  function nf(opts) {
+    const key = JSON.stringify(opts);
+    let f = formatters.get(key);
+    if (!f) { f = new Intl.NumberFormat(fmtLocale, opts); formatters.set(key, f); }
+    return f;
+  }
+  function money(minor, code) {
+    const v = L.fromMinor(Math.abs(minor), code);
+    try { return nf({ style: 'currency', currency: code, currencyDisplay: 'narrowSymbol' }).format(v); }
+    catch { return nf({ maximumFractionDigits: 2 }).format(v) + ' ' + code; }
+  }
+  const moneyMajor = (amount, code) => money(L.toMinor(amount, code), code);
+  const plainNum = (n, code) => nf({ minimumFractionDigits: 0, maximumFractionDigits: L.fractionDigits(code) }).format(n);
+  const today = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+  function dayLabel(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    if (iso === today()) return 'Today';
+    const y = new Date(Date.now() - 864e5);
+    if (iso === new Date(y - y.getTimezoneOffset() * 60000).toISOString().slice(0, 10)) return 'Yesterday';
+    const sameYear = d.getFullYear() === new Date().getFullYear();
+    return d.toLocaleDateString(locale, sameYear ? { weekday: 'short', day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  // ---- toast ----
+  let toastTimer = 0;
+  function toast(text) {
+    $('toast').textContent = text;
+    $('toast').hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { $('toast').hidden = true; }, 2200);
+  }
+
+  // ---- groups on this device ----
+  // Each group is kept whole on the device (so it opens instantly and works
+  // offline) with `pending`: changes not yet accepted by the server, and
+  // `me`: which member this device is.
+  let groupIds = (store.get('groups') || []).filter(L.isId);
+  const groups = new Map();
+  for (const id of groupIds) {
+    const g = store.get('g.' + id);
+    if (g && g.group) groups.set(id, { pending: [], ...g });
+  }
+  groupIds = groupIds.filter(id => groups.has(id));
+  const saveGroup = g => store.set('g.' + g.group.id, g);
+  const saveIds = () => store.set('groups', groupIds);
+
+  const live = g => g.members.filter(m => !m.removed);
+  const memberName = (g, id) => (id === g.me ? 'You' : ((g.members.find(m => m.id === id) || {}).name || 'Someone'));
+  const entriesOf = g => g.entries.filter(e => !e.deleted);
+  const netOf = g => L.balances(entriesOf(g), g.members.map(m => m.id), g.group.currency);
+  const linkOf = id => `${SITE}/g/${id}`;
+
+  // Changes are applied here at once and queued for the server.
+  function applyOp(g, op) {
+    if (op.type === 'group') Object.assign(g.group, { name: op.name, currency: op.currency });
+    else if (op.type === 'member') {
+      const m = g.members.find(x => x.id === op.id);
+      if (m) Object.assign(m, { name: op.name, removed: !!op.removed });
+      else g.members.push({ id: op.id, name: op.name, removed: !!op.removed });
+    } else if (op.type === 'entry') {
+      const i = g.entries.findIndex(x => x.id === op.id);
+      const e = { ...op.data, id: op.id, deleted: !!op.deleted, createdAt: i >= 0 ? g.entries[i].createdAt : Date.now() };
+      if (i >= 0) g.entries[i] = e; else g.entries.push(e);
+    }
+  }
+  function change(g, ops) {
+    for (const op of ops) applyOp(g, op);
+    g.pending = [...(g.pending || []), ...ops];
+    saveGroup(g);
+    render();
+    sync(g.group.id);
+  }
+
+  // ---- sync ----
+  const syncing = new Set();
+  let offline = false;
+  async function sync(id) {
+    const g = groups.get(id);
+    if (!g || syncing.has(id)) return;
+    syncing.add(id);
+    try {
+      let res;
+      const sending = g.pending.slice(0, 200);
+      if (sending.length) {
+        res = await fetch(`${API}/api/g/${id}/ops`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ops: sending }) });
+      } else {
+        res = await fetch(`${API}/api/g/${id}`, { headers: g.etag ? { 'If-None-Match': g.etag } : {}, cache: 'no-store' });
+      }
+      offline = false;
+      if (res.status === 304) return;
+      if (res.status === 404 && !sending.length) { g.gone = true; saveGroup(g); render(); return; }
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const state = await res.json();
+      // The server's copy, with anything queued since this request replayed on top.
+      const rest = g.pending.slice(sending.length);
+      Object.assign(g, { group: state.group, members: state.members, entries: state.entries, etag: res.headers.get('ETag'), pending: rest, gone: false });
+      for (const op of rest) applyOp(g, op);
+      saveGroup(g);
+      render();
+      if (rest.length) setTimeout(() => sync(id), 0);
+    } catch {
+      offline = true;
+      renderStatus();
+    } finally {
+      syncing.delete(id);
+    }
+  }
+  async function fetchGroup(id) {
+    const res = await fetch(`${API}/api/g/${id}`, { cache: 'no-store' });
+    if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
+    return { ...(await res.json()), etag: res.headers.get('ETag') };
+  }
+  function adopt(id, state, me) {
+    const g = { group: state.group, members: state.members, entries: state.entries, etag: state.etag, pending: [], me };
+    groups.set(id, g);
+    if (!groupIds.includes(id)) groupIds.unshift(id);
+    saveIds();
+    saveGroup(g);
+    return g;
+  }
+
+  // ---- rates (for expenses in another currency) ----
+  let rates = store.get('rates');
+  async function loadRates(force) {
+    if (!force && rates && Date.now() - rates.at < RATES_TTL) return rates;
+    try {
+      const json = await (await fetch(RATES_URL, { cache: 'no-store' })).json();
+      const r = {};
+      for (const [k, v] of Object.entries(json.data.rates)) { const n = parseFloat(v); if (n > 0) r[k] = n; }
+      r.USD = 1;
+      rates = { at: Date.now(), r };
+      store.set('rates', rates);
+    } catch {}
+    return rates;
+  }
+  // Units of `to` for 1 `from`.
+  const rateOf = (from, to) => {
+    if (from === to) return 1;
+    const r = rates && rates.r;
+    return r && r[from] > 0 && r[to] > 0 ? r[to] / r[from] : NaN;
+  };
+
+  // ---- views ----
+  let current = null; // open group id
+  function openGroup(id, push = true) {
+    if (!groups.has(id)) return;
+    current = id;
+    if (push) history.pushState({ g: id }, '', location.origin === SITE ? `/g/${id}` : `#g=${id}`);
+    render();
+    scrollTo(0, 0);
+    sync(id);
+  }
+  function goHome(push = true) {
+    current = null;
+    if (push) history.pushState({}, '', location.origin === SITE ? '/' : '#');
+    render();
+    for (const id of groupIds) sync(id);
+  }
+  addEventListener('popstate', e => {
+    for (const d of document.querySelectorAll('dialog[open]')) d.close();
+    const id = e.state && e.state.g;
+    if (id && groups.has(id)) openGroup(id, false); else goHome(false);
+  });
+
+  function render() {
+    const g = current && groups.get(current);
+    $('home').hidden = !!g;
+    $('groupView').hidden = !g;
+    $('back').hidden = !g;
+    $('shareBtn').hidden = !g;
+    $('settingsBtn').hidden = !g;
+    $('dock').hidden = !g || live(g).length < 2;
+    $('version').hidden = !!g || !appVersion;
+    $('title').textContent = g ? g.group.name : 'Tally';
+    document.title = g ? `${g.group.name} · Tally` : 'Tally';
+    if (g) renderGroup(g); else renderHome();
+    renderStatus();
+    syncBack();
+  }
+
+  function balanceText(net, code) {
+    if (net > 0) return { label: "You're owed", amount: money(net, code), cls: 'pos' };
+    if (net < 0) return { label: 'You owe', amount: money(net, code), cls: 'neg' };
+    return { label: "You're settled up", amount: '', cls: '' };
+  }
+
+  function renderHome() {
+    $('intro').hidden = groupIds.length > 0;
+    $('groupsSection').hidden = groupIds.length === 0;
+    $('groupList').replaceChildren(...groupIds.map(id => {
+      const g = groups.get(id);
+      const net = g.me ? (netOf(g)[g.me] || 0) : 0;
+      const b = balanceText(net, g.group.currency);
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'row';
+      row.dataset.open = id;
+      const people = live(g).length;
+      row.innerHTML = `<span class="row-title"></span><span class="row-sub"></span><span class="row-amt"><small></small><span></span></span>`;
+      row.querySelector('.row-title').textContent = g.group.name;
+      row.querySelector('.row-sub').textContent = g.gone ? 'No longer available' : `${people} ${people === 1 ? 'person' : 'people'}`;
+      row.querySelector('.row-amt small').textContent = net ? b.label.toLowerCase() : 'settled up';
+      const amt = row.querySelector('.row-amt span');
+      amt.textContent = b.amount;
+      amt.className = b.cls;
+      return row;
+    }));
+  }
+
+  function renderGroup(g) {
+    const code = g.group.currency;
+    const net = netOf(g);
+    const mine = g.me ? (net[g.me] || 0) : 0;
+    const b = balanceText(mine, code);
+    $('sumLabel').textContent = b.label;
+    $('sumAmt').textContent = b.amount;
+    $('sumAmt').className = 'summary-amt ' + b.cls;
+    $('sumAmt').hidden = !b.amount;
+    const spent = entriesOf(g).filter(e => e.kind === 'expense').reduce((s, e) => s + L.entryTotal(e, code), 0);
+    $('sumMeta').textContent = `${money(spent, code)} spent · ${live(g).length} people`;
+    // Everyone else's balance, compactly.
+    const others = g.members.filter(m => m.id !== g.me && (!m.removed || net[m.id]));
+    $('people').replaceChildren(...others.map(m => {
+      const s = document.createElement('span');
+      const v = net[m.id] || 0;
+      s.innerHTML = '<b></b> ';
+      s.firstChild.textContent = m.name;
+      const amt = document.createElement('span');
+      amt.textContent = v ? (v > 0 ? 'gets back ' : 'owes ') + money(v, code) : 'settled';
+      amt.className = v > 0 ? 'pos' : v < 0 ? 'neg' : '';
+      s.append(amt);
+      return s;
+    }));
+    $('settleBtn').hidden = Object.values(net).every(v => !v) && !entriesOf(g).length;
+
+    // Activity, newest first, by day.
+    const list = entriesOf(g).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
+    const out = [];
+    let day = '';
+    for (const e of list) {
+      if (e.date !== day) {
+        day = e.date;
+        const h = document.createElement('div');
+        h.className = 'day';
+        h.textContent = dayLabel(day);
+        out.push(h);
+      }
+      out.push(entryRow(g, e));
+    }
+    if (!out.length) {
+      const p = document.createElement('p');
+      p.className = 'empty';
+      p.textContent = live(g).length < 2 ? 'Add the people you’re splitting with (••• above), or share the link so they can join.' : 'Nothing yet. Add the first expense below.';
+      out.push(p);
+    }
+    $('activity').replaceChildren(...out);
+  }
+
+  function entryRow(g, e) {
+    const code = g.group.currency;
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'row';
+    row.dataset.entry = e.id;
+    row.innerHTML = `<span class="row-title"></span><span class="row-sub"></span><span class="row-amt"><span></span><small></small></span>`;
+    const total = L.entryTotal(e, code);
+    const foreign = e.currency !== code ? ` (${moneyMajor(e.amount, e.currency)})` : '';
+    if (e.kind === 'payment') {
+      row.querySelector('.row-title').textContent = `${memberName(g, e.from)} paid ${memberName(g, e.to) === 'You' ? 'you' : memberName(g, e.to)}`;
+      row.querySelector('.row-sub').textContent = 'Payment' + foreign;
+      row.querySelector('.row-amt span').textContent = money(total, code);
+      return row;
+    }
+    row.querySelector('.row-title').textContent = e.title;
+    row.querySelector('.row-sub').textContent = `${memberName(g, e.paidBy)} paid${foreign}`;
+    row.querySelector('.row-amt span').textContent = money(total, code);
+    // Your side of it.
+    const share = (L.shares(e, code)[g.me] || 0);
+    const small = row.querySelector('.row-amt small');
+    if (!g.me) small.textContent = '';
+    else if (e.paidBy === g.me) { const lent = total - share; small.textContent = lent ? `you lent ${money(lent, code)}` : 'just you'; small.className = lent ? 'pos' : ''; }
+    else if (share) { small.textContent = `you owe ${money(share, code)}`; small.className = 'neg'; }
+    else small.textContent = 'not involved';
+    return row;
+  }
+
+  function renderStatus() {
+    const g = current && groups.get(current);
+    let text = '';
+    if (g && g.gone) text = 'This group was deleted or the link is wrong.';
+    else if (offline && g && g.pending && g.pending.length) text = 'Offline · your changes will sync when you’re back online';
+    else if (offline) text = 'Offline · showing what was saved on this device';
+    $('status').textContent = text;
+    $('status').hidden = !text;
+  }
+
+  // ---- dialogs ----
+  function openDlg(d) {
+    d.showModal();
+    syncBack();
+  }
+  // Tells the app whether Back has something to do here (a sheet or a group).
+  const syncBack = () => toApp({ type: 'back', enabled: !!(current || document.querySelector('dialog[open]')) });
+  for (const d of document.querySelectorAll('dialog')) {
+    d.addEventListener('close', syncBack);
+    d.addEventListener('click', e => {
+      if (e.target === d || e.target.closest('[data-close]')) d.close();
+    });
+  }
+  // Android Back closes the top sheet, then leaves a group, then the app.
+  window.tallyBack = () => {
+    const open = [...document.querySelectorAll('dialog[open]')];
+    if (open.length) { open.at(-1).close(); return true; }
+    if (current) { goHome(); return true; }
+    return false;
+  };
+
+  // Currency picker shared by every currency button; resolves with a code or null.
+  let pickResolve = null;
+  function pickCurrency() {
+    $('pickerSearch').value = '';
+    renderPicker('');
+    openDlg($('picker'));
+    $('pickerSearch').focus();
+    return new Promise(res => { pickResolve = res; });
+  }
+  $('picker').addEventListener('close', () => { if (pickResolve) { pickResolve(null); pickResolve = null; } });
+  function renderPicker(q) {
+    q = q.trim().toLowerCase();
+    const mk = c => {
+      const li = document.createElement('li');
+      li.innerHTML = '<button type="button"><span class="c"></span><span class="n"></span></button>';
+      li.firstChild.dataset.code = c;
+      li.querySelector('.c').textContent = c;
+      li.querySelector('.n').textContent = curName(c);
+      return li;
+    };
+    const head = t => { const li = document.createElement('li'); li.className = 'group'; li.textContent = t; return li; };
+    if (!q) {
+      const rest = ALL_CURRENCIES.filter(c => !COMMON.includes(c)).sort((a, b) => curName(a).localeCompare(curName(b), locale));
+      $('pickerList').replaceChildren(head('Common'), ...COMMON.map(mk), head('All currencies'), ...rest.map(mk));
+      return;
+    }
+    const hits = ALL_CURRENCIES.filter(c => c.toLowerCase().startsWith(q) || curName(c).toLowerCase().includes(q));
+    $('pickerList').replaceChildren(...(hits.length ? hits.map(mk) : [head(`Nothing matches “${q}”`)]));
+  }
+  $('pickerSearch').addEventListener('input', e => renderPicker(e.target.value));
+  $('pickerSearch').addEventListener('keydown', e => {
+    const first = $('pickerList').querySelector('button');
+    if (e.key === 'Enter' && first) { e.preventDefault(); first.click(); }
+  });
+  $('pickerList').addEventListener('click', e => {
+    const b = e.target.closest('button[data-code]');
+    if (!b) return;
+    const res = pickResolve;
+    pickResolve = null;
+    $('picker').close();
+    if (res) res(b.dataset.code);
+  });
+
+  function chip(label, pressed, data) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.textContent = label;
+    b.setAttribute('aria-pressed', String(!!pressed));
+    Object.assign(b.dataset, data || {});
+    return b;
+  }
+
+  // ---- new group ----
+  let newOthers = [];
+  const homeCurrency = (() => {
+    try {
+      const region = new Intl.Locale(locale).maximize().region;
+      const c = { GB: 'GBP', US: 'USD', AU: 'AUD', NZ: 'NZD', CA: 'CAD', JP: 'JPY', CH: 'CHF', IN: 'INR', SG: 'SGD', TH: 'THB', ID: 'IDR' }[region];
+      return c || (['AT', 'BE', 'DE', 'ES', 'FI', 'FR', 'GR', 'IE', 'IT', 'NL', 'PT'].includes(region) ? 'EUR' : 'USD');
+    } catch { return 'USD'; }
+  })();
+  function openNew() {
+    $('newName').value = '';
+    $('newMe').value = store.get('myName') || '';
+    $('newCur').textContent = store.get('lastCurrency') || homeCurrency;
+    newOthers = [];
+    renderNewOthers();
+    openDlg($('newDlg'));
+    $('newName').focus();
+  }
+  function renderNewOthers() {
+    $('newOthers').replaceChildren(...newOthers.map((n, i) => {
+      const c = chip(n + '  ×', false, { i });
+      c.setAttribute('aria-label', `Remove ${n}`);
+      return c;
+    }));
+  }
+  function addOther() {
+    const n = $('newOther').value.trim();
+    if (n && !newOthers.includes(n)) newOthers.push(n);
+    $('newOther').value = '';
+    renderNewOthers();
+    $('newOther').focus();
+  }
+  $('newOtherAdd').addEventListener('click', addOther);
+  $('newOther').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addOther(); } });
+  $('newOthers').addEventListener('click', e => {
+    const c = e.target.closest('.chip');
+    if (c) { newOthers.splice(Number(c.dataset.i), 1); renderNewOthers(); }
+  });
+  $('newCur').addEventListener('click', async () => { const c = await pickCurrency(); if (c) $('newCur').textContent = c; });
+  $('createGo').addEventListener('click', () => {
+    const name = $('newName').value.trim();
+    const me = $('newMe').value.trim();
+    if (!name) return $('newName').focus();
+    if (!me) return $('newMe').focus();
+    if ($('newOther').value.trim()) addOther();
+    const id = L.newId(), meId = L.newId(), currency = $('newCur').textContent;
+    store.set('myName', me);
+    store.set('lastCurrency', currency);
+    const g = { group: { id, name, currency, version: 0 }, members: [], entries: [], pending: [], me: meId };
+    groups.set(id, g);
+    groupIds.unshift(id);
+    saveIds();
+    const ops = [{ type: 'group', name, currency }, { type: 'member', id: meId, name: me }, ...newOthers.map(n => ({ type: 'member', id: L.newId(), name: n }))];
+    $('newDlg').close();
+    haptic();
+    change(g, ops);
+    openGroup(id);
+    setTimeout(() => toast('Group created. Share the link so others can join.'), 300);
+  });
+
+  // ---- join ----
+  let joining = null; // { id, state }
+  function openJoin(prefill) {
+    $('joinLink').value = prefill || '';
+    $('joinHint').textContent = '';
+    $('joinLinkField').hidden = false;
+    $('whoField').hidden = true;
+    $('joinTitle').textContent = 'Join a group';
+    openDlg($('joinDlg'));
+    if (!prefill) $('joinLink').focus();
+  }
+  const idFromLink = s => { const m = String(s).match(/([A-Za-z0-9_-]{22})\s*$/); return m && L.isId(m[1]) ? m[1] : null; };
+  async function joinById(id) {
+    if (groups.has(id) && groups.get(id).me) { $('joinDlg').close(); return openGroup(id); }
+    $('joinHint').textContent = 'Opening…';
+    $('joinHint').className = 'hint';
+    try {
+      const state = await fetchGroup(id);
+      joining = { id, state };
+      $('joinTitle').textContent = state.group.name;
+      $('joinLinkField').hidden = true;
+      $('whoField').hidden = false;
+      $('whoChips').replaceChildren(...state.members.filter(m => !m.removed).map(m => chip(m.name, false, { member: m.id })));
+      if (!$('joinDlg').open) openDlg($('joinDlg'));
+    } catch (e) {
+      $('joinHint').textContent = e.status === 404 ? 'No group at that link.' : 'Couldn’t reach Tally. Check your connection.';
+      $('joinHint').className = 'hint bad';
+      if (!$('joinDlg').open) { $('joinLinkField').hidden = false; $('whoField').hidden = true; openDlg($('joinDlg')); }
+    }
+  }
+  $('joinBtn').addEventListener('click', () => openJoin(''));
+  $('joinGo').addEventListener('click', () => {
+    const id = idFromLink($('joinLink').value);
+    if (!id) { $('joinHint').textContent = 'That doesn’t look like a Tally link.'; $('joinHint').className = 'hint bad'; return; }
+    joinById(id);
+  });
+  $('joinLink').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('joinGo').click(); } });
+  $('whoChips').addEventListener('click', e => {
+    const c = e.target.closest('.chip');
+    if (!c || !joining) return;
+    finishJoin(c.dataset.member, null);
+  });
+  function addMe() {
+    const name = $('whoNew').value.trim();
+    if (!name || !joining) return $('whoNew').focus();
+    finishJoin(L.newId(), name);
+  }
+  $('whoAdd').addEventListener('click', addMe);
+  $('whoNew').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addMe(); } });
+  function finishJoin(meId, newName) {
+    const { id, state } = joining;
+    joining = null;
+    const g = adopt(id, state, meId);
+    $('joinDlg').close();
+    haptic();
+    if (newName) { store.set('myName', newName); change(g, [{ type: 'member', id: meId, name: newName }]); }
+    openGroup(id);
+  }
+
+  // ---- expense sheet ----
+  let draft = null; // { id, currency, paidBy, mode, parts: {id: string}, included: Set, editing }
+  function openExpense(entry) {
+    const g = groups.get(current);
+    if (!g) return;
+    const members = live(g);
+    const e = entry || null;
+    const ids = members.map(m => m.id);
+    draft = {
+      id: e ? e.id : L.newId(),
+      editing: !!e,
+      currency: e ? e.currency : (store.get('cur.' + g.group.id) || g.group.currency),
+      rate: e ? e.rate : null,
+      paidBy: e ? e.paidBy : (g.me || ids[0]),
+      mode: e ? e.split.mode : 'equal',
+      included: new Set(e ? Object.keys(e.split.parts) : ids),
+      values: {},
+    };
+    if (e && e.split.mode !== 'equal') for (const [k, v] of Object.entries(e.split.parts)) draft.values[k] = plainNum(v, e.currency);
+    $('expTitle').textContent = e ? 'Edit expense' : 'Add expense';
+    $('expWhat').value = e ? e.title : '';
+    $('expAmount').value = e ? plainNum(e.amount, e.currency) : '';
+    $('expDate').value = e ? e.date : today();
+    $('expDelete').hidden = !e;
+    renderExpense();
+    openDlg($('expDlg'));
+    if (!e) $('expAmount').focus();
+    if (draft.currency !== g.group.currency) loadRates().then(renderExpense);
+  }
+  // Members shown in the split: everyone current, plus anyone already in this expense.
+  const splitMembers = g => g.members.filter(m => !m.removed || draft.included.has(m.id) || draft.paidBy === m.id);
+  function draftParts(g, amount) {
+    const parts = {};
+    for (const m of splitMembers(g)) {
+      if (draft.mode === 'equal') { if (draft.included.has(m.id)) parts[m.id] = 1; continue; }
+      const v = L.parseNumber(draft.values[m.id] || '', GROUP_SEP);
+      if (v > 0) parts[m.id] = v;
+    }
+    return parts;
+  }
+  // What's wrong with the draft, or '' when it can be saved.
+  function draftProblem(g, amount, parts) {
+    if (!(amount > 0)) return 'Enter an amount';
+    if (!Object.keys(parts).length) return 'Choose who it’s split between';
+    if (!Number.isFinite(currentRate(g))) return `No ${draft.currency} rate yet. Connect once to fetch rates.`;
+    const sum = Object.values(parts).reduce((s, v) => s + v, 0);
+    if (draft.mode === 'exact' && Math.abs(sum - amount) > 0.005) return '';
+    if (draft.mode === 'percent' && Math.abs(sum - 100) > 0.001) return '';
+    return '';
+  }
+  const currentRate = g => (draft.currency === g.group.currency ? 1 : (draft.editing && draft.rate && draft.origCurrency === draft.currency ? draft.rate : rateOf(draft.currency, g.group.currency)));
+  function renderExpense() {
+    const g = groups.get(current);
+    if (!g || !draft) return;
+    const code = g.group.currency;
+    if (draft.origCurrency === undefined) draft.origCurrency = draft.currency;
+    $('expCur').textContent = draft.currency;
+    const amount = parse($('expAmount').value);
+    // Conversion line for foreign currencies.
+    const rate = currentRate(g);
+    $('expConv').hidden = draft.currency === code;
+    if (draft.currency !== code) {
+      $('expConv').textContent = Number.isFinite(rate)
+        ? `${amount > 0 ? '≈ ' + moneyMajor(amount * rate, code) + ' · ' : ''}1 ${draft.currency} = ${nf({ maximumSignificantDigits: 5 }).format(rate)} ${code}`
+        : `No ${draft.currency} rate yet`;
+    }
+    // Paid by.
+    $('expPaid').replaceChildren(...splitMembers(g).filter(m => !m.removed || m.id === draft.paidBy).map(m => chip(m.id === g.me ? 'You' : m.name, m.id === draft.paidBy, { member: m.id })));
+    // Mode.
+    for (const b of $('expMode').children) b.setAttribute('aria-pressed', String(b.dataset.mode === draft.mode));
+    // Split rows.
+    const parts = draftParts(g, amount);
+    const total = amount > 0 && Number.isFinite(rate) ? L.toMinor(amount * rate, code) : 0;
+    const owed = total ? L.allocate(total, draft.mode === 'equal' ? parts : parts) : {};
+    const rows = splitMembers(g).map(m => {
+      const row = document.createElement('div');
+      row.className = 'split-row';
+      const name = m.id === g.me ? 'You' : m.name;
+      if (draft.mode === 'equal') {
+        const on = draft.included.has(m.id);
+        row.innerHTML = '<button class="tick" type="button" role="checkbox"></button><span class="who"></span><span class="val"></span>';
+        const t = row.firstChild;
+        t.setAttribute('aria-checked', String(on));
+        t.setAttribute('aria-label', name);
+        t.dataset.toggle = m.id;
+        row.querySelector('.who').textContent = name;
+        row.querySelector('.val').textContent = on && owed[m.id] ? money(owed[m.id], code) : '';
+        row.dataset.toggle = m.id;
+      } else {
+        row.innerHTML = '<span></span><span class="who"></span><input inputmode="decimal" autocomplete="off">';
+        row.querySelector('.who').textContent = name;
+        const input = row.querySelector('input');
+        input.value = draft.values[m.id] || '';
+        input.dataset.member = m.id;
+        input.placeholder = draft.mode === 'shares' ? '0' : draft.mode === 'percent' ? '0 %' : '0';
+        input.setAttribute('aria-label', `${name}'s ${draft.mode === 'percent' ? 'percent' : draft.mode === 'shares' ? 'shares' : 'amount'}`);
+        if (draft.mode === 'shares' && owed[m.id]) row.firstChild.textContent = '';
+      }
+      return row;
+    });
+    $('expSplit').replaceChildren(...rows);
+    renderExpenseFoot(g, amount, parts, owed);
+  }
+  function renderExpenseFoot(g, amount, parts, owed) {
+    const code = g.group.currency;
+    const sum = Object.values(parts).reduce((s, v) => s + v, 0);
+    let left = '', right = '', bad = false;
+    if (draft.mode === 'equal') {
+      const n = Object.keys(parts).length;
+      left = n ? `Between ${n} ${n === 1 ? 'person' : 'people'}` : 'Tick who it’s for';
+      if (n && amount > 0) right = `${moneyMajor(amount / n, draft.currency)} each`;
+    } else if (draft.mode === 'exact') {
+      const diff = (amount || 0) - sum;
+      left = `${moneyMajor(sum, draft.currency)} of ${moneyMajor(amount || 0, draft.currency)}`;
+      if (Math.abs(diff) > 0.005) { right = diff > 0 ? `${moneyMajor(diff, draft.currency)} left` : `${moneyMajor(-diff, draft.currency)} over`; bad = true; }
+    } else if (draft.mode === 'percent') {
+      left = `${nf({ maximumFractionDigits: 2 }).format(sum)}% of 100%`;
+      if (Math.abs(sum - 100) > 0.001) { right = sum < 100 ? `${nf({ maximumFractionDigits: 2 }).format(100 - sum)}% left` : 'Over 100%'; bad = true; }
+    } else {
+      left = `${nf({ maximumFractionDigits: 2 }).format(sum)} shares`;
+      if (sum > 0 && amount > 0) right = `${moneyMajor(amount / sum, draft.currency)} per share`;
+    }
+    $('expFoot').textContent = left;
+    $('expFootRight').textContent = right;
+    $('expFootRight').className = bad ? 'neg' : '';
+    const problem = draftProblem(g, amount, parts);
+    $('expSave').disabled = !!problem || bad;
+  }
+  $('expAmount').addEventListener('input', renderExpense);
+  $('expPaid').addEventListener('click', e => {
+    const c = e.target.closest('.chip');
+    if (!c) return;
+    draft.paidBy = c.dataset.member;
+    haptic('tick');
+    renderExpense();
+  });
+  $('expMode').addEventListener('click', e => {
+    const b = e.target.closest('button[data-mode]');
+    if (!b || b.dataset.mode === draft.mode) return;
+    draft.mode = b.dataset.mode;
+    draft.values = {};
+    // Start the new mode from an even split of whoever was ticked.
+    const g = groups.get(current);
+    const inc = splitMembers(g).filter(m => draft.included.has(m.id));
+    const amount = parse($('expAmount').value);
+    if (inc.length) {
+      for (const m of inc) {
+        if (draft.mode === 'shares') draft.values[m.id] = '1';
+        else if (draft.mode === 'percent') draft.values[m.id] = plainNum(Math.round(10000 / inc.length) / 100, 'USD');
+        else if (amount > 0) draft.values[m.id] = plainNum(Math.round(amount / inc.length * 100) / 100, draft.currency);
+      }
+    }
+    haptic('tick');
+    renderExpense();
+  });
+  $('expSplit').addEventListener('click', e => {
+    const t = e.target.closest('[data-toggle]');
+    if (!t || draft.mode !== 'equal') return;
+    const id = t.dataset.toggle;
+    if (draft.included.has(id)) draft.included.delete(id); else draft.included.add(id);
+    haptic('tick');
+    renderExpense();
+  });
+  $('expSplit').addEventListener('input', e => {
+    const input = e.target.closest('input[data-member]');
+    if (!input) return;
+    draft.values[input.dataset.member] = input.value;
+    const g = groups.get(current);
+    const amount = parse($('expAmount').value);
+    const parts = draftParts(g, amount);
+    renderExpenseFoot(g, amount, parts, {});
+  });
+  $('expCur').addEventListener('click', async () => {
+    const c = await pickCurrency();
+    if (!c) return;
+    draft.currency = c;
+    renderExpense();
+    await loadRates();
+    renderExpense();
+  });
+  $('expSave').addEventListener('click', () => {
+    const g = groups.get(current);
+    const amount = parse($('expAmount').value);
+    const parts = draftParts(g, amount);
+    const rate = currentRate(g);
+    if (draftProblem(g, amount, parts) || !(amount > 0)) return;
+    const data = {
+      kind: 'expense',
+      title: $('expWhat').value.trim() || 'Expense',
+      amount: Math.round(amount * 1e8) / 1e8,
+      currency: draft.currency,
+      rate: Math.round(rate * 1e10) / 1e10,
+      date: $('expDate').value || today(),
+      paidBy: draft.paidBy,
+      split: { mode: draft.mode, parts },
+      by: g.me,
+    };
+    store.set('cur.' + g.group.id, draft.currency);
+    $('expDlg').close();
+    haptic();
+    change(g, [{ type: 'entry', id: draft.id, data }]);
+    toast(draft.editing ? 'Expense updated' : 'Expense added');
+  });
+  $('expDelete').addEventListener('click', () => {
+    const g = groups.get(current);
+    const e = g.entries.find(x => x.id === draft.id);
+    if (!e) return;
+    $('expDlg').close();
+    change(g, [{ type: 'entry', id: e.id, data: stripMeta(e), deleted: true }]);
+    toast('Expense deleted');
+  });
+  const stripMeta = e => { const { id, deleted, createdAt, updatedAt, ...data } = e; return data; };
+
+  // ---- settle up ----
+  let pay = null; // { from, to, editing }
+  function openSettle(entry) {
+    const g = groups.get(current);
+    const code = g.group.currency;
+    const plan = L.settle(netOf(g));
+    $('paySuggest').hidden = !!entry || !plan.length;
+    $('payTitle').textContent = entry ? 'Payment' : 'Settle up';
+    $('payFormLabel').textContent = entry ? 'Edit payment' : (plan.length ? 'Or record another payment' : 'Everyone’s square. Record a payment anyway?');
+    $('payList').replaceChildren(...plan.map(p => {
+      const row = document.createElement('div');
+      row.className = 'pay-row';
+      row.innerHTML = '<span class="who"></span><span></span><button class="btn btn-secondary" type="button">Record</button>';
+      row.firstChild.textContent = `${memberName(g, p.from)} → ${memberName(g, p.to)}`;
+      row.children[1].textContent = money(p.amount, code);
+      Object.assign(row.lastChild.dataset, { from: p.from, to: p.to, amount: p.amount });
+      return row;
+    }));
+    pay = entry ? { id: entry.id, from: entry.from, to: entry.to, editing: true } : { id: L.newId(), from: g.me, to: null, editing: false };
+    $('payAmount').value = entry ? plainNum(L.fromMinor(L.entryTotal(entry, code), code), code) : '';
+    $('payAmount').placeholder = `Amount in ${code}`;
+    $('payDelete').hidden = !entry;
+    renderPay();
+    openDlg($('payDlg'));
+  }
+  function renderPay() {
+    const g = groups.get(current);
+    const people = g.members.filter(m => !m.removed || m.id === pay.from || m.id === pay.to);
+    $('payFrom').replaceChildren(...people.map(m => chip(m.id === g.me ? 'You' : m.name, m.id === pay.from, { member: m.id })));
+    $('payTo').replaceChildren(...people.filter(m => m.id !== pay.from).map(m => chip(m.id === g.me ? 'You' : m.name, m.id === pay.to, { member: m.id })));
+    const amount = parse($('payAmount').value);
+    $('payGo').disabled = !(pay.from && pay.to && pay.from !== pay.to && amount > 0);
+    $('payHint').textContent = '';
+  }
+  $('payFrom').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; pay.from = c.dataset.member; if (pay.to === pay.from) pay.to = null; renderPay(); });
+  $('payTo').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; pay.to = c.dataset.member; renderPay(); });
+  $('payAmount').addEventListener('input', renderPay);
+  function recordPayment(from, to, minor) {
+    const g = groups.get(current);
+    const code = g.group.currency;
+    const data = { kind: 'payment', amount: L.fromMinor(minor, code), currency: code, rate: 1, date: today(), from, to, by: g.me };
+    $('payDlg').close();
+    haptic();
+    change(g, [{ type: 'entry', id: pay.editing ? pay.id : L.newId(), data }]);
+    toast('Payment recorded');
+  }
+  $('payList').addEventListener('click', e => {
+    const b = e.target.closest('button[data-from]');
+    if (b) recordPayment(b.dataset.from, b.dataset.to, Number(b.dataset.amount));
+  });
+  $('payGo').addEventListener('click', () => {
+    const g = groups.get(current);
+    const amount = parse($('payAmount').value);
+    if (!(pay.from && pay.to && amount > 0)) return;
+    recordPayment(pay.from, pay.to, L.toMinor(amount, g.group.currency));
+  });
+  $('payDelete').addEventListener('click', () => {
+    const g = groups.get(current);
+    const e = g.entries.find(x => x.id === pay.id);
+    if (!e) return;
+    $('payDlg').close();
+    change(g, [{ type: 'entry', id: e.id, data: stripMeta(e), deleted: true }]);
+    toast('Payment deleted');
+  });
+
+  // ---- group settings ----
+  function openSettings() {
+    const g = groups.get(current);
+    renaming = null;
+    $('setName').value = g.group.name;
+    $('setCur').textContent = g.group.currency;
+    const hasEntries = entriesOf(g).length > 0;
+    $('setCur').disabled = hasEntries;
+    $('setCurHint').textContent = hasEntries ? 'Fixed once there are expenses, so past amounts stay right.' : '';
+    renderMembers();
+    openDlg($('setDlg'));
+  }
+  let renaming = null;
+  function renderMembers() {
+    const g = groups.get(current);
+    const net = netOf(g);
+    $('setMembers').replaceChildren(...live(g).map(m => {
+      const row = document.createElement('div');
+      row.className = 'row member-row';
+      if (m.id === renaming) {
+        // Renaming happens in place: the name becomes a field.
+        row.innerHTML = '<input class="input" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="link" type="button">Save</button>';
+        row.firstChild.value = m.name;
+        row.firstChild.setAttribute('aria-label', `New name for ${m.name}`);
+        row.firstChild.dataset.renameInput = m.id;
+        row.lastChild.dataset.renameSave = m.id;
+        return row;
+      }
+      row.innerHTML = '<span class="row-title"></span><button class="link" type="button"></button>';
+      row.firstChild.textContent = m.id === g.me ? `${m.name} (you)` : m.name;
+      const b = row.lastChild;
+      if (m.id === g.me) { b.textContent = 'Rename'; b.dataset.rename = m.id; }
+      else if (net[m.id]) { b.textContent = 'Rename'; b.dataset.rename = m.id; }
+      else { b.textContent = 'Remove'; b.dataset.remove = m.id; b.classList.add('danger'); }
+      return row;
+    }));
+  }
+  function saveRename() {
+    const g = groups.get(current);
+    const input = $('setMembers').querySelector('[data-rename-input]');
+    const m = input && g.members.find(x => x.id === input.dataset.renameInput);
+    renaming = null;
+    const name = input ? input.value.trim() : '';
+    if (m && name && name !== m.name) change(g, [{ type: 'member', id: m.id, name, removed: false }]);
+    renderMembers();
+  }
+  $('setMembers').addEventListener('keydown', e => {
+    if (e.target.dataset.renameInput && e.key === 'Enter') { e.preventDefault(); saveRename(); }
+  });
+  $('setMembers').addEventListener('click', e => {
+    const g = groups.get(current);
+    const r = e.target.closest('[data-rename]'), d = e.target.closest('[data-remove]');
+    if (e.target.closest('[data-rename-save]')) return saveRename();
+    if (r) {
+      renaming = r.dataset.rename;
+      renderMembers();
+      const input = $('setMembers').querySelector('[data-rename-input]');
+      input.focus();
+      input.select();
+    } else if (d) {
+      const m = g.members.find(x => x.id === d.dataset.remove);
+      change(g, [{ type: 'member', id: m.id, name: m.name, removed: true }]);
+      renderMembers();
+    }
+  });
+  function addMember() {
+    const g = groups.get(current);
+    const name = $('setNew').value.trim();
+    if (!name) return $('setNew').focus();
+    change(g, [{ type: 'member', id: L.newId(), name }]);
+    $('setNew').value = '';
+    renderMembers();
+  }
+  $('setAdd').addEventListener('click', addMember);
+  $('setNew').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addMember(); } });
+  $('setCur').addEventListener('click', async () => { const c = await pickCurrency(); if (c) $('setCur').textContent = c; });
+  $('setSave').addEventListener('click', () => {
+    if (renaming) saveRename();
+    const g = groups.get(current);
+    const name = $('setName').value.trim() || g.group.name;
+    const currency = $('setCur').textContent;
+    if (name !== g.group.name || currency !== g.group.currency) change(g, [{ type: 'group', name, currency }]);
+    $('setDlg').close();
+  });
+  $('setShare').addEventListener('click', () => share());
+  $('setForget').addEventListener('click', () => {
+    const id = current;
+    const g = groups.get(id);
+    if (g.pending && g.pending.length && !confirm('Some changes haven’t synced yet and will be lost. Remove anyway?')) return;
+    $('setDlg').close();
+    groups.delete(id);
+    groupIds = groupIds.filter(x => x !== id);
+    saveIds();
+    store.del('g.' + id);
+    store.del('cur.' + id);
+    goHome();
+  });
+
+  // ---- share ----
+  async function share() {
+    const g = groups.get(current);
+    if (!g) return;
+    const url = linkOf(g.group.id);
+    const text = `Join “${g.group.name}” on Tally to split costs: ${url}`;
+    if (app) return toApp({ type: 'share', title: g.group.name, text });
+    if (navigator.share) { try { await navigator.share({ title: g.group.name, text, url }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+    try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch { prompt('Copy this link', url); }
+  }
+
+  // ---- wiring ----
+  document.addEventListener('click', e => {
+    if (e.target.closest('[data-action="newGroup"]')) openNew();
+    const open = e.target.closest('[data-open]');
+    if (open) openGroup(open.dataset.open);
+    const ent = e.target.closest('[data-entry]');
+    if (ent) {
+      const g = groups.get(current);
+      const entry = g && g.entries.find(x => x.id === ent.dataset.entry);
+      if (entry) entry.kind === 'payment' ? openSettle(entry) : openExpense(entry);
+    }
+  });
+  $('back').addEventListener('click', () => history.length > 1 && history.state && history.state.g ? history.back() : goHome());
+  $('addBtn').addEventListener('click', () => openExpense(null));
+  $('settleBtn').addEventListener('click', () => openSettle(null));
+  $('settingsBtn').addEventListener('click', openSettings);
+  $('shareBtn').addEventListener('click', share);
+
+  // ---- Android app bridge (absent in a browser) ----
+  const app = window.tallyApp || null;
+  function toApp(msg) {
+    if (!app) return;
+    try { app.postMessage(JSON.stringify(msg)); } catch {}
+  }
+  const haptic = (kind = 'tap') => toApp({ type: 'haptic', kind });
+  let appVersion = '', updateReady = false, versionTimer = 0;
+  function showVersion(text, state) {
+    clearTimeout(versionTimer);
+    $('version').textContent = text;
+    $('version').dataset.state = state || '';
+  }
+  let updateVersion = '', updateSize = 0;
+  function showUpdate(m) {
+    const show = (id, on) => { $(id).hidden = !on; };
+    $('updateCard').hidden = false;
+    if (m.state === 'available') {
+      updateVersion = m.version || updateVersion;
+      updateSize = m.size > 0 ? m.size : updateSize;
+      const notes = Array.isArray(m.notes) ? m.notes.filter(n => typeof n === 'string' && n).slice(0, 5) : [];
+      $('updateNotes').replaceChildren(...notes.map(n => { const li = document.createElement('li'); li.textContent = n; return li; }));
+      show('updateNew', notes.length > 0);
+    }
+    const view = {
+      available: { title: 'Update available', msg: '', actions: true, progress: false, go: 'Update' },
+      downloading: { title: 'Downloading update', msg: '', actions: false, progress: true },
+      installing: { title: 'Installing update', actions: false, progress: true, msg: 'Confirm on the next screen. The first time, Android asks you to allow installs from Tally. Turn it on, then go back.' },
+      failed: { title: "Update didn't finish", msg: m.message || 'Something went wrong. Try again.', actions: true, progress: false, go: 'Try again' },
+    }[m.state];
+    if (!view) return;
+    $('updateTitle').textContent = view.title;
+    $('updateSub').textContent = [`Tally ${updateVersion}`, updateSize ? `${(updateSize / 1e6).toFixed(1)} MB` : ''].filter(Boolean).join(' · ');
+    $('updateMsg').textContent = view.msg;
+    show('updateMsg', !!view.msg);
+    show('updateActions', view.actions);
+    show('updateProgress', view.progress);
+    if (view.go) $('updateGo').textContent = view.go;
+    if (view.progress) {
+      const p = m.state === 'installing' ? 100 : Math.round(Math.max(0, Math.min(1, m.progress || 0)) * 100);
+      $('updateBar').style.width = p + '%';
+      $('updatePct').textContent = p + '%';
+    }
+  }
+  if (app) {
+    app.onmessage = e => {
+      let m;
+      try { m = JSON.parse(e.data); } catch { return; }
+      if (m.type === 'info') {
+        appVersion = m.version;
+        const seen = store.get('seenVersion');
+        store.set('seenVersion', appVersion);
+        if (!updateReady && seen && seen !== appVersion) {
+          showVersion(`Updated to v${appVersion}`, 'available');
+          versionTimer = setTimeout(() => showVersion(`v${appVersion}`), 4000);
+        } else if (!updateReady) showVersion(`v${appVersion}`);
+        render();
+      } else if (m.type === 'updateStatus') {
+        if (m.state === 'available') { updateReady = true; return showVersion('Update available', 'available'); }
+        showVersion(m.state === 'latest' ? 'Up to date' : "Couldn't check");
+        versionTimer = setTimeout(() => showVersion(`v${appVersion}`), 2500);
+      } else if (m.type === 'update') {
+        if (m.state === 'available') { updateReady = true; showVersion('Update available', 'available'); }
+        showUpdate(m);
+      } else if (m.type === 'openLink') {
+        const id = idFromLink(m.url || '');
+        if (id) openFromLink(id);
+      }
+    };
+    $('updateGo').addEventListener('click', () => { showUpdate({ state: 'downloading', progress: 0 }); toApp({ type: 'installUpdate' }); });
+    $('updateLater').addEventListener('click', () => { $('updateCard').hidden = true; });
+    $('version').addEventListener('click', () => {
+      if (updateReady) { $('updateCard').hidden = false; scrollTo({ top: 0, behavior: 'smooth' }); return; }
+      showVersion('Checking…');
+      toApp({ type: 'checkUpdate' });
+    });
+  }
+
+  // A group link: open it if it's here and we know who we are, else join.
+  function openFromLink(id) {
+    const g = groups.get(id);
+    if (g && g.me) return openGroup(id);
+    joinById(id);
+  }
+
+  // ---- boot ----
+  const pathId = (location.pathname.match(/^\/g\/([A-Za-z0-9_-]{22})$/) || [])[1] || (location.hash.match(/g=([A-Za-z0-9_-]{22})/) || [])[1];
+  history.replaceState(pathId ? { g: pathId } : {}, '');
+  if (pathId) openFromLink(pathId); else render();
+  if (!pathId || !groups.has(pathId)) for (const id of groupIds) sync(id);
+  toApp({ type: 'hello' });
+  setInterval(() => { if (!document.hidden && current) sync(current); }, POLL_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) (current ? [current] : groupIds).forEach(sync); });
+  addEventListener('online', () => groupIds.forEach(sync));
+})();
+</script>
+</body>
+</html>
