@@ -39,6 +39,7 @@
   --pos: #1D7548;
   --neg: #B0392D;
   --on-ink: #F7F8F4;
+  --on-accent: #FFFFFF;
   --backdrop: rgba(10, 16, 14, .4);
   --shadow: rgba(20, 33, 28, .12);
   --font: "Hanken Grotesk", "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
@@ -57,6 +58,7 @@
     --pos: #5FC890;
     --neg: #F08476;
     --on-ink: #0E1412;
+    --on-accent: #0E1412;
     --backdrop: rgba(0, 0, 0, .6);
     --shadow: rgba(0, 0, 0, .45);
     color-scheme: dark;
@@ -74,6 +76,7 @@
   --pos: #5FC890;
   --neg: #F08476;
   --on-ink: #0E1412;
+  --on-accent: #0E1412;
   --backdrop: rgba(0, 0, 0, .6);
   --shadow: rgba(0, 0, 0, .45);
   color-scheme: dark;
@@ -260,6 +263,23 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
   font-size: 2.2rem; font-weight: 500; letter-spacing: -.02em; text-align: right; caret-color: var(--accent);
 }
 .big-amount:focus { outline: none; }
+.title-input {
+  width: 100%; min-height: 48px; padding: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+  background: transparent; font-size: 1.15rem; font-weight: 500;
+}
+.title-input:focus { outline: none; border-bottom-color: var(--accent); }
+.title-input::placeholder { color: var(--faint); font-weight: 400; }
+
+/* Date: a ruled row showing the date in words; the real date input covers it,
+   invisible, so a tap anywhere opens the phone's own picker. */
+.date-row {
+  position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 48px; padding: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); cursor: pointer;
+}
+.date-row svg { flex: none; color: var(--muted); }
+.date-row:focus-within { border-bottom-color: var(--accent); }
+.date-native { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+.date-native::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; margin: 0; cursor: pointer; }
 .big-amount::placeholder { color: var(--faint); }
 
 /* Picking one person (who paid, from, to): names as text, the chosen one
@@ -303,8 +323,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--faint);
   display: grid; place-items: center; background: none; padding: 0;
 }
-.split-row .tick[aria-checked="true"] { background: var(--ink); border-color: var(--ink); }
-.split-row .tick[aria-checked="true"]::after { content: ""; width: 5px; height: 9px; margin-top: -2px; border: solid var(--on-ink); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.split-row .tick[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.split-row .tick[aria-checked="true"]::after { content: ""; width: 5px; height: 9px; margin-top: -2px; border: solid var(--on-accent); border-width: 0 2px 2px 0; transform: rotate(45deg); }
 .split-row .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .split-row .val { font-size: .9rem; color: var(--muted); text-align: right; }
 .split-row input {
@@ -525,7 +545,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     <button class="btn btn-primary" type="button" id="expSave">Save</button>
   </div>
   <div class="sheet-body">
-    <input class="input" id="expWhat" placeholder="What was it for?" maxlength="80" autocomplete="off" enterkeyhint="done" data-done aria-label="Description">
+    <input class="title-input" id="expWhat" placeholder="What was it for?" maxlength="80" autocomplete="off" enterkeyhint="done" data-done aria-label="Description">
     <div class="field">
       <div class="amount-row">
         <button class="cur-btn" type="button" id="expCur" aria-label="Currency">EUR</button>
@@ -562,7 +582,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       </div>
       <span class="hint" id="expRepeatHint" hidden></span>
     </div>
-    <label class="field"><span class="field-label">Date</span><input class="input" type="date" id="expDate"></label>
+    <div class="field">
+      <span class="field-label">Date</span>
+      <label class="date-row"><span id="expDateText"></span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg><input class="date-native" type="date" id="expDate" aria-label="Date"></label>
+    </div>
     <div class="field">
       <button class="link" type="button" id="expNoteBtn" style="justify-self: start">Add a note</button>
       <label class="field" id="expNoteField" hidden><span class="field-label">Note</span><input class="input" id="expNote" maxlength="200" autocomplete="off" enterkeyhint="done" data-done placeholder="Anything worth remembering"></label>
@@ -1468,6 +1491,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('expWhat').value = e ? e.title : '';
     $('expAmount').value = e ? plainNum(e.amount, e.currency) : '';
     $('expDate').value = e ? e.date : today();
+    showDate();
     $('expNote').value = (e && e.note) || '';
     $('expNoteField').hidden = !(e && e.note);
     $('expNoteBtn').hidden = !!(e && e.note);
@@ -1642,6 +1666,13 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (problem && amount > 0 && !bad && !payIssue) { $('expFootRight').textContent = problem; $('expFootRight').className = 'neg'; }
   }
   $('expAmount').addEventListener('input', renderExpense);
+  // The date in words: "Today", "Yesterday", else "Sun 1 Nov" (with the year when it's another year).
+  function showDate() {
+    const v = $('expDate').value;
+    $('expDateText').textContent = !v || v === today() ? 'Today' : dayLabel(v);
+  }
+  $('expDate').addEventListener('input', () => { showDate(); renderExpense(); });
+  $('expDate').addEventListener('change', showDate);
   $('expNoteBtn').addEventListener('click', () => {
     $('expNoteBtn').hidden = true;
     $('expNoteField').hidden = false;
