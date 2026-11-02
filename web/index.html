@@ -32,8 +32,9 @@
   --surface: #F7F8F4;
   --ink: #14211C;
   --muted: #5B6861;
-  --faint: #77847D;
+  --faint: #66736C;
   --line: #CDD5CC;
+  --line-strong: #8C968F;
   --accent: #2C53C4;
   --accent-soft: rgba(44, 83, 196, .08);
   --pos: #1D7548;
@@ -51,8 +52,9 @@
     --surface: #18211E;
     --ink: #E4EAE5;
     --muted: #8C9992;
-    --faint: #74817B;
+    --faint: #838F89;
     --line: #2E3A35;
+    --line-strong: #5F6C66;
     --accent: #85A2FF;
     --accent-soft: rgba(133, 162, 255, .10);
     --pos: #5FC890;
@@ -69,8 +71,9 @@
   --surface: #18211E;
   --ink: #E4EAE5;
   --muted: #8C9992;
-  --faint: #74817B;
+  --faint: #838F89;
   --line: #2E3A35;
+  --line-strong: #5F6C66;
   --accent: #85A2FF;
   --accent-soft: rgba(133, 162, 255, .10);
   --pos: #5FC890;
@@ -132,7 +135,9 @@ button { cursor: pointer; }
 .btn-primary:disabled { opacity: .35; cursor: default; }
 .btn-secondary { background: transparent; border: 1px solid var(--line); color: var(--ink); }
 .btn-secondary:hover { border-color: var(--muted); }
-.link { padding: 6px 0; background: none; border: 0; font-size: .88rem; font-weight: 600; color: var(--accent); }
+.link { position: relative; padding: 6px 0; background: none; border: 0; font-size: .88rem; font-weight: 600; color: var(--accent); }
+/* Text buttons stay small on screen but take a full-size tap */
+.link::after { content: ""; position: absolute; inset: -9px -6px; }
 .danger { color: var(--neg); }
 
 /* Cards and lists */
@@ -207,7 +212,8 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 /* Everyone else's balance: a plain ruled list, like Bureau's quick amounts */
 .bal-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; padding: 0 2px; border-top: 1px solid var(--line); font-size: .92rem; }
 .bal-row:last-child { border-bottom: 1px solid var(--line); }
-#people .bal-row { cursor: pointer; }
+#people .bal-row { width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; color: inherit; font: inherit; font-size: .92rem; text-align: left; cursor: pointer; }
+#people .bal-row:last-child { border-bottom: 0; }
 #people .bal-row:active { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .bal-row > span:first-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bal-row > span:last-child { white-space: nowrap; font-weight: 500; }
@@ -238,11 +244,11 @@ dialog, dialog::backdrop {
   transition: opacity .18s ease-out, transform .22s cubic-bezier(.2, .7, .2, 1), overlay .22s allow-discrete, display .22s allow-discrete;
   opacity: 0;
 }
-dialog { transform: translateY(12px); }
+dialog { transform: translateY(24px); }
 dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 @starting-style {
   dialog[open], dialog[open]::backdrop { opacity: 0; }
-  dialog[open] { transform: translateY(12px); }
+  dialog[open] { transform: translateY(24px); }
 }
 .sheet-head {
   display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 6px 8px 6px 4px;
@@ -250,14 +256,15 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 }
 .sheet-head h2 { flex: 1; margin: 0; font-size: 1rem; font-weight: 600; }
 .sheet-head .icon-btn { margin: 0; }
-.sheet-head .btn { min-height: 38px; padding: 0 16px; }
+.sheet-head .btn { min-height: 44px; padding: 0 16px; }
 .sheet-body { padding: 18px 20px 28px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; }
+@media (max-width: 480px) { .sheet-body { padding-left: 16px; padding-right: 16px; } }
 .field { min-width: 0; grid-template-columns: minmax(0, 1fr); }
 .field { display: grid; gap: 6px; }
 .field-label { font-size: .8rem; font-weight: 500; color: var(--muted); }
 .input {
   width: 100%; min-height: 46px; padding: 0 12px;
-  border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
+  border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg);
 }
 .input:focus { outline: none; border-color: var(--accent); }
 .input::placeholder { color: var(--faint); }
@@ -308,7 +315,8 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .blk:focus-within:has(.date-native:focus-visible) { border-color: var(--accent); }
 .blk .split { margin-bottom: -10px; }
 .blk .split-foot { border-top: 1px solid var(--line); padding-top: 10px; }
-.blk .amount-row { border-bottom: 0; padding-bottom: 0; }
+.blk .amount-row { padding-bottom: 4px; border-bottom: 1px solid transparent; }
+.blk .amount-row:focus-within { border-bottom-color: var(--accent); }
 .blk .title-input { min-height: 40px; }
 .blk.tap { cursor: pointer; }
 .blk.tap:active { background: color-mix(in srgb, var(--ink) 5%, var(--bg)); }
@@ -387,8 +395,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 .split-row .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .split-row .val { font-size: .9rem; color: var(--muted); text-align: right; }
 .split-row input {
-  width: 96px; min-height: 36px; padding: 0 10px; text-align: right;
-  border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
+  width: 96px; min-height: 40px; padding: 0 10px; text-align: right;
+  border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg);
 }
 .split-row input:focus { outline: none; border-color: var(--accent); }
 .split-foot { display: flex; justify-content: space-between; padding-top: 8px; font-size: .82rem; color: var(--muted); }
@@ -404,6 +412,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 /* Member rows in settings */
 .member-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 48px; }
 .member-row .link { font-weight: 500; color: var(--muted); }
+.member-row .acts { display: flex; gap: 18px; }
 .add-row { display: flex; gap: 8px; }
 .add-row .input { flex: 1; }
 
@@ -486,15 +495,15 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       <button class="icon-btn" id="settingsBtn" type="button" aria-label="Group settings" hidden>
         <svg width="19" height="19" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4.5" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="15.5" cy="10" r="1.6"/></svg>
       </button>
-      <button class="version" id="version" type="button" title="Check for updates" aria-live="polite" hidden></button>
+      <button class="version" id="version" type="button" title="Check for updates" hidden></button>
     </div>
   </header>
-  <p class="status" id="status" hidden></p>
+  <p class="status" id="status" role="status" hidden></p>
 
   <section class="card update" id="updateCard" aria-label="App update" hidden>
     <div class="update-head">
       <span class="update-icon" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v9M5 8.5 9 12.5l4-4M4 15h10"/></svg>
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v9M5 8.5 9 12.5l4-4M4 15h10"/></svg>
       </span>
       <div>
         <p class="update-title" id="updateTitle">Update available</p>
@@ -568,7 +577,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 <!-- New group -->
 <dialog id="newDlg" tabindex="-1" aria-labelledby="newTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="newTitle">New group</h2>
     <button class="btn btn-primary" type="button" id="createGo">Create</button>
   </div>
@@ -592,7 +601,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 <!-- Join with a link / who are you -->
 <dialog id="joinDlg" tabindex="-1" aria-labelledby="joinTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="joinTitle">Join a group</h2>
   </div>
   <div class="sheet-body blocks">
@@ -612,13 +621,13 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 <!-- Add / edit expense -->
 <dialog id="expDlg" tabindex="-1" aria-labelledby="expTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="expTitle">Add expense</h2>
     <button class="btn btn-primary" type="button" id="expSave">Save</button>
   </div>
   <div class="sheet-body blocks">
     <div class="blk">
-      <input class="title-input" id="expWhat" placeholder="What was it for?" maxlength="80" autocomplete="off" enterkeyhint="done" data-done aria-label="Description">
+      <input class="title-input" id="expWhat" placeholder="What was it for?" maxlength="80" autocomplete="off" enterkeyhint="next" aria-label="Description">
       <div class="amount-row">
         <button class="cur-btn" type="button" id="expCur" aria-label="Currency">EUR</button>
         <input class="big-amount" id="expAmount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done" data-done aria-label="Amount">
@@ -627,7 +636,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     </div>
     <div class="blk">
       <div class="blk-head"><span class="field-label">Paid by</span></div>
-      <div class="chips" id="expPaid"></div>
+      <div class="chips" id="expPaid" role="group" aria-label="Paid by"></div>
       <div id="expPayers" class="field" hidden>
         <div class="split" id="expPayerRows"></div>
         <div class="split-foot"><span id="expPayFoot"></span><span id="expPayFootRight"></span></div>
@@ -671,7 +680,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 <!-- Settle up / record a payment -->
 <dialog id="payDlg" tabindex="-1" aria-labelledby="payTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="payTitle">Settle up</h2>
   </div>
   <div class="sheet-body blocks">
@@ -681,8 +690,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     </div>
     <div class="blk">
       <div class="blk-head"><span class="field-label" id="payFormLabel">Record a payment</span></div>
-      <div class="who-line"><span class="hint">From</span><div class="chips" id="payFrom"></div></div>
-      <div class="who-line"><span class="hint">To</span><div class="chips" id="payTo"></div></div>
+      <div class="who-line"><span class="hint">From</span><div class="chips" id="payFrom" role="group" aria-label="From"></div></div>
+      <div class="who-line"><span class="hint">To</span><div class="chips" id="payTo" role="group" aria-label="To"></div></div>
       <div class="add-row"><input class="input" id="payAmount" aria-label="Amount" inputmode="decimal" placeholder="Amount" autocomplete="off" enterkeyhint="done" data-done><button class="btn btn-primary" type="button" id="payGo">Record</button></div>
       <span class="hint" id="payHint"></span>
     </div>
@@ -693,7 +702,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 <!-- Group settings -->
 <dialog id="setDlg" tabindex="-1" aria-labelledby="setTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="setTitle">Group</h2>
     <button class="btn btn-primary" type="button" id="setSave">Done</button>
   </div>
@@ -730,7 +739,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 <!-- Currency picker -->
 <dialog id="picker" tabindex="-1" aria-labelledby="pickerTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="pickerTitle">Currency</h2>
   </div>
   <div class="picker-head">
@@ -855,25 +864,39 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   // ---- groups on this device ----
   // Each group is kept whole on the device (so it opens instantly and works
   // offline) with `pending`: changes not yet accepted by the server, and
-  // `me`: which member this device is.
+  // `me`: which member this device is. The queue has its own small key, so
+  // a change doesn't rewrite the whole group; it's replayed on load.
   let groupIds = (store.get('groups') || []).filter(L.isId);
   const groups = new Map();
   for (const id of groupIds) {
     const g = store.get('g.' + id);
-    if (g && g.group) groups.set(id, { pending: [], ...g });
+    if (!g || !g.group) continue;
+    g.pending = store.get('p.' + id) || g.pending || [];
+    groups.set(id, g);
   }
   groupIds = groupIds.filter(id => groups.has(id));
-  const saveGroup = g => store.set('g.' + g.group.id, g);
+  const savePending = g => { if (g.pending.length) store.set('p.' + g.group.id, g.pending); else store.del('p.' + g.group.id); };
+  const saveGroup = g => { const { pending, rev, ...rest } = g; store.set('g.' + g.group.id, rest); savePending(g); };
   const saveIds = () => store.set('groups', groupIds);
 
   const live = g => g.members.filter(m => !m.removed);
   const memberName = (g, id) => (id === g.me ? 'You' : ((g.members.find(m => m.id === id) || {}).name || 'Someone'));
   const entriesOf = g => g.entries.filter(e => !e.deleted);
-  const netOf = g => L.balances(entriesOf(g), g.members.map(m => m.id), g.group.currency);
+  const netCache = new WeakMap();
+  const netOf = g => {
+    const hit = netCache.get(g);
+    if (hit && hit.rev === g.rev) return hit.net;
+    const net = L.balances(entriesOf(g), g.members.map(m => m.id), g.group.currency);
+    netCache.set(g, { rev: g.rev, net });
+    return net;
+  };
   const linkOf = id => `${SITE}/g/${id}`;
 
-  // Changes are applied here at once and queued for the server.
+  // Changes are applied here at once and queued for the server. `rev`
+  // counts changes on this device, so balances are only worked out again
+  // when something changed.
   function applyOp(g, op) {
+    g.rev = (g.rev || 0) + 1;
     if (op.type === 'group') {
       Object.assign(g.group, { name: op.name, currency: op.currency });
       if ('split' in op) g.group.split = op.split || undefined;
@@ -892,10 +915,11 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   function change(g, ops) {
     for (const op of ops) applyOp(g, op);
     g.pending = [...(g.pending || []), ...ops];
-    saveGroup(g);
+    savePending(g);
     render();
     sync(g.group.id);
   }
+  for (const g of groups.values()) for (const op of g.pending) applyOp(g, op);
 
   // ---- sync ----
   const syncing = new Set();
@@ -908,28 +932,43 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       let res;
       const sending = g.pending.slice(0, g.oneByOne ? 1 : 200);
       if (!sending.length) g.oneByOne = false;
+      // With a version from the server, only newer entries come back.
+      const since = g.etag && Number.isInteger(g.group.version) ? g.group.version : null;
       if (sending.length) {
-        res = await fetch(`${API}/api/g/${id}/ops`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ops: sending }) });
+        res = await fetch(`${API}/api/g/${id}/ops`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(since === null ? { ops: sending } : { ops: sending, since }) });
       } else {
-        res = await fetch(`${API}/api/g/${id}`, { headers: g.etag ? { 'If-None-Match': g.etag } : {}, cache: 'no-store' });
+        res = await fetch(`${API}/api/g/${id}${since === null ? '' : '?since=' + since}`, { headers: g.etag ? { 'If-None-Match': g.etag } : {}, cache: 'no-store' });
       }
       offline = false;
       retries.delete(id);
       if (!groups.has(id)) return; // removed from this device meanwhile
       if (res.status === 304) { if (!g.pending.length) fillRepeats(id); return; }
       if (res.status === 404) { g.gone = true; saveGroup(g); render(); return; }
-      if (res.status >= 400 && res.status < 500 && sending.length) {
-        // Refused: find the culprit by sending one at a time, then drop it.
+      if ((res.status === 400 || res.status === 413 || res.status === 422) && sending.length) {
+        // Refused: find the culprit by sending one at a time, then drop it
+        // and reload the server's copy so the screen shows what was kept.
         if (sending.length > 1) g.oneByOne = true;
-        else { g.pending = g.pending.slice(1); g.etag = null; toast('One change couldn’t be saved and was undone'); }
+        else {
+          g.pending = g.pending.slice(1);
+          g.etag = null;
+          if (!g.pending.length) setTimeout(() => sync(id), 0);
+          toast('One change couldn’t be saved and was undone');
+        }
         saveGroup(g);
         return;
       }
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const state = await res.json();
-      // The server's copy, with anything queued since this request replayed on top.
+      // The server's copy, with anything queued since this request replayed
+      // on top. A delta carries only the entries that changed.
       const rest = g.pending.slice(sending.length);
-      Object.assign(g, { group: state.group, members: state.members, entries: state.entries, etag: res.headers.get('ETag'), pending: rest, gone: false });
+      let entries = state.entries;
+      if (state.delta) {
+        const byId = new Map(g.entries.map(e => [e.id, e]));
+        for (const e of state.entries) byId.set(e.id, e);
+        entries = [...byId.values()];
+      }
+      Object.assign(g, { group: state.group, members: state.members, entries, etag: res.headers.get('ETag'), pending: rest, gone: false, rev: (g.rev || 0) + 1 });
       for (const op of rest) applyOp(g, op);
       saveGroup(g);
       render();
@@ -966,9 +1005,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       const ops = [];
       for (const e of g.entries) {
         if (e.deleted || e.kind !== 'expense' || !e.repeat) continue;
-        const last = g.entries.reduce((t, x) => (x.of === e.id && x.date > t ? x.date : t), e.date);
-        for (const date of L.occurrences(e.date, e.repeat, today())) {
-          if (date <= last) continue;
+        const copies = g.entries.filter(x => x.of === e.id);
+        const newest = list => list.reduce((t, x) => (x.date > t ? x.date : t), e.date);
+        const due = new Set(L.occurrences(e.date, e.repeat, today(), 100000));
+        const onTime = copies.filter(x => due.has(x.date));
+        const last = onTime.length ? newest(onTime) : newest(copies);
+        for (const date of L.occurrences(e.date, e.repeat, today(), 150, last)) {
           const copyId = await derivedId(`${e.id}:${date}`);
           if (g.entries.some(x => x.id === copyId) || ops.some(o => o.id === copyId)) continue;
           const { repeat, ...data } = stripMeta(e);
@@ -1145,16 +1187,18 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const others = g.members.filter(m => m.id !== g.me && (!m.removed || net[m.id]));
     $('balSection').hidden = !others.length || !entriesOf(g).length;
     $('people').replaceChildren(...others.map(m => {
-      const row = document.createElement('div');
+      const row = document.createElement('button');
+      row.type = 'button';
       row.className = 'bal-row';
       row.innerHTML = '<span></span><span><small></small><span></span></span>';
       row.dataset.person = m.id;
       const v = net[m.id] || 0;
       row.firstChild.textContent = m.name;
-      row.querySelector('small').textContent = v > 0 ? 'gets back' : v < 0 ? 'owes' : 'settled';
+      row.querySelector('small').textContent = v > 0 ? 'is owed' : v < 0 ? 'owes' : 'settled';
       const amt = row.lastChild.lastChild;
       amt.textContent = v ? money(v, code) : '';
       amt.className = v > 0 ? 'pos' : v < 0 ? 'neg' : '';
+      row.setAttribute('aria-label', `${m.name} ${v > 0 ? 'is owed' : v < 0 ? 'owes' : 'is settled'} ${v ? money(v, code) : ''}. Settle up`.trim());
       return row;
     }));
     $('settleBtn').hidden = Object.values(net).every(v => !v) && !entriesOf(g).length;
@@ -1379,6 +1423,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     foot.innerHTML = '<span class="by-line"></span><span class="acts"><button class="link" type="button">Edit</button><button class="link danger" type="button">Delete</button></span>';
     foot.firstChild.textContent = byLine(g, e);
     foot.querySelector('.link').dataset.edit = e.id;
+    if (e.kind === 'expense') {
+      foot.lastChild.insertAdjacentHTML('afterbegin', '<button class="link" type="button">Add again</button>');
+      foot.lastChild.firstChild.dataset.again = e.id;
+    }
     foot.querySelector('.danger').dataset.del = e.id;
     box.append(foot);
     return box;
@@ -1387,6 +1435,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const first = ev.target.closest('[data-empty]');
     if (first) return first.dataset.empty === 'share' ? share() : openSettings();
     const g = groups.get(current);
+    const again = ev.target.closest('[data-again]');
+    if (again) { const src = g && g.entries.find(x => x.id === again.dataset.again); if (src) openExpense(src, true); return; }
     const ed = ev.target.closest('[data-edit]'), del = ev.target.closest('[data-del]');
     const e = g && (ed || del) && g.entries.find(x => x.id === (ed || del).dataset[ed ? 'edit' : 'del']);
     if (!e) return;
@@ -1516,6 +1566,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('newCur').textContent = store.get('lastCurrency') || homeCurrency;
     newOthers = [];
     renderNewOthers();
+    canCreate();
     openDlg($('newDlg'));
     offerFocus($('newName'));
   }
@@ -1544,6 +1595,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (c) { newOthers.splice(Number(c.dataset.i), 1); renderNewOthers(); }
   });
   $('newCur').addEventListener('click', async () => { const c = await pickCurrency($('newCur').textContent); if (c) $('newCur').textContent = c; });
+  const canCreate = () => { $('createGo').disabled = !$('newName').value.trim() || !$('newMe').value.trim(); };
+  $('newName').addEventListener('input', canCreate);
+  $('newMe').addEventListener('input', canCreate);
   $('createGo').addEventListener('click', () => {
     const name = $('newName').value.trim();
     const me = $('newMe').value.trim();
@@ -1581,6 +1635,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (groups.has(id) && groups.get(id).me) { $('joinDlg').close(); return openGroup(id); }
     $('joinHint').textContent = 'Opening…';
     $('joinHint').className = 'hint';
+    $('joinGo').disabled = true;
     try {
       const state = await fetchGroup(id);
       joining = { id, state };
@@ -1600,6 +1655,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       $('joinHint').textContent = e.status === 404 ? 'No group at that link.' : 'Couldn’t reach Tally. Check your connection.';
       $('joinHint').className = 'hint bad';
       if (!$('joinDlg').open) { $('joinLinkField').hidden = false; $('whoField').hidden = true; openDlg($('joinDlg')); }
+    } finally {
+      $('joinGo').disabled = false;
     }
   }
   $('joinGo').addEventListener('click', () => {
@@ -1608,6 +1665,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     joinById(id);
   });
   $('joinLink').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('joinGo').click(); } });
+  $('joinLink').addEventListener('paste', () => setTimeout(() => { if (idFromLink($('joinLink').value) && !$('joinGo').disabled) $('joinGo').click(); }, 0));
   $('whoChips').addEventListener('click', e => {
     const c = e.target.closest('[data-member]');
     if (!c || !joining) return;
@@ -1632,7 +1690,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 
   // ---- expense sheet ----
   let draft = null; // { id, currency, paidBy, mode, parts: {id: string}, included: Set, editing }
-  function openExpense(entry) {
+  function openExpense(entry, again) {
     const g = groups.get(current);
     if (!g) return;
     const members = live(g);
@@ -1676,6 +1734,18 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('expRepeatField').hidden = !!(e && e.of);
     $('expBy').textContent = byLine(g, e);
     $('expBy').hidden = !$('expBy').textContent;
+    if (again) {
+      Object.assign(draft, { id: L.newId(), editing: false, rate: null, repeat: '' });
+      $('expTitle').textContent = 'Add expense';
+      $('expDate').value = today();
+      showDate();
+      $('expNote').value = '';
+      $('expNoteField').hidden = true;
+      $('expNoteBtn').hidden = false;
+      $('expDelete').hidden = true;
+      $('expRepeatField').hidden = false;
+      $('expBy').hidden = true;
+    }
     renderExpense();
     openDlg($('expDlg'));
     if (!e) offerFocus($('expAmount'));
@@ -1958,6 +2028,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     await loadRates();
     renderExpense();
   });
+  $('expWhat').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('expAmount').focus(); } });
+  $('expAmount').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !$('expSave').disabled) { e.preventDefault(); $('expSave').click(); }
+  });
   $('expSave').addEventListener('click', () => {
     const g = groups.get(current);
     const amount = parse($('expAmount').value);
@@ -2015,7 +2089,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     return () => {
       const now = g.entries.find(x => x.id === id);
       if (was) change(g, [{ type: 'entry', id, data: { ...was.data, by: g.me || was.data.by }, deleted: was.deleted }]);
-      else if (now) change(g, [{ type: 'entry', id, data: { ...stripMeta(now), by: g.me || now.by }, deleted: true }]);
+      else if (now) {
+        const copies = g.entries.filter(x => x.of === id && !x.deleted);
+        change(g, [now, ...copies].map(x => ({ type: 'entry', id: x.id, data: { ...stripMeta(x), by: g.me || x.by }, deleted: true })));
+      }
     };
   }
   // "Added by Sam · 2 Nov" under an entry being edited.
@@ -2029,13 +2106,15 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 
   // ---- settle up ----
   let pay = null; // { from, to, editing }
-  function openSettle(entry) {
+  function openSettle(entry, person) {
     const g = groups.get(current);
     const code = g.group.currency;
-    const plan = L.settle(netOf(g));
+    const all = L.settle(netOf(g));
+    const mine = person ? all.filter(p => p.from === person || p.to === person) : [];
+    const plan = mine.length ? mine : all;
     $('paySuggest').hidden = !!entry || !plan.length;
-    $('payTitle').textContent = entry ? 'Payment' : 'Settle up';
-    $('payFormLabel').textContent = entry ? 'Edit payment' : (plan.length ? 'Other payment' : 'Everyone’s settled. Record a payment');
+    $('payTitle').textContent = entry ? 'Payment' : mine.length ? `Settle with ${memberName(g, person)}` : 'Settle up';
+    $('payFormLabel').textContent = entry ? 'Edit payment' : (plan.length ? 'Other payment' : 'Record a payment');
     $('payList').replaceChildren(...plan.map(p => {
       const row = document.createElement('div');
       row.className = 'pay-row';
@@ -2114,9 +2193,11 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   });
 
   // ---- group settings ----
+  let setOpened = null; // the name and currency as the sheet opened
   function openSettings() {
     const g = groups.get(current);
     renaming = null;
+    setOpened = { name: g.group.name, currency: g.group.currency };
     $('setName').value = g.group.name;
     $('setCur').textContent = g.group.currency;
     const hasEntries = g.entries.length > 0;
@@ -2145,7 +2226,6 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   let renaming = null;
   function renderMembers() {
     const g = groups.get(current);
-    const net = netOf(g);
     $('setMembers').replaceChildren(...live(g).map(m => {
       const row = document.createElement('div');
       row.className = 'row member-row';
@@ -2158,12 +2238,15 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
         row.lastChild.dataset.renameSave = m.id;
         return row;
       }
-      row.innerHTML = '<span class="row-title"></span><button class="link" type="button"></button>';
+      row.innerHTML = '<span class="row-title"></span><span class="acts"><button class="link" type="button">Rename</button></span>';
       row.firstChild.textContent = m.id === g.me ? `${m.name} (you)` : m.name;
-      const b = row.lastChild;
-      if (m.id === g.me) { b.textContent = 'Rename'; b.dataset.rename = m.id; }
-      else if (net[m.id]) { b.textContent = 'Rename'; b.dataset.rename = m.id; }
-      else { b.textContent = 'Remove'; b.dataset.remove = m.id; }
+      row.querySelector('[type=button]').dataset.rename = m.id;
+      row.querySelector('[type=button]').setAttribute('aria-label', `Rename ${m.name}`);
+      if (m.id !== g.me) {
+        row.lastChild.insertAdjacentHTML('beforeend', '<button class="link" type="button">Remove</button>');
+        row.lastChild.lastChild.dataset.remove = m.id;
+        row.lastChild.lastChild.setAttribute('aria-label', `Remove ${m.name}`);
+      }
       return row;
     }));
   }
@@ -2191,6 +2274,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       input.select();
     } else if (d) {
       const m = g.members.find(x => x.id === d.dataset.remove);
+      if (netOf(g)[m.id]) return toast(`${m.name} still has a balance. Settle up first`);
+      const repeating = entriesOf(g).find(e => e.repeat && (e.paidBy === m.id || (e.paid && e.paid[m.id]) || (e.split && e.split.parts[m.id])));
+      if (repeating) return toast(`${m.name} is in “${repeating.title}”, which repeats`);
       change(g, [{ type: 'member', id: m.id, name: m.name, removed: true }]);
       renderMembers();
       toast(`Removed ${m.name}`, () => {
@@ -2215,8 +2301,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (renaming) saveRename();
     const g = groups.get(current);
     if (!g) return;
-    const name = $('setName').value.trim() || g.group.name;
-    const currency = $('setCur').textContent;
+    const typed = $('setName').value.trim(), picked = $('setCur').textContent;
+    const name = typed && typed !== setOpened.name ? typed : g.group.name;
+    const currency = picked !== setOpened.currency ? picked : g.group.currency;
     if (name !== g.group.name || currency !== g.group.currency) change(g, [{ type: 'group', name, currency }]);
   });
   $('setSave').addEventListener('click', () => $('setDlg').close());
@@ -2227,7 +2314,11 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   function groupCsv(g) {
     const code = g.group.currency;
     const people = g.members.filter(m => !m.removed || entriesOf(g).some(e => e.paidBy === m.id || (e.paid && e.paid[m.id]) || e.from === m.id || e.to === m.id || (e.split && e.split.parts[m.id])));
-    const q = v => { const t = String(v ?? ''); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const q = v => {
+      let t = String(v ?? '');
+      if (typeof v === 'string' && /^[=+\-@\t\r]/.test(t)) t = "'" + t;
+      return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+    };
     const num = minor => L.fromMinor(minor, code).toFixed(L.fractionDigits(code));
     const head = ['Date', 'Description', 'Paid by', 'Amount', 'Currency', `Amount (${code})`, ...people.map(m => m.name), 'Note'];
     const rows = entriesOf(g).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || 0) - (b.createdAt || 0)).map(e => {
@@ -2252,11 +2343,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast('Spreadsheet downloaded');
   });
   $('setForget').addEventListener('click', () => {
     const id = current;
     const g = groups.get(id);
-    if (g.pending && g.pending.length && !confirm('Some changes haven’t synced yet and will be lost. Remove anyway?')) return;
+    const at = groupIds.indexOf(id), cur = store.get('cur.' + id);
     $('setName').value = g.group.name;
     $('setCur').textContent = g.group.currency;
     $('setDlg').close();
@@ -2264,8 +2356,18 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     groupIds = groupIds.filter(x => x !== id);
     saveIds();
     store.del('g.' + id);
+    store.del('p.' + id);
     store.del('cur.' + id);
     goHome();
+    toast(`Removed ${g.group.name}`, () => {
+      groups.set(id, g);
+      groupIds.splice(Math.min(at, groupIds.length), 0, id);
+      saveIds();
+      saveGroup(g);
+      if (cur) store.set('cur.' + id, cur);
+      render();
+      sync(id);
+    });
   });
 
   // ---- share ----
@@ -2310,7 +2412,11 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('searchBox').focus();
     syncBack();
   });
-  $('searchBox').addEventListener('input', () => { expanded = null; const g = groups.get(current); if (g) renderGroup(g); });
+  let searchTimer = 0;
+  $('searchBox').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { expanded = null; const g = groups.get(current); if (g) renderGroup(g); }, 120);
+  });
   $('searchBox').addEventListener('blur', () => { if (!$('searchBox').value.trim()) closeSearch(); });
   // A person's balance: settle with them, the suggested payment filled in.
   $('people').addEventListener('click', e => {
@@ -2320,7 +2426,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const id = row.dataset.person;
     const plan = L.settle(netOf(g));
     const p = plan.find(x => (x.from === id && x.to === g.me) || (x.from === g.me && x.to === id)) || plan.find(x => x.from === id || x.to === id);
-    openSettle(null);
+    openSettle(null, id);
     if (p) {
       Object.assign(pay, { from: p.from, to: p.to });
       $('payAmount').value = plainNum(L.fromMinor(p.amount, g.group.currency), g.group.currency);
@@ -2445,11 +2551,25 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   }, POLL_MS);
   // Another tab changed a group: take its copy when nothing of ours is waiting to send.
   addEventListener('storage', e => {
+    if (e.key === 'tally.groups') {
+      let ids = [];
+      try { ids = (JSON.parse(e.newValue) || []).filter(L.isId); } catch {}
+      for (const id of ids) if (!groups.has(id)) { const g = store.get('g.' + id); if (g && g.group) groups.set(id, { ...g, pending: [] }); }
+      for (const id of groupIds) if (!ids.includes(id)) store.del('p.' + id);
+      for (const id of groupIds) if (!ids.includes(id)) groups.delete(id);
+      groupIds = ids.filter(id => groups.has(id));
+      if (current && !groups.has(current)) goHome(); else render();
+      return;
+    }
     const m = e.key && e.key.match(/^tally\.g\.([A-Za-z0-9_-]{22})$/);
     if (!m || !e.newValue || !groups.has(m[1])) return;
     const mine = groups.get(m[1]);
     if (mine.pending.length) return;
-    try { groups.set(m[1], { pending: [], ...JSON.parse(e.newValue) }); render(); } catch {}
+    try {
+      const theirs = JSON.parse(e.newValue);
+      groups.set(m[1], { ...theirs, me: mine.me || theirs.me, pending: [], rev: (mine.rev || 0) + 1 });
+      render();
+    } catch {}
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) (current ? [current] : groupIds).forEach(sync); });
   addEventListener('online', () => groupIds.forEach(sync));

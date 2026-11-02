@@ -50,7 +50,10 @@ class WatchJob : JobService() {
 
     /** The group's state and ETag, or null if unchanged (304) or unreachable. */
     private fun fetch(group: Watch.Group): Pair<JSONObject, String?>? = runCatching {
-        val conn = (URL("${Watch.SITE}/api/g/${group.id}").openConnection() as HttpURLConnection).apply {
+        // With the version we last saw, only entries changed since then come back.
+        val since = group.etag?.filter { it.isDigit() }?.takeIf { it.isNotEmpty() }
+        val query = since?.let { "?since=$it" }.orEmpty()
+        val conn = (URL("${Watch.SITE}/api/g/${group.id}$query").openConnection() as HttpURLConnection).apply {
             connectTimeout = 10_000
             readTimeout = 15_000
             useCaches = false

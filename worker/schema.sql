@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS entries (
   data TEXT NOT NULL,
   deleted INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  v INTEGER NOT NULL DEFAULT 0 -- the group version that last wrote it
 );
+-- Added after launch: ALTER TABLE entries ADD COLUMN v INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS entries_group ON entries (group_id);
+CREATE INDEX IF NOT EXISTS entries_group_v ON entries (group_id, v);

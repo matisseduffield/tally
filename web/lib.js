@@ -120,11 +120,13 @@
   // The dates a repeating expense falls due after `start`, up to `until`
   // (both YYYY-MM-DD), at most `max`. Monthly keeps the day of the month,
   // or the month's last day when it's shorter (31 Jan, 28 Feb, 31 Mar).
-  function occurrences(start, repeat, until, max = 60) {
+  // Dates a repeat falls due after `start`, up to `until`. Only dates after
+  // `after` count towards `max`, so a long-running repeat never runs dry.
+  function occurrences(start, repeat, until, max = 60, after = '') {
     const [y, m, d] = start.split('-').map(Number);
     const out = [];
     const iso = t => new Date(t).toISOString().slice(0, 10);
-    for (let k = 1; out.length < max; k++) {
+    for (let k = 1; out.length < max && k < 100000; k++) {
       let t;
       if (repeat === 'weekly') t = Date.UTC(y, m - 1, d + 7 * k);
       else if (repeat === 'monthly') {
@@ -133,7 +135,7 @@
       } else break;
       const date = iso(t);
       if (date > until) break;
-      out.push(date);
+      if (date > after) out.push(date);
     }
     return out;
   }

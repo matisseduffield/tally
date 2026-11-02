@@ -93,4 +93,7 @@ test('repeats fall due weekly or monthly, keeping month ends', () => {
   assert.deepEqual(L.occurrences('2026-11-02', 'monthly', '2026-11-02'), []);
   assert.deepEqual(L.occurrences('2026-11-02', undefined, '2027-11-02'), []);
   assert.equal(L.occurrences('2020-01-01', 'weekly', '2026-11-02', 60).length, 60);
+  // Long-running repeats keep going past the first 60 dates.
+  assert.deepEqual(L.occurrences('2020-01-01', 'weekly', '2026-11-02', 60, '2026-10-20'), ['2026-10-21', '2026-10-28']);
+  assert.deepEqual(L.occurrences('2026-01-31', 'monthly', '2026-05-01', 60, '2026-03-31'), ['2026-04-30']);
 });

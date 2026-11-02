@@ -1,7 +1,10 @@
 // Tally's server: a Cloudflare Worker with a D1 database (binding DB).
 //
 //   GET  /api/g/:id       the whole group: { group, members, entries }
-//   POST /api/g/:id/ops   apply changes { ops: [...] }, answer with the group
+//   GET  /api/g/:id?since=N   the group and members, and only the entries
+//                         changed after version N ({ ..., delta: true })
+//   POST /api/g/:id/ops   apply changes { ops: [...], since? }, answer with
+//                         the group (only what changed after `since`, if given)
 //   GET  /, /g/:id, ...   the web app, served from the public tally-releases
 //                         repo, where every release publishes it
 //   GET  /app             the latest Android app (a redirect to the APK)
@@ -18,6 +21,8 @@ const CODE = /^[A-Z]{3,5}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_OPS = 200;
 const MAX_BODY = 256 * 1024;
+const MAX_MEMBERS = 100;
+const MAX_ENTRIES = 20000;
 
 // The Android app's signing certificate, so links to groups open in the app.
 const ASSET_LINKS = [{
@@ -66,30 +71,58 @@ export default {
   },
 };
 
-async function readGroup(env, id) {
-  const row = await env.DB.prepare('SELECT id, name, currency, version, split FROM groups WHERE id = ?').bind(id).first();
+// The statements that read a group: everything, or the entries written after
+// version `since`. Run in the same batch as any writes, so they see them.
+function readStatements(env, id, since) {
+  return [
+    env.DB.prepare('SELECT id, name, currency, version, split FROM groups WHERE id = ?').bind(id),
+    env.DB.prepare('SELECT id, name, removed FROM members WHERE group_id = ? ORDER BY rowid').bind(id),
+    since === null
+      ? env.DB.prepare('SELECT id, data, deleted, created_at, updated_at FROM entries WHERE group_id = ?').bind(id)
+      : env.DB.prepare('SELECT id, data, deleted, created_at, updated_at FROM entries WHERE group_id = ? AND v > ?').bind(id, since),
+  ];
+}
+function groupFrom([g, members, entries], since) {
+  const row = g.results[0];
   if (!row) return null;
   const { split, ...group } = row;
   if (split) group.split = JSON.parse(split);
-  const [members, entries] = await env.DB.batch([
-    env.DB.prepare('SELECT id, name, removed FROM members WHERE group_id = ? ORDER BY rowid').bind(id),
-    env.DB.prepare('SELECT id, data, deleted, created_at, updated_at FROM entries WHERE group_id = ? ORDER BY created_at').bind(id),
-  ]);
-  return {
+  const state = {
     group,
     members: members.results.map(m => ({ id: m.id, name: m.name, removed: !!m.removed })),
     entries: entries.results.map(e => ({ ...JSON.parse(e.data), id: e.id, deleted: !!e.deleted, createdAt: e.created_at, updatedAt: e.updated_at })),
   };
+  if (since !== null) state.delta = true;
+  return state;
 }
+// A version the client already has, or null for everything. A version
+// newer than the server's (a reset, say) gets everything too.
+function sinceOf(v) {
+  const n = typeof v === 'string' && /^\d{1,12}$/.test(v) ? Number(v) : typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null;
+  return n;
+}
+const sameTag = (a, b) => !!a && a.replace(/^W\//, '') === b;
 
 async function getGroup(env, id, request) {
-  const head = await env.DB.prepare('SELECT version FROM groups WHERE id = ?').bind(id).first();
-  if (!head) return fail(404, 'No such group');
-  const etag = `"${head.version}"`;
-  if (request.headers.get('If-None-Match') === etag) return new Response(null, { status: 304, headers: { ETag: etag, ...CORS, ...PRIVATE } });
-  const state = await readGroup(env, id);
-  return json(state, 200, { ETag: `"${state.group.version}"` });
+  let since = sinceOf(new URL(request.url).searchParams.get('since'));
+  const tag = request.headers.get('If-None-Match');
+  if (since === null && tag) {
+    // Old clients poll for the whole group: check the version first.
+    const head = await env.DB.prepare('SELECT version FROM groups WHERE id = ?').bind(id).first();
+    if (!head) return fail(404, 'No such group');
+    if (sameTag(tag, `"${head.version}"`)) return notModified(`"${head.version}"`);
+  }
+  let state = groupFrom(await env.DB.batch(readStatements(env, id, since)), since);
+  if (!state) return fail(404, 'No such group');
+  if (since !== null && since > state.group.version) {
+    since = null;
+    state = groupFrom(await env.DB.batch(readStatements(env, id, null)), null);
+  }
+  const etag = `"${state.group.version}"`;
+  if (sameTag(tag, etag)) return notModified(etag);
+  return json(state, 200, { ETag: etag });
 }
+const notModified = etag => new Response(null, { status: 304, headers: { ETag: etag, ...CORS, ...PRIVATE } });
 
 async function applyOps(env, id, request) {
   const text = await request.text();
@@ -98,9 +131,21 @@ async function applyOps(env, id, request) {
   try { body = JSON.parse(text); } catch { return fail(400, 'Bad request'); }
   const ops = Array.isArray(body && body.ops) ? body.ops : null;
   if (!ops || !ops.length || ops.length > MAX_OPS) return fail(400, 'Bad request');
+  const since = sinceOf(body.since);
 
   const now = Date.now();
-  const exists = await env.DB.prepare('SELECT 1 FROM groups WHERE id = ?').bind(id).first();
+  const [head, known] = await env.DB.batch([
+    env.DB.prepare('SELECT version, (SELECT COUNT(*) FROM entries WHERE group_id = ?1) AS n FROM groups WHERE id = ?1').bind(id),
+    env.DB.prepare('SELECT id FROM members WHERE group_id = ?').bind(id),
+  ]);
+  const exists = head.results[0];
+  // A new group must start with its name and currency.
+  if (!exists && !(ops[0] && ops[0].type === 'group')) return fail(404, 'No such group');
+  // Entries may only name people in the group, including any added now.
+  const people = new Set(known.results.map(m => m.id));
+  for (const op of ops) if (op && op.type === 'member' && ID.test(op.id || '')) people.add(op.id);
+  if (people.size > MAX_MEMBERS) return fail(422, 'Too many people');
+  if (exists && exists.n + ops.length > MAX_ENTRIES && ops.some(op => op && op.type === 'entry')) return fail(422, 'This group is full');
   const stmts = [];
   for (const op of ops) {
     if (!op || typeof op !== 'object') return fail(400, 'Bad request');
@@ -126,21 +171,24 @@ async function applyOps(env, id, request) {
       ).bind(op.id, id, name, op.removed ? 1 : 0, now, flag(op.removed)));
     } else if (op.type === 'entry') {
       if (!ID.test(op.id || '')) return fail(400, 'Bad entry');
-      const data = cleanEntry(op.data);
+      const data = cleanEntry(op.data, people);
       if (!data) return fail(400, 'Bad entry');
+      // v: the group version this write becomes part of (bumped at the end).
       stmts.push(env.DB.prepare(
-        `INSERT INTO entries (id, group_id, data, deleted, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)
-         ON CONFLICT(id) DO UPDATE SET data = ?3, deleted = COALESCE(?6, entries.deleted), updated_at = ?5 WHERE entries.group_id = ?2`,
+        `INSERT INTO entries (id, group_id, data, deleted, created_at, updated_at, v)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?5, (SELECT version + 1 FROM groups WHERE id = ?2))
+         ON CONFLICT(id) DO UPDATE SET data = ?3, deleted = COALESCE(?6, entries.deleted), updated_at = ?5,
+           v = (SELECT version + 1 FROM groups WHERE id = ?2) WHERE entries.group_id = ?2`,
       ).bind(op.id, id, JSON.stringify(data), op.deleted ? 1 : 0, now, flag(op.deleted)));
     } else {
       return fail(400, 'Bad request');
     }
   }
-  // A new group must start with its name and currency.
-  if (!exists && ops[0].type !== 'group') return fail(404, 'No such group');
   stmts.push(env.DB.prepare('UPDATE groups SET version = version + 1, updated_at = ? WHERE id = ?').bind(now, id));
-  await env.DB.batch(stmts);
-  const state = await readGroup(env, id);
+  // Writes and the read-back in one batch: one transaction, one round trip.
+  const fresh = since !== null && exists && since <= exists.version ? since : null;
+  const results = await env.DB.batch([...stmts, ...readStatements(env, id, fresh)]);
+  const state = groupFrom(results.slice(-3), fresh);
   return json(state, 200, { ETag: `"${state.group.version}"` });
 }
 
@@ -153,24 +201,24 @@ function cleanText(s, max) {
 const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : NaN);
 
 // Only the fields the app uses, each checked; anything else is dropped.
-function cleanEntry(d) {
+function cleanEntry(d, people) {
   if (!d || typeof d !== 'object') return null;
   const amount = num(d.amount), rate = num(d.rate);
   if (!(amount > 0 && amount < 1e10) || !(rate > 0 && rate < 1e10)) return null;
   if (!CODE.test(d.currency || '') || !DATE.test(d.date || '')) return null;
-  const base = { kind: d.kind, amount, currency: d.currency, rate, date: d.date, by: ID.test(d.by || '') ? d.by : undefined, note: cleanText(d.note, 200) || undefined };
+  const base = { kind: d.kind, amount, currency: d.currency, rate, date: d.date, by: people.has(d.by) ? d.by : undefined, note: cleanText(d.note, 200) || undefined };
   if (d.kind === 'payment') {
-    if (!ID.test(d.from || '') || !ID.test(d.to || '') || d.from === d.to) return null;
+    if (!people.has(d.from) || !people.has(d.to) || d.from === d.to) return null;
     return { ...base, from: d.from, to: d.to };
   }
-  if (d.kind !== 'expense' || !ID.test(d.paidBy || '')) return null;
+  if (d.kind !== 'expense' || !people.has(d.paidBy)) return null;
   const split = cleanSplit(d.split, ['equal', 'exact', 'percent', 'shares']);
-  if (!split) return null;
+  if (!split || Object.keys(split.parts).some(k => !people.has(k))) return null;
   const out = { ...base, title: cleanText(d.title, 80) || 'Expense', paidBy: d.paidBy, split };
   // Several payers: member -> amount, in the expense's currency.
   if (d.paid !== undefined) {
     const paid = cleanParts(d.paid);
-    if (!paid) return null;
+    if (!paid || Object.keys(paid).some(k => !people.has(k))) return null;
     if (Object.keys(paid).length > 1) out.paid = paid;
   }
   // A repeating expense, and the copies made from it.
