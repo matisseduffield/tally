@@ -179,6 +179,18 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 .intro { display: grid; gap: 18px; }
 .intro p { margin: 0; max-width: 36ch; color: var(--muted); }
 .home-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.home-actions .btn { flex: none; }
+/* Home: a group row starts with its initial in a small square */
+.group-row { grid-template-columns: 38px minmax(0, 1fr) auto; column-gap: 14px; min-height: 64px; }
+.group-row .row-title, .group-row .row-sub { grid-column: 2; }
+.group-row .row-amt { grid-column: 3; }
+.g-mark {
+  grid-row: 1 / span 2; grid-column: 1; display: grid; place-items: center;
+  width: 38px; height: 38px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); font-weight: 600; font-size: 1rem; color: var(--ink);
+}
+.group-row.gone .g-mark, .group-row.gone .row-title { color: var(--muted); }
+.summary-amt.even { color: var(--ink); }
 
 /* Group summary */
 .summary { padding: 20px 22px 18px; display: grid; gap: 4px; }
@@ -293,6 +305,24 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .blk.tap { cursor: pointer; }
 .blk.tap:active { background: color-mix(in srgb, var(--ink) 5%, var(--bg)); }
 .sheet-body.blocks { gap: 12px; }
+.blk-head .cur-btn { margin: -10px -10px -10px 0; }
+.blk .pick > :last-child { border-bottom: 0; }
+.blk .rows > .row:last-child { border-bottom: 0; }
+.blk .add-row { margin-top: 2px; }
+.blk > .hint { margin-top: -4px; }
+/* A text field that sits in a ruled row, like a name in a list */
+.inline-input { flex: 1; min-width: 0; min-height: 46px; padding: 0; border: 0; background: none; }
+.inline-input:focus { outline: none; }
+.inline-input::placeholder { color: var(--faint); }
+.pick-row:focus-within { border-top-color: var(--accent); }
+
+/* Lists in a card (home groups, balances, activity): the rows' own rules
+   separate them; the card's edge replaces the first and last rule. */
+.card.list { padding: 0 16px; }
+.card.list > :first-child { border-top: 0; }
+.card.list > :last-child { border-bottom: 0; }
+.card.list .day { padding-top: 12px; }
+.card.list .det { padding-bottom: 14px; }
 
 /* Date: the panel shows the date in words; the real date input covers it,
    invisible, so a tap anywhere on it opens the phone's own picker. */
@@ -479,13 +509,19 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
         <button class="link" type="button" data-action="join">Join with a link</button>
       </div>
     </section>
-    <section class="section" id="groupsSection" hidden>
-      <div class="rows" id="groupList"></div>
-      <div class="home-actions">
-        <button class="link" type="button" data-action="newGroup">New group</button>
-        <button class="link" type="button" data-action="join">Join with a link</button>
-      </div>
+    <section class="card summary" id="overview" hidden>
+      <span class="summary-label" id="ovLabel"></span>
+      <span class="summary-amt" id="ovAmt"></span>
+      <span class="summary-meta" id="ovMeta"></span>
     </section>
+    <section class="section" id="groupsSection" hidden>
+      <h2>Groups</h2>
+      <div class="card list rows" id="groupList"></div>
+    </section>
+    <div class="home-actions" id="homeActions" hidden>
+      <button class="btn btn-primary" type="button" data-action="newGroup">New group</button>
+      <button class="link" type="button" data-action="join">Join with a link</button>
+    </div>
     <p class="get-app" id="getApp" hidden><a href="https://tally.matisseduffield.workers.dev/app">Get the Android app</a></p>
   </div>
 
@@ -501,12 +537,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     </section>
     <section class="section" id="balSection">
       <h2>Balances</h2>
-      <div class="rows" id="people"></div>
+      <div class="card list" id="people"></div>
     </section>
     <section class="section">
       <div class="act-head"><h2>Activity</h2><button class="link" type="button" id="searchBtn" hidden>Search</button></div>
       <input class="input" id="searchBox" type="search" placeholder="Search names, notes, amounts" autocomplete="off" enterkeyhint="search" aria-label="Search activity" hidden>
-      <div class="rows" id="activity"></div>
+      <div class="card list rows" id="activity"></div>
     </section>
   </div>
 </main>
@@ -522,16 +558,20 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     <h2 id="newTitle">New group</h2>
     <button class="btn btn-primary" type="button" id="createGo">Create</button>
   </div>
-  <div class="sheet-body">
-    <label class="field"><span class="field-label">Name</span><input class="input" id="newName" placeholder="Thailand trip, Flat, Dinner club" maxlength="60" autocomplete="off" enterkeyhint="done" data-done></label>
-    <div class="field"><span class="field-label">Currency for balances</span><div><button class="cur-btn" type="button" id="newCur">EUR</button></div></div>
-    <label class="field"><span class="field-label">Your name</span><input class="input" id="newMe" placeholder="Your name" maxlength="40" autocomplete="given-name" enterkeyhint="done" data-done></label>
-    <div class="field">
-      <span class="field-label">Others</span>
-      <div class="add-row"><input class="input" id="newOther" aria-label="Add a person" placeholder="Add a name" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="newOtherAdd">Add</button></div>
-      <div class="pick" id="newOthers"></div>
-      <span class="hint">Others can also join later from the link.</span>
+  <div class="sheet-body blocks">
+    <div class="blk">
+      <input class="title-input" id="newName" placeholder="Name, like Japan trip or Flat" maxlength="60" autocomplete="off" enterkeyhint="done" data-done aria-label="Group name">
+      <div class="blk-head"><span class="field-label">Currency for balances</span><button class="cur-btn" type="button" id="newCur">EUR</button></div>
     </div>
+    <div class="blk">
+      <div class="blk-head"><span class="field-label">People</span></div>
+      <div class="pick">
+        <label class="pick-row"><input class="inline-input" id="newMe" placeholder="Your name" maxlength="40" autocomplete="given-name" enterkeyhint="done" data-done aria-label="Your name"><span class="act">You</span></label>
+      </div>
+      <div class="pick" id="newOthers"></div>
+      <div class="add-row"><input class="input" id="newOther" aria-label="Add a person" placeholder="Add someone" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="newOtherAdd">Add</button></div>
+    </div>
+    <span class="hint">Others can also join later from the link.</span>
   </div>
 </dialog>
 
@@ -541,14 +581,14 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="joinTitle">Join a group</h2>
   </div>
-  <div class="sheet-body">
-    <div class="field" id="joinLinkField">
-      <label class="field-label" for="joinLink">Group link</label>
+  <div class="sheet-body blocks">
+    <div class="blk" id="joinLinkField">
+      <div class="blk-head"><label class="field-label" for="joinLink">Group link</label></div>
       <div class="add-row"><input class="input" id="joinLink" placeholder="Paste the link" autocomplete="off" enterkeyhint="go"><button class="btn btn-primary" type="button" id="joinGo">Open</button></div>
       <span class="hint" id="joinHint"></span>
     </div>
-    <div class="field" id="whoField" hidden>
-      <span class="field-label">Which one is you?</span>
+    <div class="blk" id="whoField" hidden>
+      <div class="blk-head"><span class="field-label">Which one is you?</span></div>
       <div class="pick" id="whoChips"></div>
       <div class="add-row"><input class="input" id="whoNew" aria-label="Your name" placeholder="Not listed? Add your name" maxlength="40" autocomplete="given-name" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="whoAdd">Add</button></div>
     </div>
@@ -643,28 +683,28 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     <h2 id="setTitle">Group</h2>
     <button class="btn btn-primary" type="button" id="setSave">Done</button>
   </div>
-  <div class="sheet-body">
-    <label class="field"><span class="field-label">Name</span><input class="input" id="setName" maxlength="60" autocomplete="off" enterkeyhint="done" data-done></label>
-    <div class="field"><span class="field-label">Currency for balances</span><div><button class="cur-btn" type="button" id="setCur">EUR</button></div><span class="hint" id="setCurHint"></span></div>
-    <div class="field" id="setSplitField" hidden>
-      <span class="field-label">New expenses</span>
+  <div class="sheet-body blocks">
+    <div class="blk">
+      <input class="title-input" id="setName" maxlength="60" autocomplete="off" enterkeyhint="done" data-done aria-label="Group name">
+      <div class="blk-head"><span class="field-label">Currency for balances</span><button class="cur-btn" type="button" id="setCur">EUR</button></div>
+      <span class="hint" id="setCurHint"></span>
+    </div>
+    <div class="blk" id="setSplitField" hidden>
+      <div class="blk-head"><span class="field-label">New expenses</span><button class="link" type="button" id="setSplitReset">Split equally</button></div>
       <span class="hint" id="setSplitText"></span>
-      <div><button class="link" type="button" id="setSplitReset">Split equally again</button></div>
     </div>
-    <div class="field">
-      <span class="field-label">People</span>
+    <div class="blk">
+      <div class="blk-head"><span class="field-label">People</span></div>
       <div class="rows" id="setMembers"></div>
-      <div class="add-row"><input class="input" id="setNew" aria-label="Add a person" placeholder="Add a name" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="setAdd">Add</button></div>
+      <div class="add-row"><input class="input" id="setNew" aria-label="Add a person" placeholder="Add someone" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="setAdd">Add</button></div>
     </div>
-    <div class="field">
-      <span class="field-label">Link</span>
+    <div class="blk">
+      <div class="blk-head"><span class="field-label">Link</span><button class="link" type="button" id="setShare">Share</button></div>
       <span class="hint">Anyone with the link can see and add to this group.</span>
-      <div><button class="link" type="button" id="setShare">Share link</button></div>
     </div>
-    <div class="field">
-      <span class="field-label">Export</span>
-      <span class="hint">Every expense and payment, with each person's share, as a spreadsheet file.</span>
-      <div><button class="link" type="button" id="setExport">Export CSV</button></div>
+    <div class="blk">
+      <div class="blk-head"><span class="field-label">Spreadsheet</span><button class="link" type="button" id="setExport">Export CSV</button></div>
+      <span class="hint">Every expense and payment, with each person’s share.</span>
     </div>
     <div class="field">
       <button class="link danger" type="button" id="setForget" style="justify-self: start">Remove from this device</button>
@@ -1001,7 +1041,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 
   function renderHome() {
     $('intro').hidden = groupIds.length > 0;
-    $('groupsSection').hidden = groupIds.length === 0;
+    $('groupsSection').hidden = $('homeActions').hidden = $('overview').hidden = groupIds.length === 0;
+    renderOverview();
     const lastActive = id => groups.get(id).entries.reduce((t, e) => Math.max(t, e.updatedAt || e.createdAt || 0), 0);
     const order = groupIds.map(id => [id, lastActive(id)]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
     $('groupList').replaceChildren(...order.map(id => {
@@ -1010,21 +1051,58 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       const b = balanceText(net, g.group.currency);
       const row = document.createElement('button');
       row.type = 'button';
-      row.className = 'row';
+      row.className = 'row group-row' + (g.gone ? ' gone' : '');
       row.dataset.open = id;
       const people = live(g).length;
-      row.innerHTML = `<span class="row-title"></span><span class="row-sub"></span><span class="row-amt"><small></small><span></span></span>`;
+      row.innerHTML = `<span class="g-mark" aria-hidden="true"></span><span class="row-title"></span><span class="row-sub"></span><span class="row-amt"><small></small><span></span></span>`;
+      row.querySelector('.g-mark').textContent = ([...g.group.name.trim()][0] || '·').toUpperCase();
       row.querySelector('.row-title').textContent = g.group.name;
       const latest = entriesOf(g).reduce((a, e) => ((e.updatedAt || e.createdAt || 0) > ((a && (a.updatedAt || a.createdAt)) || 0) ? e : a), null);
+      const who = `${people} ${people === 1 ? 'person' : 'people'}`;
       row.querySelector('.row-sub').textContent = g.gone ? 'No longer available'
-        : latest ? `${latest.kind === 'payment' ? 'Payment' : latest.title} · ${ago(latest.updatedAt || latest.createdAt)}`
-        : `${people} ${people === 1 ? 'person' : 'people'}`;
+        : latest ? `${who} · ${latest.kind === 'payment' ? 'payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt)}`
+        : `${who} · no expenses yet`;
       row.querySelector('.row-amt small').textContent = net ? b.label.toLowerCase() : 'settled up';
       const amt = row.querySelector('.row-amt span');
       amt.textContent = b.amount;
       amt.className = b.cls;
       return row;
     }));
+  }
+
+  // Home's top card: where you stand across every group, per currency.
+  function renderOverview() {
+    const byCode = new Map();
+    let owed = 0, owe = 0;
+    for (const id of groupIds) {
+      const g = groups.get(id);
+      if (!g || g.gone || !g.me) continue;
+      const v = netOf(g)[g.me] || 0;
+      const code = g.group.currency;
+      byCode.set(code, (byCode.get(code) || 0) + v);
+      if (v > 0) owed++; else if (v < 0) owe++;
+    }
+    const n = groupIds.length;
+    const nets = [...byCode.entries()].filter(([, v]) => v);
+    const groupsText = `${n} ${n === 1 ? 'group' : 'groups'}`;
+    if (!nets.length) {
+      $('ovLabel').textContent = `Across ${groupsText}`;
+      $('ovAmt').textContent = 'All settled up';
+      $('ovAmt').className = 'summary-amt even';
+      $('ovMeta').textContent = 'Nobody owes anybody';
+      return;
+    }
+    // The biggest balance leads; any other currencies follow underneath.
+    nets.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+    const [[code, v], ...rest] = nets;
+    $('ovLabel').textContent = v > 0 ? 'Overall, you’re owed' : 'Overall, you owe';
+    $('ovAmt').textContent = money(v, code);
+    $('ovAmt').className = 'summary-amt ' + (v > 0 ? 'pos' : 'neg');
+    const parts = [groupsText];
+    if (owed) parts.push(`owed in ${owed}`);
+    if (owe) parts.push(`you owe in ${owe}`);
+    const also = rest.map(([c, x]) => `${x > 0 ? '+' : '−'}${money(x, c)}`).join(', ');
+    $('ovMeta').textContent = parts.join(' · ') + (also ? ` · also ${also}` : '');
   }
 
   function renderGroup(g) {
