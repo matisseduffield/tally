@@ -356,6 +356,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 .get-app a { color: inherit; }
 .split-row .part { margin-left: 8px; font-size: .82rem; color: var(--muted); }
 .by-line { font-size: .82rem; color: var(--muted); }
+.act-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; }
+.act-head .link { padding: 6px 0; }
+.foot-link { justify-self: start; padding: 4px 0; }
 
 /* Update card (inside the app) */
 .update { display: grid; gap: 16px; padding: 18px; }
@@ -463,7 +466,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       <div class="rows" id="people"></div>
     </section>
     <section class="section">
-      <h2>Activity</h2>
+      <div class="act-head"><h2>Activity</h2><button class="link" type="button" id="searchBtn" hidden>Search</button></div>
+      <input class="input" id="searchBox" type="search" placeholder="Search names, notes, amounts" autocomplete="off" enterkeyhint="search" aria-label="Search activity" hidden>
       <div class="rows" id="activity"></div>
     </section>
   </div>
@@ -529,7 +533,14 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       </div>
       <span class="hint" id="expConv" hidden></span>
     </div>
-    <div class="field"><span class="field-label">Paid by</span><div class="chips" id="expPaid"></div></div>
+    <div class="field">
+      <span class="field-label">Paid by</span>
+      <div class="chips" id="expPaid"></div>
+      <div id="expPayers" hidden>
+        <div class="split" id="expPayerRows"></div>
+        <div class="split-foot"><span id="expPayFoot"></span><span id="expPayFootRight"></span></div>
+      </div>
+    </div>
     <div class="field">
       <span class="field-label">Split</span>
       <div class="seg" id="expMode">
@@ -540,6 +551,16 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       </div>
       <div class="split" id="expSplit"></div>
       <div class="split-foot"><span id="expFoot"></span><span id="expFootRight"></span></div>
+      <button class="link foot-link" type="button" id="expMakeDefault" hidden>Use this split for new expenses</button>
+    </div>
+    <div class="field" id="expRepeatField">
+      <span class="field-label">Repeats</span>
+      <div class="seg" id="expRepeat">
+        <button type="button" data-repeat="">Never</button>
+        <button type="button" data-repeat="weekly">Weekly</button>
+        <button type="button" data-repeat="monthly">Monthly</button>
+      </div>
+      <span class="hint" id="expRepeatHint" hidden></span>
     </div>
     <label class="field"><span class="field-label">Date</span><input class="input" type="date" id="expDate"></label>
     <div class="field">
@@ -582,6 +603,11 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   <div class="sheet-body">
     <label class="field"><span class="field-label">Name</span><input class="input" id="setName" maxlength="60" autocomplete="off" enterkeyhint="done" data-done></label>
     <div class="field"><span class="field-label">Currency for balances</span><div><button class="cur-btn" type="button" id="setCur">EUR</button></div><span class="hint" id="setCurHint"></span></div>
+    <div class="field" id="setSplitField" hidden>
+      <span class="field-label">New expenses</span>
+      <span class="hint" id="setSplitText"></span>
+      <div><button class="link" type="button" id="setSplitReset">Split equally again</button></div>
+    </div>
     <div class="field">
       <span class="field-label">People</span>
       <div class="rows" id="setMembers"></div>
@@ -741,7 +767,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 
   // Changes are applied here at once and queued for the server.
   function applyOp(g, op) {
-    if (op.type === 'group') Object.assign(g.group, { name: op.name, currency: op.currency });
+    if (op.type === 'group') {
+      Object.assign(g.group, { name: op.name, currency: op.currency });
+      if ('split' in op) g.group.split = op.split || undefined;
+    }
     else if (op.type === 'member') {
       const m = g.members.find(x => x.id === op.id);
       if (m) Object.assign(m, { name: op.name, removed: 'removed' in op ? !!op.removed : m.removed });
@@ -797,6 +826,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       for (const op of rest) applyOp(g, op);
       saveGroup(g);
       render();
+      if (!g.pending.length) fillRepeats(id);
     } catch {
       offline = true;
       renderStatus();
@@ -811,6 +841,36 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     }
   }
   const retries = new Map();
+  async function derivedId(text) {
+    const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+    let s = '';
+    for (const b of h.slice(0, 16)) s += String.fromCharCode(b);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  // Make any copies of repeating expenses that have fallen due. Only from a
+  // fully synced group, so a copy someone already changed isn't written over.
+  const filling = new Set();
+  async function fillRepeats(id) {
+    const g = groups.get(id);
+    if (!g || filling.has(id) || g.pending.length || !g.etag || !crypto.subtle) return;
+    filling.add(id);
+    try {
+      const ops = [];
+      for (const e of g.entries) {
+        if (e.deleted || e.kind !== 'expense' || !e.repeat) continue;
+        for (const date of L.occurrences(e.date, e.repeat, today())) {
+          const copyId = await derivedId(`${e.id}:${date}`);
+          if (g.entries.some(x => x.id === copyId) || ops.some(o => o.id === copyId)) continue;
+          const { repeat, ...data } = stripMeta(e);
+          ops.push({ type: 'entry', id: copyId, data: { ...data, date, of: e.id, by: g.me || e.by } });
+        }
+        if (ops.length >= 150) break;
+      }
+      if (ops.length && groups.has(id) && !g.pending.length) change(g, ops.slice(0, 150));
+    } finally {
+      filling.delete(id);
+    }
+  }
   async function fetchGroup(id) {
     const res = await fetch(`${API}/api/g/${id}`, { cache: 'no-store' });
     if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
@@ -853,6 +913,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (!groups.has(id)) return;
     current = id;
     expanded = null;
+    $('searchBox').value = '';
+    $('searchBox').hidden = true;
     if (push) history.pushState({ g: id, own: true }, '', location.origin === SITE ? `/g/${id}` : `#g=${id}`);
     render();
     scrollTo(0, 0);
@@ -953,7 +1015,13 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('settleBtn').hidden = Object.values(net).every(v => !v) && !entriesOf(g).length;
 
     // Activity, newest first, by day.
-    const list = entriesOf(g).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
+    $('searchBtn').hidden = entriesOf(g).length < 6 || !$('searchBox').hidden;
+    const q = $('searchBox').hidden ? '' : $('searchBox').value.trim().toLowerCase();
+    const matches = e => !q || [
+      e.kind === 'payment' ? 'payment' : e.title, e.note, moneyMajor(e.amount, e.currency), plainNum(e.amount, e.currency),
+      ...[e.paidBy, e.from, e.to, ...Object.keys((e.split && e.split.parts) || {}), ...Object.keys(e.paid || {})].filter(Boolean).map(id => memberName(g, id)),
+    ].some(t => t && String(t).toLowerCase().includes(q));
+    const list = entriesOf(g).filter(matches).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
     const out = [];
     let day = '';
     for (const e of list) {
@@ -970,7 +1038,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (!out.length) {
       const p = document.createElement('p');
       p.className = 'empty';
-      p.textContent = live(g).length < 2 ? 'Just you so far. Share the link, or add people under •••.' : 'No expenses yet.';
+      p.textContent = q ? 'Nothing matches.' : live(g).length < 2 ? 'Just you so far. Share the link, or add people under •••.' : 'No expenses yet.';
       out.push(p);
     }
     $('activity').replaceChildren(...out);
@@ -990,6 +1058,14 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     return others.length > 1 && others.every(id => ids.includes(id)) ? 'Group' : `${ids.length} people`;
   }
 
+  function payerLabel(g, ids) {
+    if (ids.length === 1) return memberName(g, ids[0]);
+    if (ids.length === 2) return `${memberName(g, ids[0])} & ${memberName(g, ids[1]) === 'You' ? 'you' : memberName(g, ids[1])}`;
+    return `${ids.length} people`;
+  }
+  // The template a repeating copy came from, and how often it repeats.
+  const repeatOf = (g, e) => e.repeat || ((e.of && (g.entries.find(x => x.id === e.of) || {}).repeat) || '');
+
   // An entry as seen by you: the two sides, the arrow's direction and tone,
   // and your bottom line. Used by the row and the detail sheet.
   function view(g, e) {
@@ -1007,6 +1083,20 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       return v;
     }
     const share = L.shares(e, code)[g.me] || 0;
+    const pays = L.payments(e, code);
+    const payerIds = Object.keys(pays);
+    if (payerIds.length > 1) {
+      // Several payers: your bottom line is what you put in less your share.
+      const net = (pays[g.me] || 0) - share;
+      const others = payerLabel(g, payerIds.filter(id => id !== g.me));
+      const all = payerLabel(g, payerIds);
+      if (net > 0) Object.assign(v, { a: 'You', b: forWhom(g, e, g.me), dir: 'R', tone: 'pos', label: 'you lent', amount: money(net, code), amtTone: 'pos', sentence: `${all} paid ${money(total, code)}. You lent ${money(net, code)}` });
+      else if (net < 0) Object.assign(v, { a: 'You', b: others, dir: 'L', tone: 'neg', label: 'you owe', amount: money(-net, code), amtTone: 'neg', sentence: `${all} paid ${money(total, code)}. You owe ${money(-net, code)}` });
+      else if (share) Object.assign(v, { a: 'You', b: '', label: 'even', amount: money(share, code), sentence: `${all} paid ${money(total, code)}. You paid your share` });
+      else Object.assign(v, { a: all, b: forWhom(g, e, null), dir: 'R', label: 'not involved', sentence: `${all} paid ${money(total, code)}. You're not involved` });
+      if (!v.b) v.dir = '';
+      return v;
+    }
     const payer = memberName(g, e.paidBy);
     if (e.paidBy === g.me) {
       const lent = total - share;
@@ -1036,7 +1126,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (v.dir) { arrow.innerHTML = ARROW[v.dir]; arrow.className = 'arrow ' + v.tone; } else arrow.remove();
     row.querySelector('.who-b').textContent = v.b;
     // The original amount: in its own currency when that isn't the group's.
-    row.querySelector('.tail').textContent = '· ' + moneyMajor(e.amount, e.currency);
+    const every = repeatOf(g, e);
+    row.querySelector('.tail').textContent = '· ' + moneyMajor(e.amount, e.currency) + (every ? ` · ${every}` : '');
     row.querySelector('.row-amt small').textContent = v.label;
     const amt = row.querySelector('.row-amt span');
     amt.textContent = v.amount;
@@ -1070,23 +1161,25 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       const split = ids.length === 1 ? `All for ${lower(ids[0])}`
         : ids.length === 2 && !how ? `Split between ${name(ids[0])} and ${lower(ids[1])}`
         : `Split ${ids.length} ways${how}`;
-      line(`${split} · ${when}`);
+      const every = repeatOf(g, e);
+      line(`${split} · ${when}${e.repeat ? ` · repeats ${every}` : e.of && every ? ` · from a ${every} repeat` : ''}`);
       const list = document.createElement('div');
       list.className = 'rows';
       // Everyone in it, and the payer even if they're not.
-      for (const id of ids.includes(e.paidBy) ? ids : [e.paidBy, ...ids]) {
+      const pays = L.payments(e, code);
+      for (const id of [...Object.keys(pays).filter(p => !ids.includes(p)), ...ids]) {
         const row = document.createElement('div');
         row.className = 'bal-row';
         row.innerHTML = '<span></span><span><small></small><span></span></span>';
         row.firstChild.textContent = name(id);
         const tags = [];
-        if (id === e.paidBy) tags.push(`paid ${money(v.total, code)}`);
+        if (pays[id]) tags.push(`paid ${money(pays[id], code)}`);
         if (parts[id] && e.split.mode === 'percent') tags.push(`${nf({ maximumFractionDigits: 2 }).format(parts[id])}%`);
         if (parts[id] && e.split.mode === 'shares') tags.push(`${nf({ maximumFractionDigits: 2 }).format(parts[id])} ${parts[id] === 1 ? 'share' : 'shares'}`);
         row.querySelector('small').textContent = tags.join(' · ');
         const amt = row.lastChild.lastChild;
         amt.textContent = parts[id] ? money(owed[id] || 0, code) : '–';
-        if (id === g.me && id !== e.paidBy && owed[id]) amt.className = 'neg';
+        if (id === g.me && (owed[id] || 0) > (pays[id] || 0)) amt.className = 'neg';
         list.append(row);
       }
       box.append(list);
@@ -1150,6 +1243,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const open = [...document.querySelectorAll('dialog[open]')];
     if (open.length) { open.at(-1).close(); return true; }
     if (current && expanded) { expanded = null; render(); return true; }
+    if (current && !$('searchBox').hidden) { closeSearch(); return true; }
     if (current) { goHome(); return true; }
     return false;
   };
@@ -1350,11 +1444,26 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       currency: e ? e.currency : (store.get('cur.' + g.group.id) || g.group.currency),
       rate: e ? e.rate : null,
       paidBy: e ? e.paidBy : (g.me || ids[0]),
+      several: !!(e && e.paid),
+      paid: {},
       mode: e ? e.split.mode : 'equal',
       included: new Set(e ? Object.keys(e.split.parts) : ids),
       values: {},
+      repeat: (e && e.repeat) || '',
     };
-    if (e && e.split.mode !== 'equal') for (const [k, v] of Object.entries(e.split.parts)) draft.values[k] = e.split.mode === 'exact' ? plainNum(v, e.currency) : nf({ maximumFractionDigits: 4, useGrouping: false }).format(v);
+    // A new expense starts from the group's default split, for whoever's still in the group.
+    const def = !e && g.group.split;
+    let split = e && e.split;
+    if (def) {
+      const parts = Object.fromEntries(Object.entries(def.parts).filter(([id]) => ids.includes(id)));
+      if (Object.keys(parts).length) {
+        split = { mode: def.mode, parts };
+        Object.assign(draft, { mode: def.mode, included: new Set(Object.keys(parts)) });
+      }
+    }
+    const exactNum = v => nf({ maximumFractionDigits: 4, useGrouping: false }).format(v);
+    if (split && split.mode !== 'equal') for (const [k, v] of Object.entries(split.parts)) draft.values[k] = split.mode === 'exact' ? plainNum(v, e.currency) : exactNum(v);
+    if (e && e.paid) for (const [k, v] of Object.entries(e.paid)) draft.paid[k] = plainNum(v, e.currency);
     $('expTitle').textContent = e ? 'Edit expense' : 'Add expense';
     $('expWhat').value = e ? e.title : '';
     $('expAmount').value = e ? plainNum(e.amount, e.currency) : '';
@@ -1363,6 +1472,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('expNoteField').hidden = !(e && e.note);
     $('expNoteBtn').hidden = !!(e && e.note);
     $('expDelete').hidden = !e;
+    $('expRepeatField').hidden = !!(e && e.of);
     $('expBy').textContent = byLine(g, e);
     $('expBy').hidden = !$('expBy').textContent;
     renderExpense();
@@ -1371,7 +1481,13 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (draft.currency !== g.group.currency) loadRates().then(renderExpense);
   }
   // Members shown in the split: everyone current, plus anyone already in this expense.
-  const splitMembers = g => g.members.filter(m => !m.removed || draft.included.has(m.id) || draft.paidBy === m.id);
+  const splitMembers = g => g.members.filter(m => !m.removed || draft.included.has(m.id) || draft.paidBy === m.id || draft.paid[m.id]);
+  // Several payers: member -> amount (expense currency) for those who put something in.
+  function draftPaid() {
+    const out = {};
+    for (const [id, v] of Object.entries(draft.paid)) { const n = L.parseNumber(v || '', GROUP_SEP); if (n > 0) out[id] = n; }
+    return out;
+  }
   function draftParts(g, amount) {
     const parts = {};
     for (const m of splitMembers(g)) {
@@ -1387,6 +1503,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (L.toMinor(amount, draft.currency) < 1) return 'Too small';
     if (amount >= 1e10) return 'Too large';
     if (!/^\d{4}-\d{2}-\d{2}$/.test($('expDate').value || today())) return 'Check the date';
+    if (draft.several) {
+      const paid = draftPaid();
+      const sum = Object.values(paid).reduce((t, v) => t + v, 0);
+      if (!Object.keys(paid).length) return 'Enter who paid what';
+      if (Math.abs(sum - amount) > 0.005) return 'What was paid doesn’t add up';
+    }
     if (!Object.keys(parts).length) return 'Choose who it’s split between';
     if (!Number.isFinite(currentRate(g))) return `No ${draft.currency} rate yet. Connect once to fetch rates.`;
     const sum = Object.values(parts).reduce((s, v) => s + v, 0);
@@ -1411,7 +1533,27 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
         : `No ${draft.currency} rate yet`;
     }
     // Paid by.
-    $('expPaid').replaceChildren(...splitMembers(g).filter(m => !m.removed || m.id === draft.paidBy).map(m => chip(m.id === g.me ? 'You' : m.name, m.id === draft.paidBy, { member: m.id })));
+    $('expPaid').replaceChildren(
+      ...splitMembers(g).filter(m => !m.removed || m.id === draft.paidBy).map(m => chip(m.id === g.me ? 'You' : m.name, !draft.several && m.id === draft.paidBy, { member: m.id })),
+      ...(live(g).length > 1 ? [chip('Several', draft.several, { several: '1' })] : []),
+    );
+    $('expPayers').hidden = !draft.several;
+    if (draft.several) {
+      $('expPayerRows').replaceChildren(...splitMembers(g).map(m => {
+        const row = document.createElement('div');
+        row.className = 'split-row';
+        row.innerHTML = '<span></span><span class="who"></span><input inputmode="decimal" autocomplete="off" enterkeyhint="done" data-done>';
+        row.querySelector('.who').textContent = m.id === g.me ? 'You' : m.name;
+        const input = row.querySelector('input');
+        input.value = draft.paid[m.id] || '';
+        input.placeholder = '0';
+        input.dataset.payer = m.id;
+        input.setAttribute('aria-label', `${m.id === g.me ? 'You' : m.name} paid`);
+        return row;
+      }));
+      renderPayFoot(amount);
+    }
+    for (const b of $('expRepeat').children) b.setAttribute('aria-pressed', String(b.dataset.repeat === draft.repeat));
     // Mode.
     for (const b of $('expMode').children) b.setAttribute('aria-pressed', String(b.dataset.mode === draft.mode));
     // Split rows.
@@ -1493,8 +1635,11 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('expFootRight').className = bad ? 'neg' : '';
     const problem = draftProblem(g, amount, parts);
     $('expSave').disabled = !!problem || bad;
+    const sp = draftDefault(g, parts);
+    $('expMakeDefault').hidden = sp === undefined || bad || splitKey(sp) === splitKey(g.group.split);
     // Once there's an amount, say what's stopping Save.
-    if (problem && amount > 0 && !bad) { $('expFootRight').textContent = problem; $('expFootRight').className = 'neg'; }
+    const payIssue = draft.several && /paid/.test(problem); // shown under Paid by instead
+    if (problem && amount > 0 && !bad && !payIssue) { $('expFootRight').textContent = problem; $('expFootRight').className = 'neg'; }
   }
   $('expAmount').addEventListener('input', renderExpense);
   $('expNoteBtn').addEventListener('click', () => {
@@ -1505,9 +1650,58 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   $('expPaid').addEventListener('click', e => {
     const c = e.target.closest('.chip');
     if (!c) return;
-    draft.paidBy = c.dataset.member;
+    if (c.dataset.several) {
+      if (!draft.several) {
+        // Start with whoever was the payer covering it all.
+        draft.several = true;
+        const amount = parse($('expAmount').value);
+        draft.paid = amount > 0 ? { [draft.paidBy]: plainNum(amount, draft.currency) } : {};
+      }
+    } else {
+      draft.several = false;
+      draft.paidBy = c.dataset.member;
+    }
     haptic('tick');
     renderExpense();
+  });
+  function renderPayFoot(amount) {
+    const sum = Object.values(draftPaid()).reduce((t, v) => t + v, 0);
+    const diff = (amount || 0) - sum;
+    $('expPayFoot').textContent = `${moneyMajor(sum, draft.currency)} of ${moneyMajor(amount || 0, draft.currency)} paid`;
+    $('expPayFootRight').textContent = Math.abs(diff) > 0.005 ? (diff > 0 ? `${moneyMajor(diff, draft.currency)} left` : `${moneyMajor(-diff, draft.currency)} over`) : '';
+    $('expPayFootRight').className = 'neg';
+  }
+  $('expPayerRows').addEventListener('input', e => {
+    const input = e.target.closest('input[data-payer]');
+    if (!input) return;
+    draft.paid[input.dataset.payer] = input.value;
+    const g = groups.get(current);
+    const amount = parse($('expAmount').value);
+    renderPayFoot(amount);
+    const parts = draftParts(g, amount);
+    renderExpenseFoot(g, amount, parts, {});
+  });
+  $('expRepeat').addEventListener('click', e => {
+    const b = e.target.closest('button[data-repeat]');
+    if (!b) return;
+    draft.repeat = b.dataset.repeat;
+    haptic('tick');
+    renderExpense();
+  });
+  // "Use this split for new expenses": the group's default (equal for everyone clears it).
+  function splitKey(sp) { return sp ? sp.mode + JSON.stringify(Object.entries(sp.parts).sort()) : ''; }
+  function draftDefault(g, parts) {
+    if (draft.mode === 'exact' || !Object.keys(parts).length) return undefined;
+    const everyone = live(g).every(m => parts[m.id]) && Object.keys(parts).length === live(g).length;
+    return draft.mode === 'equal' && everyone ? null : { mode: draft.mode, parts };
+  }
+  $('expMakeDefault').addEventListener('click', () => {
+    const g = groups.get(current);
+    const sp = draftDefault(g, draftParts(g, parse($('expAmount').value)));
+    if (sp === undefined) return;
+    change(g, [{ type: 'group', name: g.group.name, currency: g.group.currency, split: sp }]);
+    $('expMakeDefault').hidden = true;
+    toast(sp ? 'New expenses will start with this split' : 'New expenses split equally again');
   });
   $('expMode').addEventListener('click', e => {
     const b = e.target.closest('button[data-mode]');
@@ -1571,9 +1765,19 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       date: $('expDate').value || today(),
       paidBy: draft.paidBy,
       split: { mode: draft.mode, parts },
+      repeat: draft.repeat || undefined,
       note: $('expNote').value.trim() || undefined,
       by: g.me,
     };
+    if (draft.several) {
+      const paid = draftPaid();
+      const ids = Object.keys(paid);
+      // Whoever put in most is the main payer (what older versions show).
+      data.paidBy = ids.sort((a, b) => paid[b] - paid[a])[0];
+      if (ids.length > 1) data.paid = Object.fromEntries(ids.map(id => [id, Math.round(paid[id] * 1e8) / 1e8]));
+    }
+    const prev = g.entries.find(x => x.id === draft.id);
+    if (prev && prev.of) { data.of = prev.of; delete data.repeat; }
     store.set('cur.' + g.group.id, draft.currency);
     $('expDlg').close();
     haptic();
@@ -1710,9 +1914,26 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const hasEntries = g.entries.length > 0;
     $('setCur').disabled = hasEntries;
     $('setCurHint').textContent = hasEntries ? 'Fixed once there are expenses, so past amounts stay right.' : '';
+    renderSplitDefault(g);
     renderMembers();
     openDlg($('setDlg'));
   }
+  function renderSplitDefault(g) {
+    const sp = g.group.split;
+    $('setSplitField').hidden = !sp;
+    if (!sp) return;
+    const who = Object.entries(sp.parts).filter(([id]) => g.members.some(m => m.id === id && !m.removed));
+    const fmt = v => nf({ maximumFractionDigits: 2 }).format(v);
+    $('setSplitText').textContent = sp.mode === 'equal'
+      ? `Split equally between ${who.map(([id]) => memberName(g, id)).join(', ')}`
+      : `Split by ${sp.mode === 'percent' ? 'percentage' : 'shares'}: ${who.map(([id, v]) => `${memberName(g, id)} ${fmt(v)}${sp.mode === 'percent' ? '%' : ''}`).join(', ')}`;
+  }
+  $('setSplitReset').addEventListener('click', () => {
+    const g = groups.get(current);
+    change(g, [{ type: 'group', name: g.group.name, currency: g.group.currency, split: null }]);
+    renderSplitDefault(g);
+    toast('New expenses split equally again');
+  });
   let renaming = null;
   function renderMembers() {
     const g = groups.get(current);
@@ -1797,7 +2018,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   // receiver, which is how balances treat it).
   function groupCsv(g) {
     const code = g.group.currency;
-    const people = g.members.filter(m => !m.removed || entriesOf(g).some(e => e.paidBy === m.id || e.from === m.id || e.to === m.id || (e.split && e.split.parts[m.id])));
+    const people = g.members.filter(m => !m.removed || entriesOf(g).some(e => e.paidBy === m.id || (e.paid && e.paid[m.id]) || e.from === m.id || e.to === m.id || (e.split && e.split.parts[m.id])));
     const q = v => { const t = String(v ?? ''); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
     const num = minor => L.fromMinor(minor, code).toFixed(L.fractionDigits(code));
     const head = ['Date', 'Description', 'Paid by', 'Amount', 'Currency', `Amount (${code})`, ...people.map(m => m.name), 'Note'];
@@ -1805,9 +2026,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       const total = L.entryTotal(e, code);
       const pay = e.kind === 'payment';
       const owed = pay ? { [e.to]: total } : L.shares(e, code);
-      const payer = g.members.find(m => m.id === (pay ? e.from : e.paidBy));
-      const title = pay ? `Payment to ${(g.members.find(m => m.id === e.to) || {}).name || 'someone'}` : e.title;
-      return [e.date, title, payer ? payer.name : '', e.amount, e.currency, num(total), ...people.map(m => (owed[m.id] ? num(owed[m.id]) : '')), e.note || ''];
+      const nameOf = id => (g.members.find(m => m.id === id) || {}).name || '';
+      const paidBy = pay ? nameOf(e.from) : Object.keys(L.payments(e, code)).map(nameOf).join(' & ');
+      const title = pay ? `Payment to ${nameOf(e.to) || 'someone'}` : e.title;
+      return [e.date, title, paidBy, e.amount, e.currency, num(total), ...people.map(m => (owed[m.id] ? num(owed[m.id]) : '')), e.note || ''];
     });
     return [head, ...rows].map(r => r.map(q).join(',')).join('\r\n');
   }
@@ -1871,6 +2093,17 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   $('back').addEventListener('click', () => (history.state && history.state.own ? history.back() : goHome()));
   $('addBtn').addEventListener('click', () => openExpense(null));
   $('settleBtn').addEventListener('click', () => openSettle(null));
+  // Search: a tap shows the field (and only then the keyboard); Back or
+  // clearing it closes it.
+  function closeSearch() { $('searchBox').value = ''; $('searchBox').hidden = true; render(); }
+  $('searchBtn').addEventListener('click', () => {
+    $('searchBox').hidden = false;
+    $('searchBtn').hidden = true;
+    $('searchBox').focus();
+    syncBack();
+  });
+  $('searchBox').addEventListener('input', () => { expanded = null; const g = groups.get(current); if (g) renderGroup(g); });
+  $('searchBox').addEventListener('blur', () => { if (!$('searchBox').value.trim()) closeSearch(); });
   // A person's balance: settle with them, the suggested payment filled in.
   $('people').addEventListener('click', e => {
     const row = e.target.closest('[data-person]');

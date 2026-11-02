@@ -75,3 +75,22 @@ test('ids are 22 url-safe characters', () => {
   assert.ok(!L.isId('short'));
   assert.ok(!L.isId('../../../etc/passwd....'));
 });
+
+test('several payers share the credit in proportion', () => {
+  const e = { kind: 'expense', amount: 100, currency: 'EUR', rate: 1, paidBy: 'a', paid: { a: 70, b: 30 }, split: { mode: 'equal', parts: { a: 1, b: 1, c: 1, d: 1 } } };
+  assert.deepEqual(L.payments(e, 'EUR'), { a: 7000, b: 3000 });
+  const net = L.balances([e], ['a', 'b', 'c', 'd'], 'EUR');
+  assert.deepEqual(net, { a: 4500, b: 500, c: -2500, d: -2500 });
+  // one entry in `paid` is the same as a single payer
+  assert.deepEqual(L.payments({ ...e, paid: { b: 100 } }, 'EUR'), { a: 10000 });
+  // a foreign expense paid by two converts as a whole: 1000 THB at 0.025 = 25 EUR
+  assert.deepEqual(L.payments({ ...e, amount: 1000, currency: 'THB', rate: 0.025, paid: { a: 600, b: 400 } }, 'EUR'), { a: 1500, b: 1000 });
+});
+
+test('repeats fall due weekly or monthly, keeping month ends', () => {
+  assert.deepEqual(L.occurrences('2026-01-31', 'monthly', '2026-05-01'), ['2026-02-28', '2026-03-31', '2026-04-30']);
+  assert.deepEqual(L.occurrences('2026-10-20', 'weekly', '2026-11-03'), ['2026-10-27', '2026-11-03']);
+  assert.deepEqual(L.occurrences('2026-11-02', 'monthly', '2026-11-02'), []);
+  assert.deepEqual(L.occurrences('2026-11-02', undefined, '2027-11-02'), []);
+  assert.equal(L.occurrences('2020-01-01', 'weekly', '2026-11-02', 60).length, 60);
+});

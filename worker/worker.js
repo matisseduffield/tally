@@ -67,8 +67,10 @@ export default {
 };
 
 async function readGroup(env, id) {
-  const group = await env.DB.prepare('SELECT id, name, currency, version FROM groups WHERE id = ?').bind(id).first();
-  if (!group) return null;
+  const row = await env.DB.prepare('SELECT id, name, currency, version, split FROM groups WHERE id = ?').bind(id).first();
+  if (!row) return null;
+  const { split, ...group } = row;
+  if (split) group.split = JSON.parse(split);
   const [members, entries] = await env.DB.batch([
     env.DB.prepare('SELECT id, name, removed FROM members WHERE group_id = ? ORDER BY rowid').bind(id),
     env.DB.prepare('SELECT id, data, deleted, created_at, updated_at FROM entries WHERE group_id = ? ORDER BY created_at').bind(id),
@@ -105,11 +107,16 @@ async function applyOps(env, id, request) {
     if (op.type === 'group') {
       const name = cleanText(op.name, 60);
       if (!name || !CODE.test(op.currency || '')) return fail(400, 'Bad group');
+      // The group's default split for new expenses: kept unless the op names it (null clears it).
+      const hasSplit = 'split' in op;
+      const split = hasSplit && op.split !== null ? cleanSplit(op.split, ['equal', 'percent', 'shares']) : null;
+      if (hasSplit && op.split !== null && !split) return fail(400, 'Bad group');
       stmts.push(env.DB.prepare(
-        `INSERT INTO groups (id, name, currency, version, created_at, updated_at) VALUES (?1, ?2, ?3, 1, ?4, ?4)
+        `INSERT INTO groups (id, name, currency, version, created_at, updated_at, split) VALUES (?1, ?2, ?3, 1, ?4, ?4, ?6)
          ON CONFLICT(id) DO UPDATE SET name = ?2, updated_at = ?4,
-           currency = CASE WHEN EXISTS (SELECT 1 FROM entries WHERE group_id = ?1) THEN groups.currency ELSE ?3 END`,
-      ).bind(id, name, op.currency, now));
+           currency = CASE WHEN EXISTS (SELECT 1 FROM entries WHERE group_id = ?1) THEN groups.currency ELSE ?3 END,
+           split = CASE WHEN ?5 = 1 THEN ?6 ELSE groups.split END`,
+      ).bind(id, name, op.currency, now, hasSplit ? 1 : 0, split ? JSON.stringify(split) : null));
     } else if (op.type === 'member') {
       const name = cleanText(op.name, 40);
       if (!ID.test(op.id || '') || !name) return fail(400, 'Bad member');
@@ -157,17 +164,44 @@ function cleanEntry(d) {
     return { ...base, from: d.from, to: d.to };
   }
   if (d.kind !== 'expense' || !ID.test(d.paidBy || '')) return null;
-  const split = d.split || {};
-  if (!['equal', 'exact', 'percent', 'shares'].includes(split.mode)) return null;
-  const parts = {};
-  const keys = Object.keys(split.parts || {});
-  if (!keys.length || keys.length > 50) return null;
-  for (const k of keys) {
-    const v = num(split.parts[k]);
-    if (!ID.test(k) || !(v > 0 && v < 1e10)) return null;
-    parts[k] = v;
+  const split = cleanSplit(d.split, ['equal', 'exact', 'percent', 'shares']);
+  if (!split) return null;
+  const out = { ...base, title: cleanText(d.title, 80) || 'Expense', paidBy: d.paidBy, split };
+  // Several payers: member -> amount, in the expense's currency.
+  if (d.paid !== undefined) {
+    const paid = cleanParts(d.paid);
+    if (!paid) return null;
+    if (Object.keys(paid).length > 1) out.paid = paid;
   }
-  return { ...base, title: cleanText(d.title, 80) || 'Expense', paidBy: d.paidBy, split: { mode: split.mode, parts } };
+  // A repeating expense, and the copies made from it.
+  if (d.repeat !== undefined) {
+    if (!['weekly', 'monthly'].includes(d.repeat)) return null;
+    out.repeat = d.repeat;
+  }
+  if (d.of !== undefined) {
+    if (!ID.test(d.of)) return null;
+    out.of = d.of;
+  }
+  return out;
+}
+
+// member id -> positive number, 1 to 50 of them.
+function cleanParts(p) {
+  if (!p || typeof p !== 'object') return null;
+  const keys = Object.keys(p);
+  if (!keys.length || keys.length > 50) return null;
+  const out = {};
+  for (const k of keys) {
+    const v = num(p[k]);
+    if (!ID.test(k) || !(v > 0 && v < 1e10)) return null;
+    out[k] = v;
+  }
+  return out;
+}
+function cleanSplit(sp, modes) {
+  if (!sp || typeof sp !== 'object' || !modes.includes(sp.mode)) return null;
+  const parts = cleanParts(sp.parts);
+  return parts && { mode: sp.mode, parts };
 }
 
 // The app's page and its files. Every page path is the app itself (it reads

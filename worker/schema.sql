@@ -8,8 +8,10 @@ CREATE TABLE IF NOT EXISTS groups (
   currency TEXT NOT NULL,
   version INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  split TEXT -- the default split for new expenses, JSON {mode, parts}
 );
+-- Added after launch: ALTER TABLE groups ADD COLUMN split TEXT;
 CREATE TABLE IF NOT EXISTS members (
   id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL,

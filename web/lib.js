@@ -108,6 +108,36 @@
     return allocate(entryTotal(entry, groupCode), weights);
   }
 
+  // Who paid how much of an expense, in group minor units. One payer
+  // (paidBy) covers it all; with `paid` (member -> amount in the expense's
+  // currency, two or more people) the total is spread in those proportions.
+  function payments(entry, groupCode) {
+    const total = entryTotal(entry, groupCode);
+    const paid = entry.paid && Object.keys(entry.paid).length > 1 ? entry.paid : null;
+    return paid ? allocate(total, paid) : { [entry.paidBy]: total };
+  }
+
+  // The dates a repeating expense falls due after `start`, up to `until`
+  // (both YYYY-MM-DD), at most `max`. Monthly keeps the day of the month,
+  // or the month's last day when it's shorter (31 Jan, 28 Feb, 31 Mar).
+  function occurrences(start, repeat, until, max = 60) {
+    const [y, m, d] = start.split('-').map(Number);
+    const out = [];
+    const iso = t => new Date(t).toISOString().slice(0, 10);
+    for (let k = 1; out.length < max; k++) {
+      let t;
+      if (repeat === 'weekly') t = Date.UTC(y, m - 1, d + 7 * k);
+      else if (repeat === 'monthly') {
+        const last = new Date(Date.UTC(y, m - 1 + k + 1, 0)).getUTCDate();
+        t = Date.UTC(y, m - 1 + k, Math.min(d, last));
+      } else break;
+      const date = iso(t);
+      if (date > until) break;
+      out.push(date);
+    }
+    return out;
+  }
+
   // Net balance per member in group minor units: positive means the group
   // owes them, negative means they owe. Payments move money between two
   // people: the payer's balance goes up, the receiver's goes down.
@@ -122,7 +152,7 @@
         net[e.to] = (net[e.to] || 0) - total;
         continue;
       }
-      net[e.paidBy] = (net[e.paidBy] || 0) + total;
+      for (const [m, put] of Object.entries(payments(e, groupCode))) net[m] = (net[m] || 0) + put;
       for (const [m, owed] of Object.entries(shares(e, groupCode))) net[m] = (net[m] || 0) - owed;
     }
     return net;
@@ -163,7 +193,7 @@
   }
   const isId = s => typeof s === 'string' && /^[A-Za-z0-9_-]{22}$/.test(s);
 
-  const lib = { fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, balances, settle, newId, isId };
+  const lib = { fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, newId, isId };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.TallyLib = lib;
 })(this);

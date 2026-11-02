@@ -8,7 +8,12 @@ no limits on how many expenses you add, no ads, and any currency.
   member they are, and add expenses. Everyone sees the same balances.
 - Expenses in any currency, converted into the group's currency at the live
   rate (Coinbase) when added; the rate is stored with the expense.
-- Split equally, by exact amounts, by percentages or by shares.
+- Split equally, by exact amounts, by percentages or by shares, paid by one
+  person or several. A group can keep a default split for new expenses.
+- Repeating expenses (weekly or monthly): any device that opens the group
+  adds copies that have come due. Each copy's id is derived from the
+  original and its date, so two devices can't make duplicates.
+- Search the activity by name, note, person or amount.
 - Your balance per group, everyone else's, and "Settle up": the fewest payments
   that square everyone (at most people − 1). Recording one is a tap.
 - Works offline: groups live on the device, changes queue and sync later.
