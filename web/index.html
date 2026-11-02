@@ -323,6 +323,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .card.list > :last-child { border-bottom: 0; }
 .card.list .day { padding-top: 12px; }
 .card.list .det { padding-bottom: 14px; }
+.card.list .more { display: block; width: 100%; padding: 14px 0; border-top: 1px solid var(--line); text-align: center; }
 
 /* Date: the panel shows the date in words; the real date input covers it,
    invisible, so a tap anywhere on it opens the phone's own picker. */
@@ -750,9 +751,13 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   let ALL_CURRENCIES = COMMON;
   try { ALL_CURRENCIES = Intl.supportedValuesOf('currency').filter(c => curName(c) !== c); } catch {}
 
+  let storeWarned = false;
   const store = {
     get(k) { try { return JSON.parse(localStorage.getItem('tally.' + k)); } catch { return null; } },
-    set(k, v) { try { localStorage.setItem('tally.' + k, JSON.stringify(v)); } catch {} },
+    set(k, v) {
+      try { localStorage.setItem('tally.' + k, JSON.stringify(v)); }
+      catch { if (!storeWarned) { storeWarned = true; setTimeout(() => toast('Storage is full: changes on this device may not be kept'), 0); } }
+    },
     del(k) { try { localStorage.removeItem('tally.' + k); } catch {} },
   };
 
@@ -892,7 +897,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       offline = false;
       retries.delete(id);
       if (!groups.has(id)) return; // removed from this device meanwhile
-      if (res.status === 304) return;
+      if (res.status === 304) { if (!g.pending.length) fillRepeats(id); return; }
       if (res.status === 404) { g.gone = true; saveGroup(g); render(); return; }
       if (res.status >= 400 && res.status < 500 && sending.length) {
         // Refused: find the culprit by sending one at a time, then drop it.
@@ -916,14 +921,15 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       // Try again in 5 s, 10 s, 20 s … up to 2 minutes.
       const n = (retries.get(id) || 0) + 1;
       retries.set(id, n);
-      setTimeout(() => sync(id), Math.min(120_000, 2500 * 2 ** n));
+      clearTimeout(retryTimers.get(id));
+      retryTimers.set(id, setTimeout(() => { retryTimers.delete(id); sync(id); }, Math.min(120_000, 2500 * 2 ** n)));
     } finally {
       syncing.delete(id);
       const left = groups.get(id);
       if (left && left.pending.length && !offline && !left.gone) setTimeout(() => sync(id), 0);
     }
   }
-  const retries = new Map();
+  const retries = new Map(), retryTimers = new Map();
   async function derivedId(text) {
     const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
     let s = '';
@@ -941,7 +947,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       const ops = [];
       for (const e of g.entries) {
         if (e.deleted || e.kind !== 'expense' || !e.repeat) continue;
+        const last = g.entries.reduce((t, x) => (x.of === e.id && x.date > t ? x.date : t), e.date);
         for (const date of L.occurrences(e.date, e.repeat, today())) {
+          if (date <= last) continue;
           const copyId = await derivedId(`${e.id}:${date}`);
           if (g.entries.some(x => x.id === copyId) || ops.some(o => o.id === copyId)) continue;
           const { repeat, ...data } = stripMeta(e);
@@ -996,6 +1004,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (!groups.has(id)) return;
     current = id;
     expanded = null;
+    shownCount = PAGE;
     $('searchBox').value = '';
     $('searchBox').hidden = true;
     if (push) history.pushState({ g: id, own: true }, '', location.origin === SITE ? `/g/${id}` : `#g=${id}`);
@@ -1145,7 +1154,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const list = entriesOf(g).filter(matches).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
     const out = [];
     let day = '';
-    for (const e of list) {
+    // The newest entries only, with "Show more" for the rest: a long trip
+    // stays quick to draw. Search looks through everything.
+    const shown = list.slice(0, shownCount);
+    for (const e of shown) {
       if (e.date !== day) {
         day = e.date;
         const h = document.createElement('div');
@@ -1161,6 +1173,14 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       p.className = 'empty';
       p.textContent = q ? 'Nothing matches.' : live(g).length < 2 ? 'Just you so far. Share the link, or add people under •••.' : 'No expenses yet.';
       out.push(p);
+    }
+    if (list.length > shown.length) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'link more';
+      more.dataset.more = '1';
+      more.textContent = `Show ${Math.min(PAGE, list.length - shown.length)} more`;
+      out.push(more);
     }
     $('activity').replaceChildren(...out);
   }
@@ -1257,6 +1277,29 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     row.setAttribute('aria-expanded', String(e.id === expanded));
     return row;
   }
+
+  // Open or close a row in place, without redrawing the list.
+  function toggleRow(g, entry, row) {
+    const open = $('activity').querySelector('.det');
+    if (open) {
+      const prev = open.previousElementSibling;
+      if (prev) prev.setAttribute('aria-expanded', 'false');
+      open.remove();
+    }
+    expanded = expanded === entry.id ? null : entry.id;
+    if (expanded) {
+      row.setAttribute('aria-expanded', 'true');
+      row.after(detailPanel(g, entry));
+    }
+  }
+  const PAGE = 100;
+  let shownCount = PAGE;
+  $('activity').addEventListener('click', e => {
+    if (!e.target.closest('[data-more]')) return;
+    shownCount += PAGE;
+    const g = groups.get(current);
+    if (g) renderGroup(g);
+  });
 
   // ---- an activity row, opened ----
   // One row at a time opens in place (no sheet): how it was split and each
@@ -2216,7 +2259,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (ent) {
       const g = groups.get(current);
       const entry = g && g.entries.find(x => x.id === ent.dataset.entry);
-      if (entry) { expanded = expanded === entry.id ? null : entry.id; haptic('tick'); renderGroup(g); syncBack(); }
+      if (entry) { toggleRow(g, entry, ent); haptic('tick'); syncBack(); }
     }
   });
   $('back').addEventListener('click', () => (history.state && history.state.own ? history.back() : goHome()));
@@ -2358,7 +2401,20 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   if (pathId) openFromLink(pathId, false);
   if (!pathId || !groups.has(pathId)) for (const id of groupIds) sync(id);
   toApp({ type: 'hello' });
-  setInterval(() => { if (!document.hidden && current) sync(current); }, POLL_MS);
+  let tick = 0;
+  setInterval(() => {
+    if (document.hidden) return;
+    if (current) sync(current);
+    else if (++tick % 2 === 0) groupIds.forEach(sync);
+  }, POLL_MS);
+  // Another tab changed a group: take its copy when nothing of ours is waiting to send.
+  addEventListener('storage', e => {
+    const m = e.key && e.key.match(/^tally\.g\.([A-Za-z0-9_-]{22})$/);
+    if (!m || !e.newValue || !groups.has(m[1])) return;
+    const mine = groups.get(m[1]);
+    if (mine.pending.length) return;
+    try { groups.set(m[1], { pending: [], ...JSON.parse(e.newValue) }); render(); } catch {}
+  });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) (current ? [current] : groupIds).forEach(sync); });
   addEventListener('online', () => groupIds.forEach(sync));
 })();
