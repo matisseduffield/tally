@@ -196,13 +196,6 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 .totals .also { font-size: .78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 
-/* Group summary */
-.summary { padding: 20px 22px 18px; display: grid; gap: 4px; }
-.summary-label { font-size: .84rem; color: var(--muted); }
-.summary-amt { font-size: clamp(1.9rem, 8vw, 2.4rem); font-weight: 500; letter-spacing: -.02em; line-height: 1.15; }
-.summary-meta { font-size: .84rem; color: var(--muted); }
-.summary-actions { display: flex; gap: 10px; margin-top: 14px; }
-.summary-actions .btn { flex: 1; }
 /* Everyone else's balance: a plain ruled list, like Bureau's quick amounts */
 .bal-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; padding: 0 2px; border-top: 1px solid var(--line); font-size: .92rem; }
 .bal-row:last-child { border-bottom: 1px solid var(--line); }
@@ -221,6 +214,7 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 .dock .btn { display: block; width: 100%; max-width: 600px; margin: 0 auto; }
 .dock-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 600px; margin: 0 auto; }
 .dock-pair .btn { width: 100%; }
+.dock-pair.solo { grid-template-columns: 1fr; }
 
 /* Sheets (full screen on phones, centred panels on wide screens) */
 dialog {
@@ -403,16 +397,18 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 .add-row .input { flex: 1; }
 
 /* Currency picker */
-.picker-head { display: flex; gap: 4px; padding: 10px 6px 10px 12px; border-bottom: 1px solid var(--line); }
+.picker-head { display: flex; padding: 12px 20px; border-bottom: 1px solid var(--line); }
 .picker-head .input { flex: 1; }
-.picker-head button { min-height: 44px; padding: 0 12px; border: 0; background: none; color: var(--muted); }
-.picker-list { list-style: none; margin: 0; padding: 4px 0 12px; overflow-y: auto; overscroll-behavior: contain; }
-.picker-list .group { padding: 14px 16px 4px; font-size: .8rem; font-weight: 500; color: var(--muted); }
+.picker-list { list-style: none; margin: 0; padding: 0 20px 16px; overflow-y: auto; overscroll-behavior: contain; }
+.picker-list .group { padding: 16px 0 6px; font-size: .8rem; font-weight: 600; color: var(--ink); }
+.picker-list li + li:not(.group) button { border-top: 1px solid var(--line); }
 .picker-list button {
-  width: 100%; min-height: 48px; display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 10px;
-  padding: 0 16px; border: 0; background: none; text-align: left;
+  width: 100%; min-height: 48px; display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  padding: 0 2px; border: 0; background: none; text-align: left;
 }
-.picker-list button:hover, .picker-list button:focus-visible { background: var(--accent-soft); outline: none; }
+.picker-list button:hover, .picker-list button:focus-visible { background: color-mix(in srgb, var(--ink) 5%, transparent); outline: none; }
+.picker-list button[aria-current="true"] .c, .picker-list button[aria-current="true"] .n { color: var(--accent); }
+.picker-list .tickmark { width: 16px; height: 16px; color: var(--accent); }
 .picker-list .c { font-weight: 600; }
 .picker-list .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -456,7 +452,6 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 @media (max-width: 520px) {
   body { padding-top: 12px; }
   dialog { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
-  .summary { padding-inline: 18px; }
 }
 @media (prefers-reduced-motion: reduce) {
   dialog, dialog::backdrop, .update-track span { transition: none; }
@@ -525,13 +520,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 
   <!-- One group -->
   <div id="groupView" class="wrap" style="gap: 24px" hidden>
-    <section class="card summary">
-      <span class="summary-label" id="sumLabel">You're settled up</span>
-      <span class="summary-amt" id="sumAmt"></span>
-      <span class="summary-meta" id="sumMeta"></span>
-      <div class="summary-actions">
-        <button class="btn btn-secondary" type="button" id="settleBtn">Settle up</button>
-      </div>
+    <section class="totals" aria-label="This group">
+      <div><span class="lbl" id="sumLabel">Your balance</span><span class="val" id="sumAmt"></span></div>
+      <div><span class="lbl">Spent in total</span><span class="val" id="sumSpent"></span><span class="also" id="sumMeta"></span></div>
     </section>
     <section class="section" id="balSection">
       <h2>Balances</h2>
@@ -552,7 +543,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   </div>
 </div>
 <div class="dock" id="dock" hidden>
-  <button class="btn btn-primary" type="button" id="addBtn">Add expense</button>
+  <div class="dock-pair" id="dockPair">
+    <button class="btn btn-secondary" type="button" id="settleBtn">Settle up</button>
+    <button class="btn btn-primary" type="button" id="addBtn">Add expense</button>
+  </div>
 </div>
 
 <!-- New group -->
@@ -718,10 +712,13 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 </dialog>
 
 <!-- Currency picker -->
-<dialog id="picker" tabindex="-1" aria-label="Choose a currency">
+<dialog id="picker" tabindex="-1" aria-labelledby="pickerTitle">
+  <div class="sheet-head">
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <h2 id="pickerTitle">Currency</h2>
+  </div>
   <div class="picker-head">
-    <input class="input" id="pickerSearch" type="search" placeholder="Currency" autocomplete="off" aria-label="Search currencies">
-    <button type="button" data-close>Close</button>
+    <input class="input" id="pickerSearch" type="search" placeholder="Search by code or name" autocomplete="off" enterkeyhint="search" aria-label="Search currencies">
   </div>
   <ul class="picker-list" id="pickerList"></ul>
 </dialog>
@@ -1117,13 +1114,16 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const net = netOf(g);
     const mine = g.me ? (net[g.me] || 0) : 0;
     const b = balanceText(mine, code);
-    $('sumLabel').textContent = b.label;
-    $('sumAmt').textContent = b.amount;
-    $('sumAmt').className = 'summary-amt ' + b.cls;
-    $('sumAmt').hidden = !b.amount;
+    // Left: where you stand; right: what the group has spent, and your part.
+    $('sumLabel').textContent = mine > 0 ? 'You’re owed' : mine < 0 ? 'You owe' : 'Your balance';
+    $('sumAmt').textContent = mine ? b.amount : 'Settled';
+    $('sumAmt').className = 'val ' + (mine > 0 ? 'pos' : mine < 0 ? 'neg' : 'zero');
     const spent = entriesOf(g).filter(e => e.kind === 'expense').reduce((s, e) => s + L.entryTotal(e, code), 0);
     const myShare = g.me ? entriesOf(g).filter(e => e.kind === 'expense').reduce((s, e) => s + (L.shares(e, code)[g.me] || 0), 0) : 0;
-    $('sumMeta').textContent = spent ? `${money(spent, code)} spent · your share ${money(myShare, code)}` : `${live(g).length} ${live(g).length === 1 ? 'person' : 'people'}`;
+    $('sumSpent').textContent = money(spent, code);
+    $('sumSpent').className = 'val' + (spent ? '' : ' zero');
+    $('sumMeta').textContent = spent ? `your share ${money(myShare, code)}` : '';
+    $('sumMeta').hidden = !spent;
     // Everyone else's balance.
     const others = g.members.filter(m => m.id !== g.me && (!m.removed || net[m.id]));
     $('balSection').hidden = !others.length || !entriesOf(g).length;
@@ -1141,6 +1141,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       return row;
     }));
     $('settleBtn').hidden = Object.values(net).every(v => !v) && !entriesOf(g).length;
+    $('dockPair').classList.toggle('solo', $('settleBtn').hidden);
 
     // Activity, newest first, by day.
     $('searchBtn').hidden = entriesOf(g).length < 6 || !$('searchBox').hidden;
@@ -1412,7 +1413,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 
   // Currency picker shared by every currency button; resolves with a code or null.
   let pickResolve = null;
-  function pickCurrency() {
+  let pickCurrent = '';
+  function pickCurrency(currentCode) {
+    pickCurrent = currentCode || '';
     $('pickerSearch').value = '';
     renderPicker('');
     openDlg($('picker'));
@@ -1426,14 +1429,20 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       const li = document.createElement('li');
       li.innerHTML = '<button type="button"><span class="c"></span><span class="n"></span></button>';
       li.firstChild.dataset.code = c;
+      if (c === pickCurrent) {
+        li.firstChild.setAttribute('aria-current', 'true');
+        li.firstChild.insertAdjacentHTML('beforeend', '<svg class="tickmark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>');
+      }
       li.querySelector('.c').textContent = c;
       li.querySelector('.n').textContent = curName(c);
       return li;
     };
     const head = t => { const li = document.createElement('li'); li.className = 'group'; li.textContent = t; return li; };
     if (!q) {
-      const rest = ALL_CURRENCIES.filter(c => !COMMON.includes(c)).sort((a, b) => curName(a).localeCompare(curName(b), locale));
-      $('pickerList').replaceChildren(head('Common'), ...COMMON.map(mk), head('All currencies'), ...rest.map(mk));
+      const recent = (store.get('recentCur') || []).filter(c => ALL_CURRENCIES.includes(c)).slice(0, 4);
+      const common = COMMON.filter(c => !recent.includes(c));
+      const rest = ALL_CURRENCIES.filter(c => !COMMON.includes(c) && !recent.includes(c)).sort((a, b) => curName(a).localeCompare(curName(b), locale));
+      $('pickerList').replaceChildren(...(recent.length ? [head('Recent'), ...recent.map(mk)] : []), head('Common'), ...common.map(mk), head('All currencies'), ...rest.map(mk));
       return;
     }
     const hits = ALL_CURRENCIES.filter(c => c.toLowerCase().startsWith(q) || curName(c).toLowerCase().includes(q));
@@ -1450,7 +1459,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const res = pickResolve;
     pickResolve = null;
     $('picker').close();
-    if (res) res(b.dataset.code);
+    const code = b.dataset.code;
+    store.set('recentCur', [code, ...(store.get('recentCur') || []).filter(c => c !== code)].slice(0, 4));
+    if (res) res(code);
   });
 
   function chip(label, pressed, data) {
@@ -1505,7 +1516,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const c = e.target.closest('[data-i]');
     if (c) { newOthers.splice(Number(c.dataset.i), 1); renderNewOthers(); }
   });
-  $('newCur').addEventListener('click', async () => { const c = await pickCurrency(); if (c) $('newCur').textContent = c; });
+  $('newCur').addEventListener('click', async () => { const c = await pickCurrency($('newCur').textContent); if (c) $('newCur').textContent = c; });
   $('createGo').addEventListener('click', () => {
     const name = $('newName').value.trim();
     const me = $('newMe').value.trim();
@@ -1913,7 +1924,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     renderExpenseFoot(g, amount, parts, {});
   });
   $('expCur').addEventListener('click', async () => {
-    const c = await pickCurrency();
+    const c = await pickCurrency(draft.currency);
     if (!c) return;
     draft.currency = c;
     renderExpense();
@@ -2171,7 +2182,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   }
   $('setAdd').addEventListener('click', addMember);
   $('setNew').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addMember(); } });
-  $('setCur').addEventListener('click', async () => { const c = await pickCurrency(); if (c) $('setCur').textContent = c; });
+  $('setCur').addEventListener('click', async () => { const c = await pickCurrency($('setCur').textContent); if (c) $('setCur').textContent = c; });
   // Name and currency are kept however the sheet closes (Done, ×, Back).
   $('setDlg').addEventListener('close', () => {
     if (renaming) saveRename();
