@@ -1,0 +1,12 @@
+<!-- Notification icon: the launcher's tally mark, as a monochrome glyph. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="16"
+    android:viewportHeight="16">
+    <path
+        android:pathData="M3.5,3v10M6.5,3v10M9.5,3v10M12.5,3v10M1.5,11.5L14.5,4.5"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round" />
+</vector>

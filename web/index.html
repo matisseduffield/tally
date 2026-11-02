@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#EEEBE4" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#12110F" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#E8ECE5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1412" media="(prefers-color-scheme: dark)">
 <title>Tally</title>
 <style>
 /* Hanken Grotesk ships with the page (fonts/, SIL OFL) so the app looks the same offline. */
@@ -25,55 +25,55 @@
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
-/* Tally: Bureau's sibling. Warm paper tones, near-black primary actions, green for
-   money coming to you and a muted brick for money you owe. */
+/* Tally shares Bureau's palette: sage-grey paper, near-black primary actions,
+   blue for links and focus, green for money coming to you, red for money you owe. */
 :root {
-  --bg: #EEEBE4;
-  --surface: #FAF8F3;
-  --ink: #1E1B16;
-  --muted: #6B655B;
-  --faint: #A39C90;
-  --line: #DAD4C8;
-  --accent: #1F6F54;
-  --accent-soft: rgba(31, 111, 84, .09);
-  --pos: #1F7A55;
-  --neg: #B4472E;
-  --on-ink: #FAF8F3;
-  --backdrop: rgba(20, 18, 14, .4);
-  --shadow: rgba(30, 27, 22, .12);
+  --bg: #E8ECE5;
+  --surface: #F7F8F4;
+  --ink: #14211C;
+  --muted: #5B6861;
+  --faint: #8D9992;
+  --line: #CDD5CC;
+  --accent: #2C53C4;
+  --accent-soft: rgba(44, 83, 196, .08);
+  --pos: #1D7548;
+  --neg: #B0392D;
+  --on-ink: #F7F8F4;
+  --backdrop: rgba(10, 16, 14, .4);
+  --shadow: rgba(20, 33, 28, .12);
   --font: "Hanken Grotesk", "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #12110F;
-    --surface: #1C1A17;
-    --ink: #ECE7DE;
-    --muted: #9A9387;
-    --faint: #6A645A;
-    --line: #2F2C27;
-    --accent: #6FC59C;
-    --accent-soft: rgba(111, 197, 156, .10);
-    --pos: #6FC59C;
-    --neg: #F08A70;
-    --on-ink: #12110F;
+    --bg: #0E1412;
+    --surface: #18211E;
+    --ink: #E4EAE5;
+    --muted: #8C9992;
+    --faint: #5F6C66;
+    --line: #2E3A35;
+    --accent: #85A2FF;
+    --accent-soft: rgba(133, 162, 255, .10);
+    --pos: #5FC890;
+    --neg: #F08476;
+    --on-ink: #0E1412;
     --backdrop: rgba(0, 0, 0, .6);
     --shadow: rgba(0, 0, 0, .45);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #12110F;
-  --surface: #1C1A17;
-  --ink: #ECE7DE;
-  --muted: #9A9387;
-  --faint: #6A645A;
-  --line: #2F2C27;
-  --accent: #6FC59C;
-  --accent-soft: rgba(111, 197, 156, .10);
-  --pos: #6FC59C;
-  --neg: #F08A70;
-  --on-ink: #12110F;
+  --bg: #0E1412;
+  --surface: #18211E;
+  --ink: #E4EAE5;
+  --muted: #8C9992;
+  --faint: #5F6C66;
+  --line: #2E3A35;
+  --accent: #85A2FF;
+  --accent-soft: rgba(133, 162, 255, .10);
+  --pos: #5FC890;
+  --neg: #F08476;
+  --on-ink: #0E1412;
   --backdrop: rgba(0, 0, 0, .6);
   --shadow: rgba(0, 0, 0, .45);
   color-scheme: dark;
@@ -295,13 +295,21 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .picker-list .c { font-weight: 600; }
 .picker-list .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Toast */
+/* Toast: a popover, so it shows above open sheets too */
 .toast {
-  position: fixed; left: 50%; bottom: calc(88px + env(safe-area-inset-bottom, 0px)); z-index: 20;
-  transform: translateX(-50%);
-  padding: 10px 16px; border-radius: 6px; background: var(--ink); color: var(--on-ink);
+  position: fixed; inset: auto auto calc(88px + env(safe-area-inset-bottom, 0px)) 50%; z-index: 20;
+  transform: translateX(-50%); margin: 0; border: 0; overflow: visible;
+  display: flex; align-items: center; gap: 16px; max-width: calc(100vw - 32px); width: max-content;
+  padding: 0 6px 0 16px; min-height: 42px; border-radius: 6px; background: var(--ink); color: var(--on-ink);
   font-size: .88rem; box-shadow: 0 8px 24px var(--shadow);
 }
+.toast:not(:has(button:not([hidden]))) { padding-right: 16px; }
+.toast[popover]:not(:popover-open) { display: none; }
+.toast button { min-height: 42px; padding: 0 10px; border: 0; background: none; color: var(--on-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.get-app { justify-self: center; font-size: .84rem; color: var(--muted); }
+.get-app a { color: inherit; }
+.split-row .part { margin-left: 8px; font-size: .82rem; color: var(--muted); }
+.by-line { font-size: .82rem; color: var(--muted); }
 
 /* Update card (inside the app) */
 .update { display: grid; gap: 16px; padding: 18px; }
@@ -388,6 +396,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
         <button class="link" type="button" id="joinBtn">Join with a link</button>
       </div>
     </section>
+    <p class="get-app" id="getApp" hidden><a href="https://tally.matisseduffield.workers.dev/app">Get the Android app</a></p>
   </div>
 
   <!-- One group -->
@@ -481,7 +490,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
       <div class="split-foot"><span id="expFoot"></span><span id="expFootRight"></span></div>
     </div>
     <label class="field"><span class="field-label">Date</span><input class="input" type="date" id="expDate"></label>
-    <div><button class="link danger" type="button" id="expDelete" hidden>Delete expense</button></div>
+    <div class="field"><span class="by-line" id="expBy" hidden></span><div><button class="link danger" type="button" id="expDelete" hidden>Delete expense</button></div></div>
   </div>
 </dialog>
 
@@ -503,7 +512,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
       <div class="add-row"><input class="input" id="payAmount" inputmode="decimal" placeholder="Amount" autocomplete="off"><button class="btn btn-primary" type="button" id="payGo">Record</button></div>
       <span class="hint" id="payHint"></span>
     </div>
-    <div><button class="link danger" type="button" id="payDelete" hidden>Delete payment</button></div>
+    <div class="field"><span class="by-line" id="payBy" hidden></span><div><button class="link danger" type="button" id="payDelete" hidden>Delete payment</button></div></div>
   </div>
 </dialog>
 
@@ -543,7 +552,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
   <ul class="picker-list" id="pickerList"></ul>
 </dialog>
 
-<div class="toast" id="toast" role="status" hidden></div>
+<div class="toast" id="toast" role="status" popover="manual"><span id="toastText"></span><button type="button" id="toastUndo" hidden>Undo</button></div>
 
 <script src="lib.js"></script>
 <script>
@@ -603,13 +612,40 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
   }
 
   // ---- toast ----
-  let toastTimer = 0;
-  function toast(text) {
-    $('toast').textContent = text;
-    $('toast').hidden = false;
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { $('toast').hidden = true; }, 2200);
+  // A popover, so it shows above sheets. An open sheet makes everything
+  // outside it inert, so the toast lives inside the top sheet (moved whenever
+  // one opens or closes) to keep its Undo button tappable.
+  let toastTimer = 0, toastUndo = null, toastOn = false;
+  const toastEl = $('toast');
+  const canPop = typeof toastEl.showPopover === 'function';
+  if (!canPop) { toastEl.removeAttribute('popover'); toastEl.hidden = true; }
+  function placeToast() {
+    if (!toastOn) return;
+    const host = [...document.querySelectorAll('dialog[open]')].at(-1) || document.body;
+    if (canPop && toastEl.matches(':popover-open')) toastEl.hidePopover();
+    if (toastEl.parentNode !== host) host.append(toastEl);
+    if (canPop) toastEl.showPopover(); else toastEl.hidden = false;
   }
+  function hideToast() {
+    toastOn = false;
+    toastUndo = null;
+    if (canPop) { if (toastEl.matches(':popover-open')) toastEl.hidePopover(); } else toastEl.hidden = true;
+  }
+  function toast(text, undo) {
+    $('toastText').textContent = text;
+    $('toastUndo').hidden = !undo;
+    toastUndo = undo || null;
+    toastOn = true;
+    placeToast();
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, undo ? 5000 : 2200);
+  }
+  $('toastUndo').addEventListener('click', () => {
+    const undo = toastUndo;
+    clearTimeout(toastTimer);
+    hideToast();
+    if (undo) { haptic(); undo(); }
+  });
 
   // ---- groups on this device ----
   // Each group is kept whole on the device (so it opens instantly and works
@@ -757,6 +793,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
     if (g) renderGroup(g); else renderHome();
     renderStatus();
     syncBack();
+    tellAppWatch();
   }
 
   function balanceText(net, code) {
@@ -879,11 +916,12 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
   function openDlg(d) {
     d.showModal();
     syncBack();
+    placeToast();
   }
   // Tells the app whether Back has something to do here (a sheet or a group).
   const syncBack = () => toApp({ type: 'back', enabled: !!(current || document.querySelector('dialog[open]')) });
   for (const d of document.querySelectorAll('dialog')) {
-    d.addEventListener('close', syncBack);
+    d.addEventListener('close', () => { syncBack(); placeToast(); });
     d.addEventListener('click', e => {
       if (e.target === d || e.target.closest('[data-close]')) d.close();
     });
@@ -1092,6 +1130,8 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
     $('expAmount').value = e ? plainNum(e.amount, e.currency) : '';
     $('expDate').value = e ? e.date : today();
     $('expDelete').hidden = !e;
+    $('expBy').textContent = byLine(g, e);
+    $('expBy').hidden = !$('expBy').textContent;
     renderExpense();
     openDlg($('expDlg'));
     if (!e) $('expAmount').focus();
@@ -1157,19 +1197,37 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
         row.querySelector('.val').textContent = on && owed[m.id] ? money(owed[m.id], code) : '';
         row.dataset.toggle = m.id;
       } else {
-        row.innerHTML = '<span></span><span class="who"></span><input inputmode="decimal" autocomplete="off">';
-        row.querySelector('.who').textContent = name;
+        row.innerHTML = '<span></span><span class="who"><span></span><span class="part"></span></span><input inputmode="decimal" autocomplete="off">';
+        row.querySelector('.who').firstChild.textContent = name;
+        row.querySelector('.part').dataset.part = m.id;
         const input = row.querySelector('input');
         input.value = draft.values[m.id] || '';
         input.dataset.member = m.id;
         input.placeholder = draft.mode === 'shares' ? '0' : draft.mode === 'percent' ? '0 %' : '0';
         input.setAttribute('aria-label', `${name}'s ${draft.mode === 'percent' ? 'percent' : draft.mode === 'shares' ? 'shares' : 'amount'}`);
-        if (draft.mode === 'shares' && owed[m.id]) row.firstChild.textContent = '';
       }
       return row;
     });
     $('expSplit').replaceChildren(...rows);
+    fillParts(g, amount, parts);
     renderExpenseFoot(g, amount, parts, owed);
+  }
+  // What each person's %, shares or (foreign) amount comes to in the group's
+  // currency, next to their name; updated as they type without a re-render.
+  function fillParts(g, amount, parts) {
+    const code = g.group.currency, rate = currentRate(g);
+    const show = draft.mode !== 'equal' && (draft.mode !== 'exact' || draft.currency !== code);
+    const total = show && amount > 0 && Number.isFinite(rate) ? L.toMinor(amount * rate, code) : 0;
+    const sum = Object.values(parts).reduce((s, v) => s + v, 0);
+    // Amounts and % only spread the total once they add up; shares always do.
+    const whole = draft.mode === 'shares' || (draft.mode === 'percent' ? Math.abs(sum - 100) <= 0.001 : Math.abs(sum - amount) <= 0.005);
+    const owed = total && sum > 0 && whole ? L.allocate(total, parts) : {};
+    for (const el of $('expSplit').querySelectorAll('[data-part]')) {
+      const id = el.dataset.part;
+      el.textContent = owed[id] ? money(owed[id], code)
+        : total && parts[id] && draft.mode === 'percent' ? money(Math.round(total * parts[id] / 100), code)
+        : total && parts[id] && draft.mode === 'exact' ? money(L.toMinor(parts[id] * rate, code), code) : '';
+    }
   }
   function renderExpenseFoot(g, amount, parts, owed) {
     const code = g.group.currency;
@@ -1238,6 +1296,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
     const g = groups.get(current);
     const amount = parse($('expAmount').value);
     const parts = draftParts(g, amount);
+    fillParts(g, amount, parts);
     renderExpenseFoot(g, amount, parts, {});
   });
   $('expCur').addEventListener('click', async () => {
@@ -1272,14 +1331,28 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
     toast(draft.editing ? 'Expense updated' : 'Expense added');
   });
   $('expDelete').addEventListener('click', () => {
-    const g = groups.get(current);
-    const e = g.entries.find(x => x.id === draft.id);
-    if (!e) return;
     $('expDlg').close();
-    change(g, [{ type: 'entry', id: e.id, data: stripMeta(e), deleted: true }]);
-    toast('Expense deleted');
+    deleteEntry(draft.id, 'Expense deleted');
   });
   const stripMeta = e => { const { id, deleted, createdAt, updatedAt, ...data } = e; return data; };
+  // Deleting only marks the entry, so Undo puts it straight back. `by` records
+  // who did it, for the others' notifications.
+  function deleteEntry(id, message) {
+    const g = groups.get(current);
+    const e = g && g.entries.find(x => x.id === id);
+    if (!e) return;
+    const mark = deleted => change(g, [{ type: 'entry', id, data: { ...stripMeta(e), by: g.me || e.by }, deleted }]);
+    mark(true);
+    toast(message, () => mark(false));
+  }
+  // "Added by Sam · 2 Nov" under an entry being edited.
+  function byLine(g, e) {
+    if (!e || !e.by) return '';
+    const who = e.by === g.me ? 'you' : memberName(g, e.by);
+    const when = e.updatedAt ? new Date(e.updatedAt).toLocaleDateString(locale, { day: 'numeric', month: 'short' }) : '';
+    const verb = e.updatedAt && e.createdAt && e.updatedAt - e.createdAt > 1000 ? 'Last changed by' : 'Added by';
+    return `${verb} ${who}${when ? ' · ' + when : ''}`;
+  }
 
   // ---- settle up ----
   let pay = null; // { from, to, editing }
@@ -1303,6 +1376,8 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
     $('payAmount').value = entry ? plainNum(L.fromMinor(L.entryTotal(entry, code), code), code) : '';
     $('payAmount').placeholder = `Amount in ${code}`;
     $('payDelete').hidden = !entry;
+    $('payBy').textContent = byLine(g, entry);
+    $('payBy').hidden = !$('payBy').textContent;
     renderPay();
     openDlg($('payDlg'));
   }
@@ -1338,12 +1413,8 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
     recordPayment(pay.from, pay.to, L.toMinor(amount, g.group.currency));
   });
   $('payDelete').addEventListener('click', () => {
-    const g = groups.get(current);
-    const e = g.entries.find(x => x.id === pay.id);
-    if (!e) return;
     $('payDlg').close();
-    change(g, [{ type: 'entry', id: e.id, data: stripMeta(e), deleted: true }]);
-    toast('Payment deleted');
+    deleteEntry(pay.id, 'Payment deleted');
   });
 
   // ---- group settings ----
@@ -1409,6 +1480,10 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
       const m = g.members.find(x => x.id === d.dataset.remove);
       change(g, [{ type: 'member', id: m.id, name: m.name, removed: true }]);
       renderMembers();
+      toast(`Removed ${m.name}`, () => {
+        change(g, [{ type: 'member', id: m.id, name: m.name, removed: false }]);
+        if ($('setDlg').open) renderMembers();
+      });
     }
   });
   function addMember() {
@@ -1552,16 +1627,32 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
   }
 
   // A group link: open it if it's here and we know who we are, else join.
-  function openFromLink(id) {
+  function openFromLink(id, push = true) {
     const g = groups.get(id);
-    if (g && g.me) return openGroup(id);
+    if (g && g.me) return openGroup(id, push);
     joinById(id);
+  }
+
+  // The app checks for others' changes in the background and notifies; it
+  // needs each group, who you are in it, and the newest change you've seen.
+  let lastWatch = '';
+  function tellAppWatch() {
+    if (!app) return;
+    const list = groupIds.map(id => groups.get(id)).filter(g => g.me && !g.gone).map(g => ({
+      id: g.group.id, me: g.me, name: g.group.name,
+      seen: g.entries.reduce((t, e) => Math.max(t, e.updatedAt || 0), 0),
+    }));
+    const key = JSON.stringify(list);
+    if (key !== lastWatch) { lastWatch = key; toApp({ type: 'watch', groups: list }); }
   }
 
   // ---- boot ----
   const pathId = (location.pathname.match(/^\/g\/([A-Za-z0-9_-]{22})$/) || [])[1] || (location.hash.match(/g=([A-Za-z0-9_-]{22})/) || [])[1];
   history.replaceState(pathId ? { g: pathId } : {}, '');
-  if (pathId) openFromLink(pathId); else render();
+  $('getApp').hidden = !!app;
+  if (location.origin !== SITE) $('getApp').firstChild.href = SITE + '/app';
+  render();
+  if (pathId) openFromLink(pathId, false);
   if (!pathId || !groups.has(pathId)) for (const id of groupIds) sync(id);
   toApp({ type: 'hello' });
   setInterval(() => { if (!document.hidden && current) sync(current); }, POLL_MS);

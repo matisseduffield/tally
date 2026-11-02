@@ -12,8 +12,12 @@ no limits on how many expenses you add, no ads, and any currency.
 - Your balance per group, everyone else's, and "Settle up": the fewest payments
   that square everyone (at most people − 1). Recording one is a tap.
 - Works offline: groups live on the device, changes queue and sync later.
+- Undo after deleting an expense, payment or person; each entry shows who
+  added or last changed it.
 - Android app: self-updating from the public `tally-releases` repo, group links
-  open in the app, the share sheet sends a group's link.
+  open in the app, the share sheet sends a group's link, and a notification
+  says when someone else adds, changes or deletes something in your groups
+  (a background check about every 30 minutes; unchanged groups cost a 304).
 
 ## Layout
 
@@ -53,8 +57,9 @@ git push origin v1.1.0
 ```
 
 CI builds the signed APK and force-pushes it, `latest.json` and `web/` to
-`tally-releases`. Download link:
-https://raw.githubusercontent.com/matisseduffield/tally-releases/main/Tally.apk
+`tally-releases`. Download link: https://tally.matisseduffield.workers.dev/app
+(redirects to
+https://raw.githubusercontent.com/matisseduffield/tally-releases/main/Tally.apk).
 
 Signing: `tally-release.keystore` + `keystore.properties` (untracked; backups
 in `android-toolchain`, `tally-*.backup`). CI restores them from the repo

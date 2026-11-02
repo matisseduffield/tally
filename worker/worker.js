@@ -4,6 +4,7 @@
 //   POST /api/g/:id/ops   apply changes { ops: [...] }, answer with the group
 //   GET  /, /g/:id, ...   the web app, served from the public tally-releases
 //                         repo, where every release publishes it
+//   GET  /app             the latest Android app (a redirect to the APK)
 //
 // There are no accounts: a group's 22-character random id is its link, and
 // anyone holding it can read and add to the group. Responses carry the
@@ -11,6 +12,7 @@
 // Deployed by hand from this file (see README); schema in schema.sql.
 
 const WEB = 'https://raw.githubusercontent.com/matisseduffield/tally-releases/main/web/';
+const APK = 'https://raw.githubusercontent.com/matisseduffield/tally-releases/main/Tally.apk';
 const ID = /^[A-Za-z0-9_-]{22}$/;
 const CODE = /^[A-Z]{3,5}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -54,6 +56,7 @@ export default {
         if (request.method === 'POST' && api[2]) return applyOps(env, id, request);
         return fail(405, 'Method not allowed');
       }
+      if (url.pathname === '/app') return new Response(null, { status: 302, headers: { Location: APK, 'Cache-Control': 'no-store', ...PRIVATE } });
       if (url.pathname === '/.well-known/assetlinks.json') return json(ASSET_LINKS, 200, { 'Cache-Control': 'public, max-age=3600' });
       if (request.method === 'GET') return serveWeb(url.pathname);
       return fail(404, 'Not found');

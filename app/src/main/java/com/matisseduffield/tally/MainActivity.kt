@@ -1,9 +1,11 @@
 package com.matisseduffield.tally
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.webkit.WebResourceRequest
@@ -15,6 +17,8 @@ import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -26,6 +30,7 @@ import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.matisseduffield.tally.updates.UpdateManager
+import com.matisseduffield.tally.watch.Watch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -36,8 +41,9 @@ import java.io.File
  * Hosts web/index.html (bundled as assets) in a WebView. The asset loader
  * serves it from a real https origin, so localStorage and the sync server's
  * CORS behave exactly as they do in a browser. A message bridge, limited to
- * that origin, lets the page drive Back, sharing, haptics and update checks;
- * group links opened on the phone are handed to the page.
+ * that origin, lets the page drive Back, sharing, haptics and update checks,
+ * and tells the app which groups to watch for notifications; group links
+ * opened on the phone (or from a notification) are handed to the page.
  */
 class MainActivity : ComponentActivity() {
     private companion object {
@@ -60,6 +66,7 @@ class MainActivity : ComponentActivity() {
     private var pendingUpdate: UpdateManager.UpdateInfo? = null
     private var installing = false
     private var pendingLink: String? = null
+    private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     // With the bridge, Back is only intercepted while the page has somewhere
     // to go back to (a sheet or a group; its "back" message), so the system's
@@ -163,12 +170,14 @@ class MainActivity : ComponentActivity() {
     // (and catch up) as soon as the app is back.
     override fun onResume() {
         super.onResume()
+        Watch.foreground = true
         web.onResume()
         web.resumeTimers()
         maybeCheckForUpdate()
     }
 
     override fun onPause() {
+        Watch.foreground = false
         web.onPause()
         web.pauseTimers()
         super.onPause()
@@ -184,11 +193,20 @@ class MainActivity : ComponentActivity() {
         takeLink(intent)
     }
 
-    /** A group link opened on the phone: hand it to the page (now, or once it says hello). */
+    /**
+     * A group link opened on the phone, or a group's notification tapped:
+     * hand it to the page (now, or once it says hello).
+     */
     private fun takeLink(intent: Intent?) {
-        if (intent?.action != Intent.ACTION_VIEW) return
-        pendingLink = intent.dataString ?: return
-        intent.data = null
+        val group = intent?.getStringExtra(Watch.EXTRA_GROUP)
+        if (group != null) {
+            pendingLink = "${Watch.SITE}/g/$group"
+            intent.removeExtra(Watch.EXTRA_GROUP)
+        } else {
+            if (intent?.action != Intent.ACTION_VIEW) return
+            pendingLink = intent.dataString ?: return
+            intent.data = null
+        }
         sendLink()
     }
 
@@ -221,9 +239,23 @@ class MainActivity : ComponentActivity() {
                 if (msg.optString("kind") == "tick") HapticFeedbackConstants.CLOCK_TICK
                 else HapticFeedbackConstants.VIRTUAL_KEY,
             )
+            "watch" -> {
+                val groups = msg.optJSONArray("groups") ?: return
+                Watch.update(this, groups)
+                askForNotificationsOnce(groups.length() > 0)
+            }
             "checkUpdate" -> checkForUpdateNow()
             "installUpdate" -> pendingUpdate?.let { installFromCard(it) }
         }
+    }
+
+    /** Android 13+ asks before notifying: once, when there's a group to hear about. */
+    private fun askForNotificationsOnce(haveGroups: Boolean) {
+        if (!haveGroups || Build.VERSION.SDK_INT < 33 || Watch.notificationsOn(this)) return
+        val prefs = getSharedPreferences("app", MODE_PRIVATE)
+        if (prefs.getBoolean("askedNotifications", false)) return
+        prefs.edit { putBoolean("askedNotifications", true) }
+        askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     // ---- update card ----

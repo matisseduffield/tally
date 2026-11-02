@@ -1,5 +1,5 @@
 <resources>
     <!-- Match the page background token in web/index.html so there is no flash before the page paints. -->
-    <color name="page_bg">#EEEBE4</color>
+    <color name="page_bg">#E8ECE5</color>
     <color name="icon_bg">#1F6F54</color>
 </resources>
