@@ -12,8 +12,13 @@ no limits on how many expenses you add, no ads, and any currency.
 - Your balance per group, everyone else's, and "Settle up": the fewest payments
   that square everyone (at most people − 1). Recording one is a tap.
 - Works offline: groups live on the device, changes queue and sync later.
-- Undo after deleting an expense, payment or person; each entry shows who
-  added or last changed it.
+- Activity reads at a glance: each row shows who paid and who it was for,
+  with an arrow the way the money went (red when you owe, green when you're
+  owed) and your bottom line. Tap a row to open it in place: the split and
+  each person's share, the rate for a foreign amount, a note, who added it.
+- Undo after adding, changing or deleting an expense, payment or person.
+- Settle up: tap a person's balance to settle with them; "Ask" sends a
+  reminder through the share sheet. Export a group as CSV from its settings.
 - Android app: self-updating from the public `tally-releases` repo, group links
   open in the app, the share sheet sends a group's link, and a notification
   says when someone else adds, changes or deletes something in your groups

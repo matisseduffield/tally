@@ -5,9 +5,16 @@
 // balances always add up exactly. An expense keeps its own amount and
 // currency plus the rate into the group currency at the time it was added.
 (function (root) {
+  // Building a NumberFormat is slow and this runs for every amount, so cache it.
+  const digitsCache = new Map();
   function fractionDigits(code) {
-    try { return new Intl.NumberFormat('en', { style: 'currency', currency: code }).resolvedOptions().maximumFractionDigits; }
-    catch { return 2; }
+    let d = digitsCache.get(code);
+    if (d === undefined) {
+      try { d = new Intl.NumberFormat('en', { style: 'currency', currency: code }).resolvedOptions().maximumFractionDigits; }
+      catch { d = 2; }
+      digitsCache.set(code, d);
+    }
+    return d;
   }
 
   // One number as typed: either "." or "," can be the decimal point. When both

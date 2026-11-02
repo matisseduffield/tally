@@ -18,7 +18,7 @@ class WatchJob : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         thread {
             try {
-                check()
+                runCatching { check() }
             } finally {
                 jobFinished(params, false)
             }

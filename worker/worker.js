@@ -107,23 +107,24 @@ async function applyOps(env, id, request) {
       if (!name || !CODE.test(op.currency || '')) return fail(400, 'Bad group');
       stmts.push(env.DB.prepare(
         `INSERT INTO groups (id, name, currency, version, created_at, updated_at) VALUES (?1, ?2, ?3, 1, ?4, ?4)
-         ON CONFLICT(id) DO UPDATE SET name = ?2, currency = ?3, updated_at = ?4`,
+         ON CONFLICT(id) DO UPDATE SET name = ?2, updated_at = ?4,
+           currency = CASE WHEN EXISTS (SELECT 1 FROM entries WHERE group_id = ?1) THEN groups.currency ELSE ?3 END`,
       ).bind(id, name, op.currency, now));
     } else if (op.type === 'member') {
       const name = cleanText(op.name, 40);
       if (!ID.test(op.id || '') || !name) return fail(400, 'Bad member');
       stmts.push(env.DB.prepare(
         `INSERT INTO members (id, group_id, name, removed, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT(id) DO UPDATE SET name = ?3, removed = ?4, updated_at = ?5 WHERE members.group_id = ?2`,
-      ).bind(op.id, id, name, op.removed ? 1 : 0, now));
+         ON CONFLICT(id) DO UPDATE SET name = ?3, removed = COALESCE(?6, members.removed), updated_at = ?5 WHERE members.group_id = ?2`,
+      ).bind(op.id, id, name, op.removed ? 1 : 0, now, flag(op.removed)));
     } else if (op.type === 'entry') {
       if (!ID.test(op.id || '')) return fail(400, 'Bad entry');
       const data = cleanEntry(op.data);
       if (!data) return fail(400, 'Bad entry');
       stmts.push(env.DB.prepare(
         `INSERT INTO entries (id, group_id, data, deleted, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)
-         ON CONFLICT(id) DO UPDATE SET data = ?3, deleted = ?4, updated_at = ?5 WHERE entries.group_id = ?2`,
-      ).bind(op.id, id, JSON.stringify(data), op.deleted ? 1 : 0, now));
+         ON CONFLICT(id) DO UPDATE SET data = ?3, deleted = COALESCE(?6, entries.deleted), updated_at = ?5 WHERE entries.group_id = ?2`,
+      ).bind(op.id, id, JSON.stringify(data), op.deleted ? 1 : 0, now, flag(op.deleted)));
     } else {
       return fail(400, 'Bad request');
     }
@@ -136,6 +137,9 @@ async function applyOps(env, id, request) {
   return json(state, 200, { ETag: `"${state.group.version}"` });
 }
 
+// An op's removed/deleted: 1 or 0 when it says, null (keep what's there) when it doesn't.
+const flag = v => (v === undefined ? null : v ? 1 : 0);
+
 function cleanText(s, max) {
   return typeof s === 'string' ? s.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max) : '';
 }
@@ -147,7 +151,7 @@ function cleanEntry(d) {
   const amount = num(d.amount), rate = num(d.rate);
   if (!(amount > 0 && amount < 1e10) || !(rate > 0 && rate < 1e10)) return null;
   if (!CODE.test(d.currency || '') || !DATE.test(d.date || '')) return null;
-  const base = { kind: d.kind, amount, currency: d.currency, rate, date: d.date, by: ID.test(d.by || '') ? d.by : undefined };
+  const base = { kind: d.kind, amount, currency: d.currency, rate, date: d.date, by: ID.test(d.by || '') ? d.by : undefined, note: cleanText(d.note, 200) || undefined };
   if (d.kind === 'payment') {
     if (!ID.test(d.from || '') || !ID.test(d.to || '') || d.from === d.to) return null;
     return { ...base, from: d.from, to: d.to };
