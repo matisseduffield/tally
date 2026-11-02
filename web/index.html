@@ -174,10 +174,18 @@ button.row:active { background: color-mix(in srgb, var(--ink) 5%, transparent); 
 button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 .day { padding: 14px 2px 4px; font-size: .8rem; font-weight: 500; color: var(--muted); }
 .empty { padding: 18px 0; font-size: .9rem; color: var(--muted); }
+.empty p { margin: 0; max-width: 34ch; }
+.empty .acts { display: flex; gap: 20px; margin-top: 10px; }
+.empty .link { padding: 6px 0; font-size: .9rem; }
 
-/* Home */
-.intro { display: grid; gap: 18px; }
-.intro p { margin: 0; max-width: 36ch; color: var(--muted); }
+/* Home, before any group: what Tally does, in three ruled steps */
+.intro { display: grid; gap: 22px; padding-top: 4px; }
+.intro .lead { margin: 0; max-width: 21ch; font-size: 1.55rem; font-weight: 500; line-height: 1.25; letter-spacing: -.01em; }
+.steps { list-style: none; margin: 0; padding: 0; border-bottom: 1px solid var(--line); }
+.steps li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 2px; padding: 14px 0; border-top: 1px solid var(--line); }
+.steps .n { grid-row: 1 / span 2; font-size: .84rem; color: var(--faint); font-variant-numeric: tabular-nums; line-height: 1.5; }
+.steps b { font-weight: 500; }
+.steps small { font-size: .84rem; color: var(--muted); }
 /* Home: name and your balance on the first line, details across the whole
    second line (so nothing is cut short by the amount column). */
 .group-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 3px; min-height: 64px; padding: 12px 2px; }
@@ -307,6 +315,8 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .sheet-body.blocks { gap: 12px; }
 .blk-head .cur-btn { margin: -10px -10px -10px 0; }
 .blk .pick > :last-child { border-bottom: 0; }
+.blk .pick + .pick { margin-top: -10px; }
+.blk .pick:empty { display: none; }
 .blk .rows > .row:last-child { border-bottom: 0; }
 .blk .add-row { margin-top: 2px; }
 .blk > .hint { margin-top: -4px; }
@@ -384,11 +394,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 .split-foot { display: flex; justify-content: space-between; padding-top: 8px; font-size: .82rem; color: var(--muted); }
 
 /* Settle up suggestions */
-.pay-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 56px; border-top: 1px solid var(--line); }
+.pay-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; padding: 12px 0 4px; border-top: 1px solid var(--line); }
 .pay-row:last-child { border-bottom: 1px solid var(--line); }
 .pay-row .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pay-row .link { padding: 12px 0 12px 4px; }
-.pay-row .acts { display: flex; gap: 14px; }
+.pay-row .amt { font-weight: 500; white-space: nowrap; }
+.pay-row .acts { grid-column: 1 / -1; display: flex; gap: 20px; }
+.pay-row .link { padding: 8px 0; font-size: .86rem; }
 
 /* Member rows in settings */
 .member-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 48px; }
@@ -505,7 +516,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   <!-- Home: your groups -->
   <div id="home" class="wrap" style="gap: 24px">
     <section class="intro" id="intro" hidden>
-      <p>Make a group, share its link, and everyone adds what they paid. Tally works out who owes whom.</p>
+      <p class="lead">Split costs with anyone, no sign-up needed.</p>
+      <ol class="steps">
+        <li><span class="n">1</span><b>Make a group</b><small>For a trip, a flat, a night out.</small></li>
+        <li><span class="n">2</span><b>Share its link</b><small>Anyone with it can see the group and add to it.</small></li>
+        <li><span class="n">3</span><b>Add what you pay</b><small>Tally keeps the balances and the simplest way to settle up.</small></li>
+      </ol>
     </section>
     <section class="totals" id="overview" aria-label="Across your groups" hidden>
       <div><span class="lbl">You’re owed</span><span class="val" id="ovOwed"></span><span class="also" id="ovOwedAlso" hidden></span></div>
@@ -520,7 +536,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 
   <!-- One group -->
   <div id="groupView" class="wrap" style="gap: 24px" hidden>
-    <section class="totals" aria-label="This group">
+    <section class="totals" id="groupTotals" aria-label="This group">
       <div><span class="lbl" id="sumLabel">Your balance</span><span class="val" id="sumAmt"></span></div>
       <div><span class="lbl">Spent in total</span><span class="val" id="sumSpent"></span><span class="also" id="sumMeta"></span></div>
     </section>
@@ -704,8 +720,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       <div class="blk-head"><span class="field-label">Spreadsheet</span><button class="link" type="button" id="setExport">Export CSV</button></div>
       <span class="hint">Every expense and payment, with each person’s share.</span>
     </div>
-    <div class="field">
-      <button class="link danger" type="button" id="setForget" style="justify-self: start">Remove from this device</button>
+    <div class="blk">
+      <div class="blk-head"><span class="field-label">This device</span><button class="link danger" type="button" id="setForget">Remove group</button></div>
       <span class="hint">The group stays for everyone else; open its link to get it back.</span>
     </div>
   </div>
@@ -1124,6 +1140,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('sumSpent').className = 'val' + (spent ? '' : ' zero');
     $('sumMeta').textContent = spent ? `your share ${money(myShare, code)}` : '';
     $('sumMeta').hidden = !spent;
+    $('groupTotals').hidden = !entriesOf(g).length;
     // Everyone else's balance.
     const others = g.members.filter(m => m.id !== g.me && (!m.removed || net[m.id]));
     $('balSection').hidden = !others.length || !entriesOf(g).length;
@@ -1168,10 +1185,18 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       if (e.id === expanded) out.push(detailPanel(g, e));
     }
     if (!out.length) {
-      const p = document.createElement('p');
-      p.className = 'empty';
-      p.textContent = q ? 'Nothing matches.' : live(g).length < 2 ? 'Just you so far. Share the link, or add people under •••.' : 'No expenses yet.';
-      out.push(p);
+      const box = document.createElement('div');
+      box.className = 'empty';
+      const alone = live(g).length < 2;
+      box.innerHTML = '<p></p>';
+      box.firstChild.textContent = q ? 'Nothing matches.'
+        : alone ? 'Just you so far. Send the link to the others, or add them yourself.'
+        : 'No expenses yet. Add the first one, or send the link so everyone can add theirs.';
+      if (!q) {
+        box.insertAdjacentHTML('beforeend', '<div class="acts"><button class="link" type="button" data-empty="share">Share link</button></div>');
+        if (alone) box.lastChild.insertAdjacentHTML('beforeend', '<button class="link" type="button" data-empty="people">Add people</button>');
+      }
+      out.push(box);
     }
     if (list.length > shown.length) {
       const more = document.createElement('button');
@@ -1359,6 +1384,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     return box;
   }
   $('activity').addEventListener('click', ev => {
+    const first = ev.target.closest('[data-empty]');
+    if (first) return first.dataset.empty === 'share' ? share() : openSettings();
     const g = groups.get(current);
     const ed = ev.target.closest('[data-edit]'), del = ev.target.closest('[data-del]');
     const e = g && (ed || del) && g.entries.find(x => x.id === (ed || del).dataset[ed ? 'edit' : 'del']);
@@ -2012,11 +2039,11 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('payList').replaceChildren(...plan.map(p => {
       const row = document.createElement('div');
       row.className = 'pay-row';
-      row.innerHTML = '<span class="who"></span><span></span><span class="acts"></span>';
+      row.innerHTML = '<span class="who"></span><span class="amt"></span><span class="acts"></span>';
       const to = memberName(g, p.to);
       row.firstChild.textContent = p.from === g.me ? `You pay ${to}` : `${memberName(g, p.from)} pays ${to === 'You' ? 'you' : to}`;
       row.children[1].textContent = money(p.amount, code);
-      row.children[1].className = p.from === g.me ? 'neg' : p.to === g.me ? 'pos' : '';
+      row.children[1].className = 'amt' + (p.from === g.me ? ' neg' : p.to === g.me ? ' pos' : '');
       // Money owed to you: a nudge to send them, then mark it paid.
       if (p.to === g.me) {
         const ask = document.createElement('button');
