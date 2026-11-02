@@ -82,13 +82,16 @@ object Watch {
         val jobs = context.getSystemService(JobScheduler::class.java)
         if (!on) return jobs.cancel(JOB_ID)
         if (jobs.getPendingJob(JOB_ID) != null) return
-        jobs.schedule(
-            JobInfo.Builder(JOB_ID, ComponentName(context, WatchJob::class.java))
-                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-                .setPeriodic(CHECK_EVERY_MS)
-                .setPersisted(true)
-                .build(),
-        )
+        // A refused job must never take the app down with it.
+        runCatching {
+            jobs.schedule(
+                JobInfo.Builder(JOB_ID, ComponentName(context, WatchJob::class.java))
+                    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                    .setPeriodic(CHECK_EVERY_MS)
+                    .setPersisted(true)
+                    .build(),
+            )
+        }
     }
 
     /** One notification per group, replaced as more changes come in. */
