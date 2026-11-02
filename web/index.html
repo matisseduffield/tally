@@ -188,6 +188,7 @@ dialog {
 }
 dialog[open] { display: flex; flex-direction: column; }
 dialog::backdrop { background: var(--backdrop); }
+dialog:focus, dialog:focus-visible { outline: none; }
 dialog, dialog::backdrop {
   transition: opacity .18s ease-out, transform .22s cubic-bezier(.2, .7, .2, 1), overlay .22s allow-discrete, display .22s allow-discrete;
   opacity: 0;
@@ -447,16 +448,16 @@ button.pick-row:active { background: var(--accent-soft); }
 </div>
 
 <!-- New group -->
-<dialog id="newDlg" aria-labelledby="newTitle">
+<dialog id="newDlg" tabindex="-1" aria-labelledby="newTitle">
   <div class="sheet-head">
     <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="newTitle">New group</h2>
     <button class="btn btn-primary" type="button" id="createGo">Create</button>
   </div>
   <div class="sheet-body">
-    <label class="field"><span class="field-label">Name</span><input class="input" id="newName" placeholder="Thailand trip, Flat, Dinner club" maxlength="60" autocomplete="off"></label>
+    <label class="field"><span class="field-label">Name</span><input class="input" id="newName" placeholder="Thailand trip, Flat, Dinner club" maxlength="60" autocomplete="off" enterkeyhint="done" data-done></label>
     <div class="field"><span class="field-label">Currency for balances</span><div><button class="cur-btn" type="button" id="newCur">EUR</button></div></div>
-    <label class="field"><span class="field-label">Your name</span><input class="input" id="newMe" placeholder="Your name" maxlength="40" autocomplete="given-name"></label>
+    <label class="field"><span class="field-label">Your name</span><input class="input" id="newMe" placeholder="Your name" maxlength="40" autocomplete="given-name" enterkeyhint="done" data-done></label>
     <div class="field">
       <span class="field-label">Others</span>
       <div class="add-row"><input class="input" id="newOther" placeholder="Add a name" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="newOtherAdd">Add</button></div>
@@ -467,7 +468,7 @@ button.pick-row:active { background: var(--accent-soft); }
 </dialog>
 
 <!-- Join with a link / who are you -->
-<dialog id="joinDlg" aria-labelledby="joinTitle">
+<dialog id="joinDlg" tabindex="-1" aria-labelledby="joinTitle">
   <div class="sheet-head">
     <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="joinTitle">Join a group</h2>
@@ -487,18 +488,18 @@ button.pick-row:active { background: var(--accent-soft); }
 </dialog>
 
 <!-- Add / edit expense -->
-<dialog id="expDlg" aria-labelledby="expTitle">
+<dialog id="expDlg" tabindex="-1" aria-labelledby="expTitle">
   <div class="sheet-head">
     <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="expTitle">Add expense</h2>
     <button class="btn btn-primary" type="button" id="expSave">Save</button>
   </div>
   <div class="sheet-body">
-    <input class="input" id="expWhat" placeholder="What was it for?" maxlength="80" autocomplete="off" aria-label="Description">
+    <input class="input" id="expWhat" placeholder="What was it for?" maxlength="80" autocomplete="off" enterkeyhint="done" data-done aria-label="Description">
     <div class="field">
       <div class="amount-row">
         <button class="cur-btn" type="button" id="expCur" aria-label="Currency">EUR</button>
-        <input class="big-amount" id="expAmount" inputmode="decimal" placeholder="0" autocomplete="off" aria-label="Amount">
+        <input class="big-amount" id="expAmount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done" data-done aria-label="Amount">
       </div>
       <span class="hint" id="expConv" hidden></span>
     </div>
@@ -520,7 +521,7 @@ button.pick-row:active { background: var(--accent-soft); }
 </dialog>
 
 <!-- Settle up / record a payment -->
-<dialog id="payDlg" aria-labelledby="payTitle">
+<dialog id="payDlg" tabindex="-1" aria-labelledby="payTitle">
   <div class="sheet-head">
     <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="payTitle">Settle up</h2>
@@ -534,7 +535,7 @@ button.pick-row:active { background: var(--accent-soft); }
       <span class="field-label" id="payFormLabel">Record a payment</span>
       <div class="who-line"><span class="hint">From</span><div class="chips" id="payFrom"></div></div>
       <div class="who-line"><span class="hint">To</span><div class="chips" id="payTo"></div></div>
-      <div class="add-row"><input class="input" id="payAmount" inputmode="decimal" placeholder="Amount" autocomplete="off"><button class="btn btn-primary" type="button" id="payGo">Record</button></div>
+      <div class="add-row"><input class="input" id="payAmount" inputmode="decimal" placeholder="Amount" autocomplete="off" enterkeyhint="done" data-done><button class="btn btn-primary" type="button" id="payGo">Record</button></div>
       <span class="hint" id="payHint"></span>
     </div>
     <div class="field"><span class="by-line" id="payBy" hidden></span><div><button class="link danger" type="button" id="payDelete" hidden>Delete payment</button></div></div>
@@ -542,14 +543,14 @@ button.pick-row:active { background: var(--accent-soft); }
 </dialog>
 
 <!-- Group settings -->
-<dialog id="setDlg" aria-labelledby="setTitle">
+<dialog id="setDlg" tabindex="-1" aria-labelledby="setTitle">
   <div class="sheet-head">
     <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="setTitle">Group</h2>
     <button class="btn btn-primary" type="button" id="setSave">Done</button>
   </div>
   <div class="sheet-body">
-    <label class="field"><span class="field-label">Name</span><input class="input" id="setName" maxlength="60" autocomplete="off"></label>
+    <label class="field"><span class="field-label">Name</span><input class="input" id="setName" maxlength="60" autocomplete="off" enterkeyhint="done" data-done></label>
     <div class="field"><span class="field-label">Currency for balances</span><div><button class="cur-btn" type="button" id="setCur">EUR</button></div><span class="hint" id="setCurHint"></span></div>
     <div class="field">
       <span class="field-label">People</span>
@@ -569,7 +570,7 @@ button.pick-row:active { background: var(--accent-soft); }
 </dialog>
 
 <!-- Currency picker -->
-<dialog id="picker" aria-label="Choose a currency">
+<dialog id="picker" tabindex="-1" aria-label="Choose a currency">
   <div class="picker-head">
     <input class="input" id="pickerSearch" type="search" placeholder="Currency" autocomplete="off" aria-label="Search currencies">
     <button type="button" data-close>Close</button>
@@ -830,7 +831,9 @@ button.pick-row:active { background: var(--accent-soft); }
   function renderHome() {
     $('intro').hidden = groupIds.length > 0;
     $('groupsSection').hidden = groupIds.length === 0;
-    $('groupList').replaceChildren(...groupIds.map(id => {
+    const lastActive = id => groups.get(id).entries.reduce((t, e) => Math.max(t, e.updatedAt || e.createdAt || 0), 0);
+    const order = groupIds.map(id => [id, lastActive(id)]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+    $('groupList').replaceChildren(...order.map(id => {
       const g = groups.get(id);
       const net = g.me ? (netOf(g)[g.me] || 0) : 0;
       const b = balanceText(net, g.group.currency);
@@ -860,7 +863,8 @@ button.pick-row:active { background: var(--accent-soft); }
     $('sumAmt').className = 'summary-amt ' + b.cls;
     $('sumAmt').hidden = !b.amount;
     const spent = entriesOf(g).filter(e => e.kind === 'expense').reduce((s, e) => s + L.entryTotal(e, code), 0);
-    $('sumMeta').textContent = `${money(spent, code)} spent · ${live(g).length} people`;
+    const myShare = g.me ? entriesOf(g).filter(e => e.kind === 'expense').reduce((s, e) => s + (L.shares(e, code)[g.me] || 0), 0) : 0;
+    $('sumMeta').textContent = spent ? `${money(spent, code)} spent · your share ${money(myShare, code)}` : `${live(g).length} ${live(g).length === 1 ? 'person' : 'people'}`;
     // Everyone else's balance.
     const others = g.members.filter(m => m.id !== g.me && (!m.removed || net[m.id]));
     $('balSection').hidden = !others.length || !entriesOf(g).length;
@@ -940,8 +944,18 @@ button.pick-row:active { background: var(--accent-soft); }
   }
 
   // ---- dialogs ----
+  // Opening a sheet never raises the keyboard: fields are focused for you only
+  // with a mouse; on a phone you tap the field you want.
+  const fineMouse = matchMedia('(pointer: fine)');
+  const offerFocus = el => { if (fineMouse.matches) el.focus(); };
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.matches('input[data-done]')) { e.preventDefault(); e.target.blur(); }
+  });
   function openDlg(d) {
     d.showModal();
+    // showModal focuses the sheet's first field; on a touch screen hold
+    // focus on the sheet itself so the keyboard waits for a tap.
+    if (!fineMouse.matches) d.focus();
     syncBack();
     placeToast();
   }
@@ -967,7 +981,7 @@ button.pick-row:active { background: var(--accent-soft); }
     $('pickerSearch').value = '';
     renderPicker('');
     openDlg($('picker'));
-    $('pickerSearch').focus();
+    offerFocus($('pickerSearch'));
     return new Promise(res => { pickResolve = res; });
   }
   $('picker').addEventListener('close', () => { if (pickResolve) { pickResolve(null); pickResolve = null; } });
@@ -1030,7 +1044,7 @@ button.pick-row:active { background: var(--accent-soft); }
     newOthers = [];
     renderNewOthers();
     openDlg($('newDlg'));
-    $('newName').focus();
+    offerFocus($('newName'));
   }
   function renderNewOthers() {
     $('newOthers').replaceChildren(...newOthers.map((n, i) => {
@@ -1087,7 +1101,7 @@ button.pick-row:active { background: var(--accent-soft); }
     $('whoField').hidden = true;
     $('joinTitle').textContent = 'Join a group';
     openDlg($('joinDlg'));
-    if (!prefill) $('joinLink').focus();
+    if (!prefill) offerFocus($('joinLink'));
   }
   const idFromLink = s => { const m = String(s).match(/([A-Za-z0-9_-]{22})\s*$/); return m && L.isId(m[1]) ? m[1] : null; };
   async function joinById(id) {
@@ -1171,7 +1185,7 @@ button.pick-row:active { background: var(--accent-soft); }
     $('expBy').hidden = !$('expBy').textContent;
     renderExpense();
     openDlg($('expDlg'));
-    if (!e) $('expAmount').focus();
+    if (!e) offerFocus($('expAmount'));
     if (draft.currency !== g.group.currency) loadRates().then(renderExpense);
   }
   // Members shown in the split: everyone current, plus anyone already in this expense.
@@ -1234,7 +1248,7 @@ button.pick-row:active { background: var(--accent-soft); }
         row.querySelector('.val').textContent = on && owed[m.id] ? money(owed[m.id], code) : '';
         row.dataset.toggle = m.id;
       } else {
-        row.innerHTML = '<span></span><span class="who"><span></span><span class="part"></span></span><input inputmode="decimal" autocomplete="off">';
+        row.innerHTML = '<span></span><span class="who"><span></span><span class="part"></span></span><input inputmode="decimal" autocomplete="off" enterkeyhint="done" data-done>';
         row.querySelector('.who').firstChild.textContent = name;
         row.querySelector('.part').dataset.part = m.id;
         const input = row.querySelector('input');
@@ -1364,8 +1378,9 @@ button.pick-row:active { background: var(--accent-soft); }
     store.set('cur.' + g.group.id, draft.currency);
     $('expDlg').close();
     haptic();
+    const undo = undoFor(g, draft.id);
     change(g, [{ type: 'entry', id: draft.id, data }]);
-    toast(draft.editing ? 'Expense updated' : 'Expense added');
+    toast(draft.editing ? 'Expense updated' : 'Expense added', undo);
   });
   $('expDelete').addEventListener('click', () => {
     $('expDlg').close();
@@ -1381,6 +1396,16 @@ button.pick-row:active { background: var(--accent-soft); }
     const mark = deleted => change(g, [{ type: 'entry', id, data: { ...stripMeta(e), by: g.me || e.by }, deleted }]);
     mark(true);
     toast(message, () => mark(false));
+  }
+  // Undoing a save puts the entry back as it was, or removes it if it's new.
+  function undoFor(g, id) {
+    const prev = g.entries.find(x => x.id === id);
+    const was = prev && { data: stripMeta(prev), deleted: !!prev.deleted };
+    return () => {
+      const now = g.entries.find(x => x.id === id);
+      if (was) change(g, [{ type: 'entry', id, data: { ...was.data, by: g.me || was.data.by }, deleted: was.deleted }]);
+      else if (now) change(g, [{ type: 'entry', id, data: { ...stripMeta(now), by: g.me || now.by }, deleted: true }]);
+    };
   }
   // "Added by Sam · 2 Nov" under an entry being edited.
   function byLine(g, e) {
@@ -1437,8 +1462,10 @@ button.pick-row:active { background: var(--accent-soft); }
     const data = { kind: 'payment', amount: L.fromMinor(minor, code), currency: code, rate: 1, date: today(), from, to, by: g.me };
     $('payDlg').close();
     haptic();
-    change(g, [{ type: 'entry', id: pay.editing ? pay.id : L.newId(), data }]);
-    toast('Payment recorded');
+    const id = pay.editing ? pay.id : L.newId();
+    const undo = undoFor(g, id);
+    change(g, [{ type: 'entry', id, data }]);
+    toast(pay.editing ? 'Payment updated' : 'Payment recorded', undo);
   }
   $('payList').addEventListener('click', e => {
     const b = e.target.closest('button[data-from]');
