@@ -178,19 +178,23 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 /* Home */
 .intro { display: grid; gap: 18px; }
 .intro p { margin: 0; max-width: 36ch; color: var(--muted); }
-.home-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.home-actions .btn { flex: none; }
-/* Home: a group row starts with its initial in a small square */
-.group-row { grid-template-columns: 38px minmax(0, 1fr) auto; column-gap: 14px; min-height: 64px; }
-.group-row .row-title, .group-row .row-sub { grid-column: 2; }
-.group-row .row-amt { grid-column: 3; }
-.g-mark {
-  grid-row: 1 / span 2; grid-column: 1; display: grid; place-items: center;
-  width: 38px; height: 38px; border-radius: 8px; border: 1px solid var(--line);
-  background: var(--bg); font-weight: 600; font-size: 1rem; color: var(--ink);
-}
-.group-row.gone .g-mark, .group-row.gone .row-title { color: var(--muted); }
-.summary-amt.even { color: var(--ink); }
+/* Home: name and your balance on the first line, details across the whole
+   second line (so nothing is cut short by the amount column). */
+.group-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 3px; min-height: 64px; padding: 12px 2px; }
+.group-row .row-title { grid-column: 1; grid-row: 1; }
+.group-row .g-amt { grid-column: 2; grid-row: 1; font-weight: 500; white-space: nowrap; text-align: right; }
+.group-row .row-sub { grid-column: 1 / -1; grid-row: 2; }
+.group-row.gone .row-title { color: var(--muted); }
+
+/* Home totals: a ledger strip, owed | owe, between hairlines */
+.totals { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.totals > div { display: grid; gap: 2px; padding: 14px 0 16px; min-width: 0; }
+.totals > div + div { border-left: 1px solid var(--line); padding-left: 16px; }
+.totals .lbl { font-size: .8rem; color: var(--muted); }
+.totals .val { font-size: 1.55rem; font-weight: 500; letter-spacing: -.01em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.totals .val.zero { color: var(--faint); }
+.totals .also { font-size: .78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 
 /* Group summary */
 .summary { padding: 20px 22px 18px; display: grid; gap: 4px; }
@@ -215,6 +219,8 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
   background: var(--bg); border-top: 1px solid var(--line);
 }
 .dock .btn { display: block; width: 100%; max-width: 600px; margin: 0 auto; }
+.dock-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 600px; margin: 0 auto; }
+.dock-pair .btn { width: 100%; }
 
 /* Sheets (full screen on phones, centred panels on wide screens) */
 dialog {
@@ -505,24 +511,15 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   <div id="home" class="wrap" style="gap: 24px">
     <section class="intro" id="intro" hidden>
       <p>Make a group, share its link, and everyone adds what they paid. Tally works out who owes whom.</p>
-      <div class="home-actions">
-        <button class="btn btn-primary" type="button" data-action="newGroup">New group</button>
-        <button class="link" type="button" data-action="join">Join with a link</button>
-      </div>
     </section>
-    <section class="card summary" id="overview" hidden>
-      <span class="summary-label" id="ovLabel"></span>
-      <span class="summary-amt" id="ovAmt"></span>
-      <span class="summary-meta" id="ovMeta"></span>
+    <section class="totals" id="overview" aria-label="Across your groups" hidden>
+      <div><span class="lbl">You’re owed</span><span class="val" id="ovOwed"></span><span class="also" id="ovOwedAlso" hidden></span></div>
+      <div><span class="lbl">You owe</span><span class="val" id="ovOwe"></span><span class="also" id="ovOweAlso" hidden></span></div>
     </section>
     <section class="section" id="groupsSection" hidden>
       <h2>Groups</h2>
       <div class="card list rows" id="groupList"></div>
     </section>
-    <div class="home-actions" id="homeActions" hidden>
-      <button class="btn btn-primary" type="button" data-action="newGroup">New group</button>
-      <button class="link" type="button" data-action="join">Join with a link</button>
-    </div>
     <p class="get-app" id="getApp" hidden><a href="https://tally.matisseduffield.workers.dev/app">Get the Android app</a></p>
   </div>
 
@@ -548,6 +545,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   </div>
 </main>
 
+<div class="dock" id="homeDock" hidden>
+  <div class="dock-pair">
+    <button class="btn btn-secondary" type="button" data-action="join">Join with a link</button>
+    <button class="btn btn-primary" type="button" data-action="newGroup">New group</button>
+  </div>
+</div>
 <div class="dock" id="dock" hidden>
   <button class="btn btn-primary" type="button" id="addBtn">Add expense</button>
 </div>
@@ -779,12 +782,15 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   // "just now", "3 hours ago", "yesterday", "2 Nov".
   let rtf = null;
   try { rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }); } catch {}
-  function ago(t) {
+  let rtfShort = null;
+  try { rtfShort = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'short' }); } catch {}
+  function ago(t, short) {
+    const f = (short && rtfShort) || rtf;
     const mins = Math.round((Date.now() - t) / 60000);
-    if (!rtf || mins < 1) return 'just now';
-    if (mins < 60) return rtf.format(-mins, 'minute');
-    if (mins < 60 * 24) return rtf.format(-Math.round(mins / 60), 'hour');
-    if (mins < 60 * 24 * 7) return rtf.format(-Math.round(mins / 1440), 'day');
+    if (!f || mins < 1) return 'just now';
+    if (mins < 60) return f.format(-mins, 'minute');
+    if (mins < 60 * 24) return f.format(-Math.round(mins / 60), 'hour');
+    if (mins < 60 * 24 * 7) return f.format(-Math.round(mins / 1440), 'day');
     return new Date(t).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
   }
   const today = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
@@ -1013,6 +1019,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     sync(id);
   }
   function goHome(push = true) {
+    if (current && toastUndo) { clearTimeout(toastTimer); hideToast(); } // its Undo belongs to the group left behind
     current = null;
     if (push) history.pushState({}, '', location.origin === SITE ? '/' : '#');
     render();
@@ -1032,6 +1039,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('shareBtn').hidden = !g;
     $('settingsBtn').hidden = !g;
     $('dock').hidden = !g || live(g).length < 2;
+    $('homeDock').hidden = !!g;
     $('version').hidden = !!g || !appVersion;
     $('title').textContent = g ? g.group.name : 'Tally';
     document.title = g ? `${g.group.name} · Tally` : 'Tally';
@@ -1050,7 +1058,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 
   function renderHome() {
     $('intro').hidden = groupIds.length > 0;
-    $('groupsSection').hidden = $('homeActions').hidden = $('overview').hidden = groupIds.length === 0;
+    $('groupsSection').hidden = $('overview').hidden = groupIds.length === 0;
     renderOverview();
     const lastActive = id => groups.get(id).entries.reduce((t, e) => Math.max(t, e.updatedAt || e.createdAt || 0), 0);
     const order = groupIds.map(id => [id, lastActive(id)]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
@@ -1063,55 +1071,45 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       row.className = 'row group-row' + (g.gone ? ' gone' : '');
       row.dataset.open = id;
       const people = live(g).length;
-      row.innerHTML = `<span class="g-mark" aria-hidden="true"></span><span class="row-title"></span><span class="row-sub"></span><span class="row-amt"><small></small><span></span></span>`;
-      row.querySelector('.g-mark').textContent = ([...g.group.name.trim()][0] || '·').toUpperCase();
+      row.innerHTML = `<span class="row-title"></span><span class="g-amt"></span><span class="row-sub"></span>`;
       row.querySelector('.row-title').textContent = g.group.name;
       const latest = entriesOf(g).reduce((a, e) => ((e.updatedAt || e.createdAt || 0) > ((a && (a.updatedAt || a.createdAt)) || 0) ? e : a), null);
       const who = `${people} ${people === 1 ? 'person' : 'people'}`;
+      const status = net > 0 ? 'You’re owed' : net < 0 ? 'You owe' : '';
       row.querySelector('.row-sub').textContent = g.gone ? 'No longer available'
-        : latest ? `${who} · ${latest.kind === 'payment' ? 'payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt)}`
-        : `${who} · no expenses yet`;
-      row.querySelector('.row-amt small').textContent = net ? b.label.toLowerCase() : 'settled up';
-      const amt = row.querySelector('.row-amt span');
-      amt.textContent = b.amount;
-      amt.className = b.cls;
+        : [status, who, latest ? `${latest.kind === 'payment' ? 'Payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt, true)}` : 'No expenses yet'].filter(Boolean).join(' · ');
+      const amt = row.querySelector('.g-amt');
+      amt.textContent = net ? b.amount : '';
+      amt.classList.add(b.cls || 'muted');
+      row.setAttribute('aria-label', `${g.group.name}. ${net ? `${b.label} ${b.amount}` : 'Settled up'}`);
       return row;
     }));
   }
 
-  // Home's top card: where you stand across every group, per currency.
+  // Home's totals: what you're owed and what you owe across every group.
+  // The currency with the most at stake leads; others are listed under it.
   function renderOverview() {
-    const byCode = new Map();
-    let owed = 0, owe = 0;
+    const owed = new Map(), owe = new Map();
     for (const id of groupIds) {
       const g = groups.get(id);
       if (!g || g.gone || !g.me) continue;
       const v = netOf(g)[g.me] || 0;
       const code = g.group.currency;
-      byCode.set(code, (byCode.get(code) || 0) + v);
-      if (v > 0) owed++; else if (v < 0) owe++;
+      if (!owed.has(code)) { owed.set(code, 0); owe.set(code, 0); }
+      if (v > 0) owed.set(code, owed.get(code) + v); else if (v < 0) owe.set(code, owe.get(code) - v);
     }
-    const n = groupIds.length;
-    const nets = [...byCode.entries()].filter(([, v]) => v);
-    const groupsText = `${n} ${n === 1 ? 'group' : 'groups'}`;
-    if (!nets.length) {
-      $('ovLabel').textContent = `Across ${groupsText}`;
-      $('ovAmt').textContent = 'All settled up';
-      $('ovAmt').className = 'summary-amt even';
-      $('ovMeta').textContent = 'Nobody owes anybody';
-      return;
-    }
-    // The biggest balance leads; any other currencies follow underneath.
-    nets.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
-    const [[code, v], ...rest] = nets;
-    $('ovLabel').textContent = v > 0 ? 'Overall, you’re owed' : 'Overall, you owe';
-    $('ovAmt').textContent = money(v, code);
-    $('ovAmt').className = 'summary-amt ' + (v > 0 ? 'pos' : 'neg');
-    const parts = [groupsText];
-    if (owed) parts.push(`owed in ${owed}`);
-    if (owe) parts.push(`you owe in ${owe}`);
-    const also = rest.map(([c, x]) => `${x > 0 ? '+' : '−'}${money(x, c)}`).join(', ');
-    $('ovMeta').textContent = parts.join(' · ') + (also ? ` · also ${also}` : '');
+    const codes = [...owed.keys()].sort((a, b) => (owed.get(b) + owe.get(b)) - (owed.get(a) + owe.get(a)));
+    const main = codes[0] || (groupIds.length && groups.get(groupIds[0]) ? groups.get(groupIds[0]).group.currency : 'USD');
+    const fill = (map, valId, alsoId) => {
+      const v = map.get(main) || 0;
+      $(valId).textContent = money(v, main);
+      $(valId).className = 'val ' + (v ? (map === owed ? 'pos' : 'neg') : 'zero');
+      const also = codes.slice(1).filter(c => map.get(c)).map(c => money(map.get(c), c));
+      $(alsoId).textContent = also.length ? `and ${also.join(', ')}` : '';
+      $(alsoId).hidden = !also.length;
+    };
+    fill(owed, 'ovOwed', 'ovOwedAlso');
+    fill(owe, 'ovOwe', 'ovOweAlso');
   }
 
   function renderGroup(g) {
