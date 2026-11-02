@@ -98,6 +98,7 @@ button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .wrap { max-width: 600px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.wrap > .wrap { margin: 0; }
 .pos { color: var(--pos); }
 .neg { color: var(--neg); }
 
@@ -152,9 +153,8 @@ button.row:active { background: var(--accent-soft); }
 .empty { padding: 18px 0; font-size: .9rem; color: var(--muted); }
 
 /* Home */
-.intro { margin: 0; padding: 28px 22px; display: grid; gap: 14px; justify-items: start; }
-.intro p { margin: 0; color: var(--muted); }
-.intro strong { display: block; font-size: 1.15rem; font-weight: 600; color: var(--ink); line-height: 1.3; }
+.intro { display: grid; gap: 18px; }
+.intro p { margin: 0; max-width: 36ch; color: var(--muted); }
 .home-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 /* Group summary */
@@ -164,9 +164,12 @@ button.row:active { background: var(--accent-soft); }
 .summary-meta { font-size: .84rem; color: var(--muted); }
 .summary-actions { display: flex; gap: 10px; margin-top: 14px; }
 .summary-actions .btn { flex: 1; }
-.people { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .86rem; }
-.people span { white-space: nowrap; color: var(--muted); }
-.people b { font-weight: 600; }
+/* Everyone else's balance: a plain ruled list, like Bureau's quick amounts */
+.bal-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; padding: 0 2px; border-top: 1px solid var(--line); font-size: .92rem; }
+.bal-row:last-child { border-bottom: 1px solid var(--line); }
+.bal-row > span:first-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bal-row > span:last-child { white-space: nowrap; font-weight: 500; }
+.bal-row small { margin-right: 6px; font-size: .82rem; font-weight: 400; color: var(--muted); }
 
 /* Bottom action bar */
 .dock {
@@ -234,14 +237,29 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .big-amount:focus { outline: none; }
 .big-amount::placeholder { color: var(--faint); }
 
-/* Chips: who paid, who's in */
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Picking one person (who paid, from, to): names as text, the chosen one
+   underlined, the same way Bureau picks a trend range */
+.chips { display: flex; flex-wrap: wrap; margin: -6px 0 -6px -10px; }
 .chip {
-  min-height: 38px; padding: 0 14px; border-radius: 19px;
-  background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: .9rem;
+  min-width: 44px; min-height: 44px; padding: 0 10px;
+  background: none; border: 0; font-size: .95rem; color: var(--muted);
 }
-.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); font-weight: 600; }
-.chip.add { color: var(--muted); border-style: dashed; }
+.chip:hover { color: var(--ink); }
+.chip[aria-pressed="true"] { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; text-decoration-color: var(--accent); }
+
+.who-line { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center; }
+.who-line .chips { margin: 0 0 0 -10px; }
+
+/* Ruled lists of names (people in a new group, "which one is you") */
+.pick { display: grid; }
+.pick-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  width: 100%; min-height: 48px; padding: 0 2px;
+  background: none; border: 0; border-top: 1px solid var(--line); text-align: left;
+}
+.pick > :last-child { border-bottom: 1px solid var(--line); }
+button.pick-row:active { background: var(--accent-soft); }
+.pick-row .act { padding: 12px 0 12px 12px; background: none; border: 0; font-size: .86rem; color: var(--muted); }
 
 /* Segmented control (split modes) */
 .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; padding: 3px; border-radius: 7px; background: var(--bg); }
@@ -274,10 +292,11 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .pay-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 56px; border-top: 1px solid var(--line); }
 .pay-row:last-child { border-bottom: 1px solid var(--line); }
 .pay-row .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pay-row .btn { min-height: 36px; padding: 0 12px; font-size: .86rem; }
+.pay-row .link { padding: 12px 0 12px 4px; }
 
 /* Member rows in settings */
-.member-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.member-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 48px; }
+.member-row .link { font-weight: 500; color: var(--muted); }
 .add-row { display: flex; gap: 8px; }
 .add-row .input { flex: 1; }
 
@@ -306,7 +325,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .toast:not(:has(button:not([hidden]))) { padding-right: 16px; }
 .toast[popover]:not(:popover-open) { display: none; }
 .toast button { min-height: 42px; padding: 0 10px; border: 0; background: none; color: var(--on-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
-.get-app { justify-self: center; font-size: .84rem; color: var(--muted); }
+.get-app { justify-self: start; margin: 0; font-size: .84rem; color: var(--muted); }
 .get-app a { color: inherit; }
 .split-row .part { margin-left: 8px; font-size: .82rem; color: var(--muted); }
 .by-line { font-size: .82rem; color: var(--muted); }
@@ -332,7 +351,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 @media (max-width: 520px) {
   body { padding-top: 12px; }
   dialog { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
-  .summary, .intro { padding-inline: 18px; }
+  .summary { padding-inline: 18px; }
 }
 @media (prefers-reduced-motion: reduce) {
   dialog, dialog::backdrop, .update-track span { transition: none; }
@@ -385,15 +404,18 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 
   <!-- Home: your groups -->
   <div id="home" class="wrap" style="gap: 24px">
-    <section class="card intro" id="intro" hidden>
-      <p><strong>Split costs with anyone.</strong>No sign-up, no limits, any currency. Make a group, share its link, and everyone adds what they paid.</p>
-      <button class="btn btn-primary" type="button" data-action="newGroup">New group</button>
+    <section class="intro" id="intro" hidden>
+      <p>Make a group, share its link, and everyone adds what they paid. Tally works out who owes whom.</p>
+      <div class="home-actions">
+        <button class="btn btn-primary" type="button" data-action="newGroup">New group</button>
+        <button class="link" type="button" data-action="join">Join with a link</button>
+      </div>
     </section>
     <section class="section" id="groupsSection" hidden>
       <div class="rows" id="groupList"></div>
       <div class="home-actions">
         <button class="link" type="button" data-action="newGroup">New group</button>
-        <button class="link" type="button" id="joinBtn">Join with a link</button>
+        <button class="link" type="button" data-action="join">Join with a link</button>
       </div>
     </section>
     <p class="get-app" id="getApp" hidden><a href="https://tally.matisseduffield.workers.dev/app">Get the Android app</a></p>
@@ -405,10 +427,13 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
       <span class="summary-label" id="sumLabel">You're settled up</span>
       <span class="summary-amt" id="sumAmt"></span>
       <span class="summary-meta" id="sumMeta"></span>
-      <div class="people" id="people"></div>
       <div class="summary-actions">
         <button class="btn btn-secondary" type="button" id="settleBtn">Settle up</button>
       </div>
+    </section>
+    <section class="section" id="balSection">
+      <h2>Balances</h2>
+      <div class="rows" id="people"></div>
     </section>
     <section class="section">
       <h2>Activity</h2>
@@ -435,8 +460,8 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
     <div class="field">
       <span class="field-label">Others</span>
       <div class="add-row"><input class="input" id="newOther" placeholder="Add a name" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="newOtherAdd">Add</button></div>
-      <div class="chips" id="newOthers"></div>
-      <span class="hint">You can add more people later, or they can add themselves from the link.</span>
+      <div class="pick" id="newOthers"></div>
+      <span class="hint">Others can also join later from the link.</span>
     </div>
   </div>
 </dialog>
@@ -455,7 +480,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
     </div>
     <div class="field" id="whoField" hidden>
       <span class="field-label">Which one is you?</span>
-      <div class="chips" id="whoChips"></div>
+      <div class="pick" id="whoChips"></div>
       <div class="add-row"><input class="input" id="whoNew" placeholder="Not listed? Add your name" maxlength="40" autocomplete="given-name" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="whoAdd">Add</button></div>
     </div>
   </div>
@@ -502,13 +527,13 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
   </div>
   <div class="sheet-body">
     <div class="field" id="paySuggest">
-      <span class="field-label">Fewest payments to square everyone</span>
+      <span class="field-label">Suggested payments</span>
       <div id="payList"></div>
     </div>
     <div class="field">
       <span class="field-label" id="payFormLabel">Record a payment</span>
-      <div class="field"><span class="hint">From</span><div class="chips" id="payFrom"></div></div>
-      <div class="field"><span class="hint">To</span><div class="chips" id="payTo"></div></div>
+      <div class="who-line"><span class="hint">From</span><div class="chips" id="payFrom"></div></div>
+      <div class="who-line"><span class="hint">To</span><div class="chips" id="payTo"></div></div>
       <div class="add-row"><input class="input" id="payAmount" inputmode="decimal" placeholder="Amount" autocomplete="off"><button class="btn btn-primary" type="button" id="payGo">Record</button></div>
       <span class="hint" id="payHint"></span>
     </div>
@@ -836,18 +861,20 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
     $('sumAmt').hidden = !b.amount;
     const spent = entriesOf(g).filter(e => e.kind === 'expense').reduce((s, e) => s + L.entryTotal(e, code), 0);
     $('sumMeta').textContent = `${money(spent, code)} spent · ${live(g).length} people`;
-    // Everyone else's balance, compactly.
+    // Everyone else's balance.
     const others = g.members.filter(m => m.id !== g.me && (!m.removed || net[m.id]));
+    $('balSection').hidden = !others.length || !entriesOf(g).length;
     $('people').replaceChildren(...others.map(m => {
-      const s = document.createElement('span');
+      const row = document.createElement('div');
+      row.className = 'bal-row';
+      row.innerHTML = '<span></span><span><small></small><span></span></span>';
       const v = net[m.id] || 0;
-      s.innerHTML = '<b></b> ';
-      s.firstChild.textContent = m.name;
-      const amt = document.createElement('span');
-      amt.textContent = v ? (v > 0 ? 'gets back ' : 'owes ') + money(v, code) : 'settled';
+      row.firstChild.textContent = m.name;
+      row.querySelector('small').textContent = v > 0 ? 'gets back' : v < 0 ? 'owes' : 'settled';
+      const amt = row.lastChild.lastChild;
+      amt.textContent = v ? money(v, code) : '';
       amt.className = v > 0 ? 'pos' : v < 0 ? 'neg' : '';
-      s.append(amt);
-      return s;
+      return row;
     }));
     $('settleBtn').hidden = Object.values(net).every(v => !v) && !entriesOf(g).length;
 
@@ -868,7 +895,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
     if (!out.length) {
       const p = document.createElement('p');
       p.className = 'empty';
-      p.textContent = live(g).length < 2 ? 'Add the people you’re splitting with (••• above), or share the link so they can join.' : 'Nothing yet. Add the first expense below.';
+      p.textContent = live(g).length < 2 ? 'Just you so far. Share the link, or add people under •••.' : 'No expenses yet.';
       out.push(p);
     }
     $('activity').replaceChildren(...out);
@@ -1007,9 +1034,13 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
   }
   function renderNewOthers() {
     $('newOthers').replaceChildren(...newOthers.map((n, i) => {
-      const c = chip(n + '  ×', false, { i });
-      c.setAttribute('aria-label', `Remove ${n}`);
-      return c;
+      const row = document.createElement('div');
+      row.className = 'pick-row';
+      row.innerHTML = '<span></span><button class="act" type="button">Remove</button>';
+      row.firstChild.textContent = n;
+      row.lastChild.dataset.i = i;
+      row.lastChild.setAttribute('aria-label', `Remove ${n}`);
+      return row;
     }));
   }
   function addOther() {
@@ -1022,7 +1053,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
   $('newOtherAdd').addEventListener('click', addOther);
   $('newOther').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addOther(); } });
   $('newOthers').addEventListener('click', e => {
-    const c = e.target.closest('.chip');
+    const c = e.target.closest('[data-i]');
     if (c) { newOthers.splice(Number(c.dataset.i), 1); renderNewOthers(); }
   });
   $('newCur').addEventListener('click', async () => { const c = await pickCurrency(); if (c) $('newCur').textContent = c; });
@@ -1044,7 +1075,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
     haptic();
     change(g, ops);
     openGroup(id);
-    setTimeout(() => toast('Group created. Share the link so others can join.'), 300);
+    setTimeout(() => toast('Group created'), 300);
   });
 
   // ---- join ----
@@ -1069,7 +1100,14 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
       $('joinTitle').textContent = state.group.name;
       $('joinLinkField').hidden = true;
       $('whoField').hidden = false;
-      $('whoChips').replaceChildren(...state.members.filter(m => !m.removed).map(m => chip(m.name, false, { member: m.id })));
+      $('whoChips').replaceChildren(...state.members.filter(m => !m.removed).map(m => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'pick-row';
+        b.textContent = m.name;
+        b.dataset.member = m.id;
+        return b;
+      }));
       if (!$('joinDlg').open) openDlg($('joinDlg'));
     } catch (e) {
       $('joinHint').textContent = e.status === 404 ? 'No group at that link.' : 'Couldn’t reach Tally. Check your connection.';
@@ -1077,7 +1115,6 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
       if (!$('joinDlg').open) { $('joinLinkField').hidden = false; $('whoField').hidden = true; openDlg($('joinDlg')); }
     }
   }
-  $('joinBtn').addEventListener('click', () => openJoin(''));
   $('joinGo').addEventListener('click', () => {
     const id = idFromLink($('joinLink').value);
     if (!id) { $('joinHint').textContent = 'That doesn’t look like a Tally link.'; $('joinHint').className = 'hint bad'; return; }
@@ -1085,7 +1122,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
   });
   $('joinLink').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('joinGo').click(); } });
   $('whoChips').addEventListener('click', e => {
-    const c = e.target.closest('.chip');
+    const c = e.target.closest('[data-member]');
     if (!c || !joining) return;
     finishJoin(c.dataset.member, null);
   });
@@ -1362,12 +1399,13 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
     const plan = L.settle(netOf(g));
     $('paySuggest').hidden = !!entry || !plan.length;
     $('payTitle').textContent = entry ? 'Payment' : 'Settle up';
-    $('payFormLabel').textContent = entry ? 'Edit payment' : (plan.length ? 'Or record another payment' : 'Everyone’s square. Record a payment anyway?');
+    $('payFormLabel').textContent = entry ? 'Edit payment' : (plan.length ? 'Other payment' : 'Everyone’s settled. Record a payment');
     $('payList').replaceChildren(...plan.map(p => {
       const row = document.createElement('div');
       row.className = 'pay-row';
-      row.innerHTML = '<span class="who"></span><span></span><button class="btn btn-secondary" type="button">Record</button>';
-      row.firstChild.textContent = `${memberName(g, p.from)} → ${memberName(g, p.to)}`;
+      row.innerHTML = '<span class="who"></span><span></span><button class="link" type="button">Mark paid</button>';
+      const to = memberName(g, p.to);
+      row.firstChild.textContent = p.from === g.me ? `You pay ${to}` : `${memberName(g, p.from)} pays ${to === 'You' ? 'you' : to}`;
       row.children[1].textContent = money(p.amount, code);
       Object.assign(row.lastChild.dataset, { from: p.from, to: p.to, amount: p.amount });
       return row;
@@ -1450,7 +1488,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
       const b = row.lastChild;
       if (m.id === g.me) { b.textContent = 'Rename'; b.dataset.rename = m.id; }
       else if (net[m.id]) { b.textContent = 'Rename'; b.dataset.rename = m.id; }
-      else { b.textContent = 'Remove'; b.dataset.remove = m.id; b.classList.add('danger'); }
+      else { b.textContent = 'Remove'; b.dataset.remove = m.id; }
       return row;
     }));
   }
@@ -1533,6 +1571,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
   // ---- wiring ----
   document.addEventListener('click', e => {
     if (e.target.closest('[data-action="newGroup"]')) openNew();
+    if (e.target.closest('[data-action="join"]')) openJoin('');
     const open = e.target.closest('[data-open]');
     if (open) openGroup(open.dataset.open);
     const ent = e.target.closest('[data-entry]');
