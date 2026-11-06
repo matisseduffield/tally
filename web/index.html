@@ -133,6 +133,8 @@ button { cursor: pointer; }
 .btn-primary { background: var(--ink); border: 1px solid var(--ink); color: var(--on-ink); }
 .btn-primary:hover { opacity: .9; }
 .btn-primary:disabled { opacity: .35; cursor: default; }
+.btn-danger { background: var(--neg); border: 1px solid var(--neg); color: var(--on-ink); }
+.btn-danger:disabled { opacity: .35; cursor: default; }
 .btn-secondary { background: transparent; border: 1px solid var(--line); color: var(--ink); }
 .btn-secondary:hover { border-color: var(--muted); }
 .link { position: relative; padding: 6px 0; background: none; border: 0; font-size: .88rem; font-weight: 600; color: var(--accent); }
@@ -270,6 +272,9 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .input::placeholder { color: var(--faint); }
 .hint { font-size: .82rem; color: var(--muted); }
 .hint.bad { color: var(--neg); }
+.del-name { margin: 0; font-size: 1.1rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.del-text { margin: 0 0 8px; font-size: .95rem; line-height: 1.45; overflow-wrap: anywhere; }
+.del-name + .del-text { margin-top: -8px; }
 
 /* Amount line in the expense sheet: currency button + big number */
 .amount-row { display: flex; align-items: center; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
@@ -445,6 +450,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 .toast button { min-height: 42px; padding: 0 10px; border: 0; background: none; color: var(--on-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .get-app { justify-self: start; margin: 0; font-size: .84rem; color: var(--muted); }
 .get-app a { color: inherit; }
+.get-app .privacy { display: inline-block; padding: 10px 8px 10px 0; font-size: .8rem; }
 .split-row .part { margin-left: 8px; font-size: .82rem; color: var(--muted); }
 .by-line { font-size: .82rem; color: var(--muted); }
 .act-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; }
@@ -541,6 +547,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       <div class="card list rows" id="groupList"></div>
     </section>
     <p class="get-app" id="getApp" hidden><a href="https://tally.matisseduffield.workers.dev/app">Get the Android app</a></p>
+    <p class="get-app"><a class="privacy" href="https://teloone.au/apps/tally/privacy/" rel="noreferrer">Privacy</a></p>
   </div>
 
   <!-- One group -->
@@ -733,6 +740,25 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       <div class="blk-head"><span class="field-label">This device</span><button class="link danger" type="button" id="setForget">Remove group</button></div>
       <span class="hint">The group stays for everyone else; open its link to get it back.</span>
     </div>
+    <div class="blk" id="setDeleteBlk">
+      <div class="blk-head"><span class="field-label">Everyone</span><button class="link danger" type="button" id="setDelete">Delete for everyone</button></div>
+      <span class="hint">Permanently deletes the group for all its people.</span>
+    </div>
+  </div>
+</dialog>
+
+<!-- Delete for everyone: the second step -->
+<dialog id="delDlg" tabindex="-1" aria-labelledby="delTitle">
+  <div class="sheet-head">
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <h2 id="delTitle">Delete for everyone</h2>
+  </div>
+  <div class="sheet-body">
+    <p class="del-name" id="delName"></p>
+    <p class="del-text" id="delText"></p>
+    <button class="btn btn-danger" type="button" id="delGo">Delete for everyone</button>
+    <button class="btn btn-secondary" type="button" data-close>Keep the group</button>
+    <p class="hint bad" id="delHint" role="alert" hidden></p>
   </div>
 </dialog>
 
@@ -913,6 +939,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     }
   }
   function change(g, ops) {
+    if (g.deleted) return;
     for (const op of ops) applyOp(g, op);
     g.pending = [...(g.pending || []), ...ops];
     savePending(g);
@@ -926,7 +953,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   let offline = false;
   async function sync(id) {
     const g = groups.get(id);
-    if (!g || syncing.has(id)) return;
+    if (!g || g.deleted || syncing.has(id)) return;
     syncing.add(id);
     try {
       let res;
@@ -943,6 +970,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       retries.delete(id);
       if (!groups.has(id)) return; // removed from this device meanwhile
       if (res.status === 304) { if (!g.pending.length) fillRepeats(id); return; }
+      if (res.status === 404 || res.status === 422) {
+        // Someone deleted it for everyone: what's queued can never be saved,
+        // and there's nothing left to ask the server for.
+        const answer = await res.clone().json().catch(() => ({}));
+        if (answer.deleted) { Object.assign(g, { gone: true, deleted: true, pending: [] }); saveGroup(g); render(); return; }
+      }
       if (res.status === 404) { g.gone = true; saveGroup(g); render(); return; }
       if ((res.status === 400 || res.status === 413 || res.status === 422) && sending.length) {
         // Refused: find the culprit by sending one at a time, then drop it
@@ -1093,7 +1126,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('back').hidden = !g;
     $('shareBtn').hidden = !g;
     $('settingsBtn').hidden = !g;
-    $('dock').hidden = !g || live(g).length < 2;
+    $('dock').hidden = !g || !!g.deleted || live(g).length < 2;
     $('homeDock').hidden = !!g;
     $('version').hidden = !!g || !appVersion;
     $('title').textContent = g ? g.group.name : 'Tally';
@@ -1447,7 +1480,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   function renderStatus() {
     const g = current && groups.get(current);
     let text = '';
-    if (g && g.gone) text = 'This group was deleted or the link is wrong.';
+    if (g && g.deleted) text = 'Deleted for everyone. This device keeps its copy until you remove it.';
+    else if (g && g.gone) text = 'This group was deleted or the link is wrong.';
     else if (offline && g && g.pending && g.pending.length) text = 'Offline · your changes will sync when you’re back online';
     else if (offline) text = 'Offline · showing what was saved on this device';
     $('status').textContent = text;
@@ -1691,6 +1725,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   // ---- expense sheet ----
   let draft = null; // { id, currency, paidBy, mode, parts: {id: string}, included: Set, editing }
   function openExpense(entry, again) {
+    if (groups.get(current).deleted) return;
     const g = groups.get(current);
     if (!g) return;
     const members = live(g);
@@ -2107,6 +2142,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   // ---- settle up ----
   let pay = null; // { from, to, editing }
   function openSettle(entry, person) {
+    if (groups.get(current).deleted) return;
     const g = groups.get(current);
     const code = g.group.currency;
     const all = L.settle(netOf(g));
@@ -2205,6 +2241,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('setCurHint').textContent = hasEntries ? 'Fixed once there are expenses, so past amounts stay right.' : '';
     renderSplitDefault(g);
     renderMembers();
+    $('setDeleteBlk').hidden = !!g.gone;
     openDlg($('setDlg'));
   }
   function renderSplitDefault(g) {
@@ -2345,10 +2382,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     toast('Spreadsheet downloaded');
   });
-  $('setForget').addEventListener('click', () => {
+  // Takes the open group off this device, leaving its unsaved settings behind.
+  function dropCurrent() {
     const id = current;
     const g = groups.get(id);
-    const at = groupIds.indexOf(id), cur = store.get('cur.' + id);
     $('setName').value = g.group.name;
     $('setCur').textContent = g.group.currency;
     $('setDlg').close();
@@ -2359,6 +2396,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     store.del('p.' + id);
     store.del('cur.' + id);
     goHome();
+  }
+  $('setForget').addEventListener('click', () => {
+    const id = current;
+    const g = groups.get(id);
+    const at = groupIds.indexOf(id), cur = store.get('cur.' + id);
+    dropCurrent();
     toast(`Removed ${g.group.name}`, () => {
       groups.set(id, g);
       groupIds.splice(Math.min(at, groupIds.length), 0, id);
@@ -2368,6 +2411,47 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       render();
       sync(id);
     });
+  });
+
+  // Delete for everyone. There's no undo and anyone with the link can do it,
+  // so it takes a second step that names the group, and the button there
+  // wakes a moment later so a double tap can't go straight through.
+  let delArm = 0;
+  $('setDelete').addEventListener('click', () => {
+    const g = groups.get(current);
+    $('delName').textContent = `Delete “${g.group.name}” for everyone?`;
+    $('delText').textContent = 'This permanently deletes the group and all its expenses and payments, for everyone in it, not just you. It can’t be undone, and the link will stop working.';
+    $('delHint').hidden = true;
+    $('delGo').textContent = 'Delete for everyone';
+    $('delGo').disabled = true;
+    clearTimeout(delArm);
+    delArm = setTimeout(() => { $('delGo').disabled = false; }, 800);
+    openDlg($('delDlg'));
+  });
+  $('delGo').addEventListener('click', async () => {
+    const id = current;
+    const g = groups.get(id);
+    if (!g) return;
+    $('delGo').disabled = true;
+    $('delGo').textContent = 'Deleting…';
+    $('delHint').hidden = true;
+    let done = false;
+    try {
+      const res = await fetch(`${API}/api/g/${id}`, { method: 'DELETE' });
+      // 404: the server has nothing under this id, so it's gone either way.
+      done = res.ok || res.status === 404;
+    } catch {}
+    if (!done) {
+      $('delGo').disabled = false;
+      $('delGo').textContent = 'Delete for everyone';
+      $('delHint').textContent = 'Couldn’t delete it. Nothing has changed. Check your connection and try again.';
+      $('delHint').hidden = false;
+      return;
+    }
+    haptic();
+    $('delDlg').close();
+    if (current === id) dropCurrent();
+    toast(`Deleted ${g.group.name} for everyone`);
   });
 
   // ---- share ----
@@ -2542,8 +2626,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   // ---- boot ----
   const pathId = (location.pathname.match(/^\/g\/([A-Za-z0-9_-]{22})$/) || [])[1] || (location.hash.match(/g=([A-Za-z0-9_-]{22})/) || [])[1];
   history.replaceState(pathId ? { g: pathId } : {}, '');
-  $('getApp').hidden = !!app;
-  if (location.origin !== SITE) $('getApp').firstChild.href = SITE + '/app';
+  // Only on the website: never inside the app, even on a WebView too old for the bridge.
+  $('getApp').hidden = !!app || location.origin !== SITE;
   render();
   if (pathId) openFromLink(pathId, false);
   if (!pathId || !groups.has(pathId)) for (const id of groupIds) sync(id);

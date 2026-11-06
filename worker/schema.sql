@@ -1,7 +1,9 @@
 -- Tally's sync store (Cloudflare D1). A group's id is its secret link; ids
 -- for members and entries come from the clients, so things made offline
 -- keep their identity when they sync. Entries are kept as JSON as the page
--- wrote them (after validation); deleting one only marks it.
+-- wrote them (after validation); deleting one only marks it. Deleting a whole
+-- group removes its members and entries and blanks its row (name and currency
+-- ''), keeping only the id so queued changes on phones can't bring it back.
 CREATE TABLE IF NOT EXISTS groups (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,

@@ -18,7 +18,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Page logic tests
+      # The Worker's tests use node:sqlite.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Page and Worker tests
         run: node --test "tests/*.test.js"
 
       - name: Set up JDK 17

@@ -5,6 +5,7 @@
 //                         changed after version N ({ ..., delta: true })
 //   POST /api/g/:id/ops   apply changes { ops: [...], since? }, answer with
 //                         the group (only what changed after `since`, if given)
+//   DELETE /api/g/:id     delete the group and everything in it, for everyone
 //   GET  /, /g/:id, ...   the web app, served from the public tally-releases
 //                         repo, where every release publishes it
 //   GET  /app             the latest Android app (a redirect to the APK)
@@ -12,6 +13,15 @@
 // There are no accounts: a group's 22-character random id is its link, and
 // anyone holding it can read and add to the group. Responses carry the
 // group's version as an ETag, so polling an unchanged group costs a 304.
+//
+// Deleting a group removes its people and entries and blanks its row, leaving
+// only the random id. That id has to stay: a phone can hold queued changes for
+// days, and a queue with a 'group' op first looks just like a new group, so
+// with no trace of the id it would bring the group back. Reads of a deleted id
+// answer 404 and writes 422 with { deleted: true }. Those two codes are chosen
+// for the apps already out there: 404 tells them the group is gone, and 422
+// makes them (1.2 on) drop their queue, where 404 would have them send it
+// again on every poll. Anything else would read as being offline.
 // Deployed by hand from this file (see README); schema in schema.sql.
 
 const WEB = 'https://raw.githubusercontent.com/matisseduffield/tally-releases/main/web/';
@@ -23,6 +33,8 @@ const MAX_OPS = 200;
 const MAX_BODY = 256 * 1024;
 const MAX_MEMBERS = 100;
 const MAX_ENTRIES = 20000;
+// A live group always has a currency, so a blank one marks a deleted group.
+const LIVE = "currency <> ''";
 
 // The Android app's signing certificate, so links to groups open in the app.
 const ASSET_LINKS = [{
@@ -36,7 +48,7 @@ const ASSET_LINKS = [{
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, If-None-Match',
   'Access-Control-Expose-Headers': 'ETag',
   'Access-Control-Max-Age': '86400',
@@ -47,6 +59,7 @@ const PRIVATE = { 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex', '
 const json = (body, status = 200, headers = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...CORS, ...PRIVATE, ...headers } });
 const fail = (status, error) => json({ error }, status);
+const deleted = status => json({ error: 'This group was deleted', deleted: true }, status);
 
 export default {
   async fetch(request, env) {
@@ -59,6 +72,7 @@ export default {
         if (!ID.test(id)) return fail(404, 'No such group');
         if (request.method === 'GET' && !api[2]) return getGroup(env, id, request);
         if (request.method === 'POST' && api[2]) return applyOps(env, id, request);
+        if (request.method === 'DELETE' && !api[2]) return deleteGroup(env, id);
         return fail(405, 'Method not allowed');
       }
       if (url.pathname === '/app') return new Response(null, { status: 302, headers: { Location: APK, 'Cache-Control': 'no-store', ...PRIVATE } });
@@ -75,7 +89,7 @@ export default {
 // version `since`. Run in the same batch as any writes, so they see them.
 function readStatements(env, id, since) {
   return [
-    env.DB.prepare('SELECT id, name, currency, version, split FROM groups WHERE id = ?').bind(id),
+    env.DB.prepare(`SELECT id, name, currency, version, split FROM groups WHERE id = ? AND ${LIVE}`).bind(id),
     env.DB.prepare('SELECT id, name, removed FROM members WHERE group_id = ? ORDER BY rowid').bind(id),
     since === null
       ? env.DB.prepare('SELECT id, data, deleted, created_at, updated_at FROM entries WHERE group_id = ?').bind(id)
@@ -102,18 +116,23 @@ function sinceOf(v) {
   return n;
 }
 const sameTag = (a, b) => !!a && a.replace(/^W\//, '') === b;
+// A read found no live group: was there one?
+async function missing(env, id) {
+  const row = await env.DB.prepare('SELECT 1 FROM groups WHERE id = ?').bind(id).first();
+  return row ? deleted(404) : fail(404, 'No such group');
+}
 
 async function getGroup(env, id, request) {
   let since = sinceOf(new URL(request.url).searchParams.get('since'));
   const tag = request.headers.get('If-None-Match');
   if (since === null && tag) {
     // Old clients poll for the whole group: check the version first.
-    const head = await env.DB.prepare('SELECT version FROM groups WHERE id = ?').bind(id).first();
-    if (!head) return fail(404, 'No such group');
+    const head = await env.DB.prepare(`SELECT version FROM groups WHERE id = ? AND ${LIVE}`).bind(id).first();
+    if (!head) return missing(env, id);
     if (sameTag(tag, `"${head.version}"`)) return notModified(`"${head.version}"`);
   }
   let state = groupFrom(await env.DB.batch(readStatements(env, id, since)), since);
-  if (!state) return fail(404, 'No such group');
+  if (!state) return missing(env, id);
   if (since !== null && since > state.group.version) {
     since = null;
     state = groupFrom(await env.DB.batch(readStatements(env, id, null)), null);
@@ -135,10 +154,11 @@ async function applyOps(env, id, request) {
 
   const now = Date.now();
   const [head, known] = await env.DB.batch([
-    env.DB.prepare('SELECT version, (SELECT COUNT(*) FROM entries WHERE group_id = ?1) AS n FROM groups WHERE id = ?1').bind(id),
+    env.DB.prepare('SELECT version, currency, (SELECT COUNT(*) FROM entries WHERE group_id = ?1) AS n FROM groups WHERE id = ?1').bind(id),
     env.DB.prepare('SELECT id FROM members WHERE group_id = ?').bind(id),
   ]);
   const exists = head.results[0];
+  if (exists && !exists.currency) return deleted(422);
   // A new group must start with its name and currency.
   if (!exists && !(ops[0] && ops[0].type === 'group')) return fail(404, 'No such group');
   // Entries may only name people in the group, including any added now.
@@ -160,7 +180,8 @@ async function applyOps(env, id, request) {
         `INSERT INTO groups (id, name, currency, version, created_at, updated_at, split) VALUES (?1, ?2, ?3, 1, ?4, ?4, ?6)
          ON CONFLICT(id) DO UPDATE SET name = ?2, updated_at = ?4,
            currency = CASE WHEN EXISTS (SELECT 1 FROM entries WHERE group_id = ?1) THEN groups.currency ELSE ?3 END,
-           split = CASE WHEN ?5 = 1 THEN ?6 ELSE groups.split END`,
+           split = CASE WHEN ?5 = 1 THEN ?6 ELSE groups.split END
+         WHERE groups.${LIVE}`,
       ).bind(id, name, op.currency, now, hasSplit ? 1 : 0, split ? JSON.stringify(split) : null));
     } else if (op.type === 'member') {
       const name = cleanText(op.name, 40);
@@ -184,12 +205,34 @@ async function applyOps(env, id, request) {
       return fail(400, 'Bad request');
     }
   }
-  stmts.push(env.DB.prepare('UPDATE groups SET version = version + 1, updated_at = ? WHERE id = ?').bind(now, id));
+  stmts.push(env.DB.prepare(`UPDATE groups SET version = version + 1, updated_at = ? WHERE id = ? AND ${LIVE}`).bind(now, id));
+  // If the group was deleted since the check above, these writes must leave
+  // nothing behind. The batch is one transaction, so this is the last word.
+  for (const table of ['members', 'entries']) {
+    stmts.push(env.DB.prepare(`DELETE FROM ${table} WHERE group_id = ?1 AND EXISTS (SELECT 1 FROM groups WHERE id = ?1 AND currency = '')`).bind(id));
+  }
   // Writes and the read-back in one batch: one transaction, one round trip.
   const fresh = since !== null && exists && since <= exists.version ? since : null;
   const results = await env.DB.batch([...stmts, ...readStatements(env, id, fresh)]);
   const state = groupFrom(results.slice(-3), fresh);
+  if (!state) return deleted(422);
   return json(state, 200, { ETag: `"${state.group.version}"` });
+}
+
+// Anyone with the link can do this, as they can edit anything else; the app
+// asks first. Doing it twice is fine, so a lost answer can simply be retried.
+async function deleteGroup(env, id) {
+  const row = await env.DB.prepare('SELECT currency FROM groups WHERE id = ?').bind(id).first();
+  if (!row) return fail(404, 'No such group');
+  if (row.currency) {
+    const now = Date.now();
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM entries WHERE group_id = ?').bind(id),
+      env.DB.prepare('DELETE FROM members WHERE group_id = ?').bind(id),
+      env.DB.prepare("UPDATE groups SET name = '', currency = '', split = NULL, version = 0, created_at = ?1, updated_at = ?1 WHERE id = ?2").bind(now, id),
+    ]);
+  }
+  return json({ deleted: true });
 }
 
 // An op's removed/deleted: 1 or 0 when it says, null (keep what's there) when it doesn't.
