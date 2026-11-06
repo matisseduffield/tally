@@ -272,6 +272,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .input::placeholder { color: var(--faint); }
 .hint { font-size: .82rem; color: var(--muted); }
 .hint.bad { color: var(--neg); }
+a.link { text-decoration: none; }
 .del-name { margin: 0; font-size: 1.1rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .del-text { margin: 0 0 8px; font-size: .95rem; line-height: 1.45; overflow-wrap: anywhere; }
 .del-name + .del-text { margin-top: -8px; }
@@ -602,6 +603,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       <div class="add-row"><input class="input" id="newOther" aria-label="Add a person" placeholder="Add someone" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="newOtherAdd">Add</button></div>
     </div>
     <span class="hint">Others can also join later from the link.</span>
+    <span class="hint">By making or joining a group, you agree to keep it legal and not to post abuse, threats, hate or sexual content.</span>
   </div>
 </dialog>
 
@@ -622,6 +624,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       <div class="pick" id="whoChips"></div>
       <div class="add-row"><input class="input" id="whoNew" aria-label="Your name" placeholder="Not listed? Add your name" maxlength="40" autocomplete="given-name" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="whoAdd">Add</button></div>
     </div>
+    <span class="hint">By making or joining a group, you agree to keep it legal and not to post abuse, threats, hate or sexual content.</span>
   </div>
 </dialog>
 
@@ -735,6 +738,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     <div class="blk">
       <div class="blk-head"><span class="field-label">Spreadsheet</span><button class="link" type="button" id="setExport">Export CSV</button></div>
       <span class="hint">Every expense and payment, with each person’s share.</span>
+    </div>
+    <div class="blk">
+      <div class="blk-head"><span class="field-label">Something wrong?</span><a class="link" href="mailto:googleplay@telo.au?subject=Report%20a%20Tally%20group&amp;body=Paste%20the%20group%E2%80%99s%20link%20here%2C%20and%20tell%20us%20what%E2%80%99s%20wrong%3A%0A%0A">Report</a></div>
+      <span class="hint">Opens an email to googleplay@telo.au. Paste the group’s link in so we can find it.</span>
     </div>
     <div class="blk">
       <div class="blk-head"><span class="field-label">This device</span><button class="link danger" type="button" id="setForget">Remove group</button></div>
