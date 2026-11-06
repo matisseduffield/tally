@@ -58,6 +58,21 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
+
+    // Two distribution channels: "github" self-updates from the public releases
+    // repo; "play" ships without the self-updater (Play policy forbids apps
+    // updating themselves) and updates through the store instead.
+    flavorDimensions += "dist"
+    productFlavors {
+        create("github") {
+            dimension = "dist"
+            buildConfigField("boolean", "SELF_UPDATER", "true")
+        }
+        create("play") {
+            dimension = "dist"
+            buildConfigField("boolean", "SELF_UPDATER", "false")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

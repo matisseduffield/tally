@@ -59,13 +59,13 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease :app:lintRelease
+        run: ./gradlew :app:assembleGithubRelease :app:lintGithubRelease
 
       - name: Name the artifact
         run: |
           VERSION="${GITHUB_REF_NAME}"
           if [[ "$GITHUB_REF" != refs/tags/* ]]; then VERSION="manual-${GITHUB_SHA::7}"; fi
-          cp app/build/outputs/apk/release/app-release.apk "Tally-${VERSION}.apk"
+          cp app/build/outputs/apk/github/release/app-github-release.apk "Tally-${VERSION}.apk"
           echo "APK_NAME=Tally-${VERSION}.apk" >> "$GITHUB_ENV"
 
       - name: Upload build artifact
@@ -143,3 +143,26 @@ jobs:
           git add -A
           git commit -q -m "Tally $VERSION_NAME"
           git push --force git@github.com:matisseduffield/tally-releases.git main
+
+      # The Play bundle is only ever a workflow artifact: it stays out of the
+      # release above and the public repo. It runs last so a problem with it
+      # can't hold back the APK that installed apps are waiting for.
+      - name: Build signed Play bundle
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :app:bundlePlayRelease
+
+      - name: Name the Play bundle
+        run: |
+          AAB_NAME="${APK_NAME%.apk}.aab"
+          cp app/build/outputs/bundle/playRelease/app-play-release.aab "$AAB_NAME"
+          echo "AAB_NAME=$AAB_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload Play bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-aab
+          path: ${{ env.AAB_NAME }}
+          if-no-files-found: error

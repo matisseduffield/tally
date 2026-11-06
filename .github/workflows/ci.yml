@@ -31,4 +31,4 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build and lint
-        run: ./gradlew :app:assembleDebug :app:lintDebug
+        run: ./gradlew :app:assembleGithubDebug :app:assemblePlayDebug :app:lintGithubDebug :app:lintPlayDebug

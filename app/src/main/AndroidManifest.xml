@@ -2,8 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Self-updates install APKs downloaded from the public tally-releases repo. -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Notifications about others' changes, checked by a periodic job that
          survives reboots. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -43,10 +41,6 @@
                 <data android:scheme="https" android:host="tally.matisseduffield.workers.dev" android:pathPrefix="/g/" />
             </intent-filter>
         </activity>
-
-        <receiver
-            android:name=".updates.UpdateInstallReceiver"
-            android:exported="false" />
 
         <service
             android:name=".watch.WatchJob"

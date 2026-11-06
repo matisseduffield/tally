@@ -2443,7 +2443,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     try { app.postMessage(JSON.stringify(msg)); } catch {}
   }
   const haptic = (kind = 'tap') => toApp({ type: 'haptic', kind });
-  let appVersion = '', updateReady = false, versionTimer = 0;
+  // selfUpdates is off until the app says otherwise: Play builds update through
+  // the store, so there the version is a plain label with nothing to tap.
+  let appVersion = '', selfUpdates = false, updateReady = false, versionTimer = 0;
   function showVersion(text, state) {
     clearTimeout(versionTimer);
     $('version').textContent = text;
@@ -2486,18 +2488,21 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       try { m = JSON.parse(e.data); } catch { return; }
       if (m.type === 'info') {
         appVersion = m.version;
+        selfUpdates = m.updates === true;
+        $('version').disabled = !selfUpdates;
+        if (!selfUpdates) $('version').removeAttribute('title');
         const seen = store.get('seenVersion');
         store.set('seenVersion', appVersion);
-        if (!updateReady && seen && seen !== appVersion) {
+        if (selfUpdates && !updateReady && seen && seen !== appVersion) {
           showVersion(`Updated to v${appVersion}`, 'available');
           versionTimer = setTimeout(() => showVersion(`v${appVersion}`), 4000);
         } else if (!updateReady) showVersion(`v${appVersion}`);
         render();
-      } else if (m.type === 'updateStatus') {
+      } else if (m.type === 'updateStatus' && selfUpdates) {
         if (m.state === 'available') { updateReady = true; return showVersion('Update available', 'available'); }
         showVersion(m.state === 'latest' ? 'Up to date' : "Couldn't check");
         versionTimer = setTimeout(() => showVersion(`v${appVersion}`), 2500);
-      } else if (m.type === 'update') {
+      } else if (m.type === 'update' && selfUpdates) {
         if (m.state === 'available') { updateReady = true; showVersion('Update available', 'available'); }
         showUpdate(m);
       } else if (m.type === 'openLink') {

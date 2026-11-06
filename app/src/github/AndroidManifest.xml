@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Self-updates install APKs downloaded from the public tally-releases repo.
+         Both of these are deliberately absent from the play flavor. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application>
+        <receiver
+            android:name=".updates.UpdateInstallReceiver"
+            android:exported="false" />
+    </application>
+</manifest>
