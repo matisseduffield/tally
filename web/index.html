@@ -276,6 +276,9 @@ a.link { text-decoration: none; }
 .del-name { margin: 0; font-size: 1.1rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .del-text { margin: 0 0 8px; font-size: .95rem; line-height: 1.45; overflow-wrap: anywhere; }
 .del-name + .del-text { margin-top: -8px; }
+.notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; }
+.notice[hidden] { display: none; }
+.notice p { margin: 0; font-size: .88rem; line-height: 1.4; }
 
 /* Amount line in the expense sheet: currency button + big number */
 .amount-row { display: flex; align-items: center; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
@@ -553,6 +556,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 
   <!-- One group -->
   <div id="groupView" class="wrap" style="gap: 24px" hidden>
+    <section class="card notice" id="delBanner" role="status" hidden>
+      <p id="delBannerText"></p>
+      <button class="link" type="button" id="delUndo">Undo</button>
+    </section>
     <section class="totals" id="groupTotals" aria-label="This group">
       <div><span class="lbl" id="sumLabel">Your balance</span><span class="val" id="sumAmt"></span></div>
       <div><span class="lbl">Spent in total</span><span class="val" id="sumSpent"></span><span class="also" id="sumMeta"></span></div>
@@ -749,7 +756,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     </div>
     <div class="blk" id="setDeleteBlk">
       <div class="blk-head"><span class="field-label">Everyone</span><button class="link danger" type="button" id="setDelete">Delete for everyone</button></div>
-      <span class="hint">Permanently deletes the group for all its people.</span>
+      <span class="hint">Deletes the group for all its people in 14 days, unless someone undoes it.</span>
     </div>
   </div>
 </dialog>
@@ -924,6 +931,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     return net;
   };
   const linkOf = id => `${SITE}/g/${id}`;
+  const dateOf = ms => new Date(ms).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
 
   // Changes are applied here at once and queued for the server. `rev`
   // counts changes on this device, so balances are only worked out again
@@ -981,7 +989,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
         // Someone deleted it for everyone: what's queued can never be saved,
         // and there's nothing left to ask the server for.
         const answer = await res.clone().json().catch(() => ({}));
-        if (answer.deleted) { Object.assign(g, { gone: true, deleted: true, pending: [] }); saveGroup(g); render(); return; }
+        if (answer.deleted) { Object.assign(g, { gone: true, deleted: true, deleting: null, pending: [] }); saveGroup(g); render(); return; }
       }
       if (res.status === 404) { g.gone = true; saveGroup(g); render(); return; }
       if ((res.status === 400 || res.status === 413 || res.status === 422) && sending.length) {
@@ -1008,7 +1016,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
         for (const e of state.entries) byId.set(e.id, e);
         entries = [...byId.values()];
       }
-      Object.assign(g, { group: state.group, members: state.members, entries, etag: res.headers.get('ETag'), pending: rest, gone: false, rev: (g.rev || 0) + 1 });
+      Object.assign(g, { group: state.group, members: state.members, entries, etag: res.headers.get('ETag'), pending: rest, gone: false, deleting: state.deleting || null, rev: (g.rev || 0) + 1 });
       for (const op of rest) applyOp(g, op);
       saveGroup(g);
       render();
@@ -1134,6 +1142,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('shareBtn').hidden = !g;
     $('settingsBtn').hidden = !g;
     $('dock').hidden = !g || !!g.deleted || live(g).length < 2;
+    $('delBanner').hidden = !g || !g.deleting;
+    if (g && g.deleting) $('delBannerText').textContent = `This group will be deleted for everyone on ${dateOf(g.deleting)}.`;
     $('homeDock').hidden = !!g;
     $('version').hidden = !!g || !appVersion;
     $('title').textContent = g ? g.group.name : 'Tally';
@@ -1172,6 +1182,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       const who = `${people} ${people === 1 ? 'person' : 'people'}`;
       const status = net > 0 ? 'You’re owed' : net < 0 ? 'You owe' : '';
       row.querySelector('.row-sub').textContent = g.gone ? 'No longer available'
+        : g.deleting ? `Being deleted on ${dateOf(g.deleting)}`
         : [status, who, latest ? `${latest.kind === 'payment' ? 'Payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt, true)}` : 'No expenses yet'].filter(Boolean).join(' · ');
       const amt = row.querySelector('.g-amt');
       amt.textContent = net ? b.amount : '';
@@ -2248,7 +2259,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('setCurHint').textContent = hasEntries ? 'Fixed once there are expenses, so past amounts stay right.' : '';
     renderSplitDefault(g);
     renderMembers();
-    $('setDeleteBlk').hidden = !!g.gone;
+    $('setDeleteBlk').hidden = !!g.gone || !!g.deleting;
     openDlg($('setDlg'));
   }
   function renderSplitDefault(g) {
@@ -2420,14 +2431,17 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     });
   });
 
-  // Delete for everyone. There's no undo and anyone with the link can do it,
-  // so it takes a second step that names the group, and the button there
-  // wakes a moment later so a double tap can't go straight through.
+  // Delete for everyone. Anyone with the link can do it, so it only starts a
+  // countdown that anyone can undo, and it takes a second step that names the
+  // group. The button there wakes a moment later so a double tap can't go
+  // straight through.
+  const DELETE_DAYS = 14;
   let delArm = 0;
   $('setDelete').addEventListener('click', () => {
     const g = groups.get(current);
     $('delName').textContent = `Delete “${g.group.name}” for everyone?`;
-    $('delText').textContent = 'This permanently deletes the group and all its expenses and payments, for everyone in it, not just you. It can’t be undone, and the link will stop working.';
+    const on = dateOf(Date.now() + DELETE_DAYS * 24 * 60 * 60_000);
+    $('delText').textContent = `It will be deleted for everyone in it on ${on}, with all its expenses and payments. Anyone with the link can undo this until then. After that it can’t be brought back, and the link will stop working.`;
     $('delHint').hidden = true;
     $('delGo').textContent = 'Delete for everyone';
     $('delGo').disabled = true;
@@ -2440,15 +2454,16 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const g = groups.get(id);
     if (!g) return;
     $('delGo').disabled = true;
-    $('delGo').textContent = 'Deleting…';
+    $('delGo').textContent = 'Starting…';
     $('delHint').hidden = true;
-    let done = false;
+    let res = null, answer = {};
     try {
-      const res = await fetch(`${API}/api/g/${id}`, { method: 'DELETE' });
-      // 404: the server has nothing under this id, so it's gone either way.
-      done = res.ok || res.status === 404;
+      res = await fetch(`${API}/api/g/${id}`, { method: 'DELETE' });
+      answer = await res.clone().json().catch(() => ({}));
     } catch {}
-    if (!done) {
+    // 404: the server has nothing under this id, so it's gone either way.
+    const gone = res && (res.status === 404 || answer.deleted);
+    if (!gone && !(res && res.ok && answer.deleting)) {
       $('delGo').disabled = false;
       $('delGo').textContent = 'Delete for everyone';
       $('delHint').textContent = 'Couldn’t delete it. Nothing has changed. Check your connection and try again.';
@@ -2457,8 +2472,36 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     }
     haptic();
     $('delDlg').close();
-    if (current === id) dropCurrent();
-    toast(`Deleted ${g.group.name} for everyone`);
+    if (gone) {
+      if (current === id) dropCurrent();
+      return toast(`Deleted ${g.group.name} for everyone`);
+    }
+    g.deleting = answer.deleting;
+    saveGroup(g);
+    $('setDlg').close();
+    render();
+    sync(id);
+    toast(`${g.group.name} will be deleted on ${dateOf(g.deleting)}`);
+  });
+  $('delUndo').addEventListener('click', async () => {
+    const id = current;
+    const g = groups.get(id);
+    if (!g) return;
+    $('delUndo').disabled = true;
+    let res = null;
+    try { res = await fetch(`${API}/api/g/${id}/keep`, { method: 'POST' }); } catch {}
+    $('delUndo').disabled = false;
+    if (res && res.ok) {
+      haptic();
+      g.deleting = null;
+      saveGroup(g);
+      render();
+      sync(id);
+      return toast(`${g.group.name} won’t be deleted`);
+    }
+    // Too late: its time has run out, and the server will say so.
+    if (res && res.status === 404) return sync(id);
+    toast('Couldn’t undo that. Check your connection and try again.');
   });
 
   // ---- share ----
@@ -2625,6 +2668,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const list = groupIds.map(id => groups.get(id)).filter(g => g.me && !g.gone).map(g => ({
       id: g.group.id, me: g.me, name: g.group.name,
       seen: g.entries.reduce((t, e) => Math.max(t, e.updatedAt || 0), 0),
+      deleting: g.deleting || 0, // already on screen, so no notification for it
     }));
     const key = JSON.stringify(list);
     if (key !== lastWatch) { lastWatch = key; toApp({ type: 'watch', groups: list }); }

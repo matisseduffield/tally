@@ -2,8 +2,9 @@
 -- for members and entries come from the clients, so things made offline
 -- keep their identity when they sync. Entries are kept as JSON as the page
 -- wrote them (after validation); deleting one only marks it. Deleting a whole
--- group removes its members and entries and blanks its row (name and currency
--- ''), keeping only the id so queued changes on phones can't bring it back.
+-- group waits out a countdown in pending_deletes, then removes its members and
+-- entries and blanks its row (name and currency ''), keeping only the id so
+-- queued changes on phones can't bring it back.
 CREATE TABLE IF NOT EXISTS groups (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -34,3 +35,10 @@ CREATE TABLE IF NOT EXISTS entries (
 -- Added after launch: ALTER TABLE entries ADD COLUMN v INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS entries_group ON entries (group_id);
 CREATE INDEX IF NOT EXISTS entries_group_v ON entries (group_id, v);
+-- A group someone has asked to delete, and when that happens. Anyone with the
+-- link can undo it until then. The index is for the daily cron.
+CREATE TABLE IF NOT EXISTS pending_deletes (
+  group_id TEXT PRIMARY KEY,
+  purge_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS pending_deletes_purge ON pending_deletes (purge_at);

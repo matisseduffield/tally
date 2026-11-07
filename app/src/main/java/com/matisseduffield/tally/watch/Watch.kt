@@ -33,8 +33,11 @@ object Watch {
     /** True while the app is on screen, when the page shows changes itself. */
     @Volatile var foreground = false
 
-    /** [seen]: the newest server change time already shown; [etag]: the job's last fetch. */
-    data class Group(val id: String, val me: String, val name: String, val seen: Long, val etag: String?)
+    /**
+     * [seen]: the newest server change time already shown; [etag]: the job's last
+     * fetch; [warned]: the delete countdown already told about, by its purge time.
+     */
+    data class Group(val id: String, val me: String, val name: String, val seen: Long, val etag: String?, val warned: Long = 0)
 
     fun load(context: Context): List<Group> {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("groups", null) ?: return emptyList()
@@ -42,14 +45,14 @@ object Watch {
             val arr = JSONArray(raw)
             (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
-                Group(o.getString("id"), o.getString("me"), o.getString("name"), o.getLong("seen"), o.optString("etag").ifEmpty { null })
+                Group(o.getString("id"), o.getString("me"), o.getString("name"), o.getLong("seen"), o.optString("etag").ifEmpty { null }, o.optLong("warned"))
             }
         }.getOrDefault(emptyList())
     }
 
     fun save(context: Context, list: List<Group>) {
         val arr = JSONArray(list.map {
-            JSONObject().put("id", it.id).put("me", it.me).put("name", it.name).put("seen", it.seen).put("etag", it.etag ?: "")
+            JSONObject().put("id", it.id).put("me", it.me).put("name", it.name).put("seen", it.seen).put("etag", it.etag ?: "").put("warned", it.warned)
         })
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("groups", arr.toString()) }
         schedule(context, list.isNotEmpty())
@@ -58,7 +61,8 @@ object Watch {
     /**
      * The page's list replaces the stored one, keeping the later of the two
      * "seen" times. A group new to the list starts from now, so joining one
-     * doesn't notify about its whole history.
+     * doesn't notify about its whole history. A countdown the page has shown
+     * counts as told, so nobody is notified about one they've seen or started.
      */
     fun update(context: Context, groups: JSONArray) {
         val old = load(context).associateBy { it.id }
@@ -69,7 +73,7 @@ object Watch {
             val me = o.optString("me").takeIf { ID.matches(it) } ?: return@mapNotNull null
             val seen = o.optLong("seen")
             val prev = old[id]
-            Group(id, me, o.optString("name").take(60), maxOf(seen, prev?.seen ?: now), prev?.etag)
+            Group(id, me, o.optString("name").take(60), maxOf(seen, prev?.seen ?: now), prev?.etag, maxOf(o.optLong("deleting"), prev?.warned ?: 0))
         }
         save(context, list)
     }

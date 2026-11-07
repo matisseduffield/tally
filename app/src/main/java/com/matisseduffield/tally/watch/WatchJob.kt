@@ -5,8 +5,10 @@ import android.app.job.JobService
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.DateFormat
 import java.text.NumberFormat
 import java.util.Currency
+import java.util.Date
 import kotlin.concurrent.thread
 
 /**
@@ -35,16 +37,20 @@ class WatchJob : JobService() {
         if (groups.isEmpty()) return
         val updated = groups.map { group ->
             val (state, etag) = fetch(group) ?: return@map group
-            val lines = describe(group, state)
+            // Comes with the fetch, so a countdown costs no extra requests. Its
+            // purge time tells one countdown from the next.
+            val deleting = state.optLong("deleting")
+            val warn = deleting > 0 && deleting != group.warned
+            val lines = listOfNotNull(countdown(deleting).takeIf { warn }) + describe(group, state)
             val newest = entries(state).maxOfOrNull { it.optLong("updatedAt") } ?: 0L
             Watch.notify(this, group, lines)
-            group.copy(seen = maxOf(group.seen, newest), etag = etag)
+            group.copy(seen = maxOf(group.seen, newest), etag = etag, warned = if (warn) deleting else group.warned)
         }
         // The page may have changed the list meanwhile; only move these groups on.
         val now = Watch.load(this).associateBy { it.id }
         Watch.save(this, now.values.map { cur ->
             val mine = updated.find { it.id == cur.id } ?: return@map cur
-            cur.copy(seen = maxOf(cur.seen, mine.seen), etag = mine.etag)
+            cur.copy(seen = maxOf(cur.seen, mine.seen), etag = mine.etag, warned = maxOf(cur.warned, mine.warned))
         })
     }
 
@@ -66,6 +72,9 @@ class WatchJob : JobService() {
             conn.disconnect()
         }
     }.getOrNull()
+
+    private fun countdown(deleting: Long) =
+        "Someone asked to delete this group. It goes on ${DateFormat.getDateInstance(DateFormat.LONG).format(Date(deleting))} unless someone undoes it."
 
     private fun entries(state: JSONObject) =
         state.optJSONArray("entries")?.let { arr -> (0 until arr.length()).mapNotNull { arr.optJSONObject(it) } }.orEmpty()

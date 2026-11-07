@@ -1,27 +1,38 @@
 // Tally's server: a Cloudflare Worker with a D1 database (binding DB).
 //
-//   GET  /api/g/:id       the whole group: { group, members, entries }
+//   GET  /api/g/:id       the whole group: { group, members, entries }, plus
+//                         deleting: the purge time, if a countdown is running
 //   GET  /api/g/:id?since=N   the group and members, and only the entries
 //                         changed after version N ({ ..., delta: true })
 //   POST /api/g/:id/ops   apply changes { ops: [...], since? }, answer with
 //                         the group (only what changed after `since`, if given)
-//   DELETE /api/g/:id     delete the group and everything in it, for everyone
+//   DELETE /api/g/:id     start the 14-day countdown to deleting the group
+//   POST /api/g/:id/keep  undo that, any time before it runs out
 //   GET  /, /g/:id, ...   the web app, served from the public tally-releases
 //                         repo, where every release publishes it
 //   GET  /app             the latest Android app (a redirect to the APK)
+//   scheduled             the daily Cron Trigger: purge what has run out
 //
 // There are no accounts: a group's 22-character random id is its link, and
-// anyone holding it can read and add to the group. Responses carry the
+// anyone holding it can read, change and delete the group. Responses carry the
 // group's version as an ETag, so polling an unchanged group costs a 304.
 //
-// Deleting a group removes its people and entries and blanks its row, leaving
-// only the random id. That id has to stay: a phone can hold queued changes for
-// days, and a queue with a 'group' op first looks just like a new group, so
-// with no trace of the id it would bring the group back. Reads of a deleted id
-// answer 404 and writes 422 with { deleted: true }. Those two codes are chosen
-// for the apps already out there: 404 tells them the group is gone, and 422
-// makes them (1.2 on) drop their queue, where 404 would have them send it
-// again on every poll. Anything else would read as being offline.
+// Since a link is all it takes, deleting isn't instant. DELETE only adds a row
+// to pending_deletes, and anyone with the link can undo it for 14 days. The
+// group works normally meanwhile. Starting or undoing a countdown adds 1 to the
+// group's version and changes nothing else in it, so phones get a new ETag
+// rather than a 304, and see `deleting` appear or go. Apps that don't know the
+// field ignore it.
+//
+// Once the time is up the group reads as gone at once, and the daily cron
+// removes its people and entries and blanks its row, leaving only the random
+// id. That id has to stay: a phone can hold queued changes for days, and a
+// queue with a 'group' op first looks just like a new group, so with no trace
+// of the id it would bring the group back. Reads of a deleted id answer 404 and
+// writes 422 with { deleted: true }. Those two codes are chosen for the apps
+// already out there: 404 tells them the group is gone, and 422 makes them (1.2
+// on) drop their queue, where 404 would have them send it again on every poll.
+// Anything else would read as being offline.
 // Deployed by hand from this file (see README); schema in schema.sql.
 
 const WEB = 'https://raw.githubusercontent.com/matisseduffield/tally-releases/main/web/';
@@ -35,6 +46,10 @@ const MAX_MEMBERS = 100;
 const MAX_ENTRIES = 20000;
 // A live group always has a currency, so a blank one marks a deleted group.
 const LIVE = "currency <> ''";
+const GRACE_MS = 14 * 24 * 60 * 60 * 1000;
+// Each cron round is one transaction over at most this many groups.
+const PURGE_BATCH = 25;
+const PURGE_ROUNDS = 4;
 
 // The Android app's signing certificate, so links to groups open in the app.
 const ASSET_LINKS = [{
@@ -60,18 +75,21 @@ const json = (body, status = 200, headers = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...CORS, ...PRIVATE, ...headers } });
 const fail = (status, error) => json({ error }, status);
 const deleted = status => json({ error: 'This group was deleted', deleted: true }, status);
+// Has this countdown run out? (purge_at is null when there isn't one.)
+const expired = (purgeAt, now) => purgeAt !== null && purgeAt !== undefined && purgeAt <= now;
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     try {
-      const api = url.pathname.match(/^\/api\/g\/([^/]+)(\/ops)?$/);
+      const api = url.pathname.match(/^\/api\/g\/([^/]+)(\/ops|\/keep)?$/);
       if (api) {
         const id = api[1];
         if (!ID.test(id)) return fail(404, 'No such group');
         if (request.method === 'GET' && !api[2]) return getGroup(env, id, request);
-        if (request.method === 'POST' && api[2]) return applyOps(env, id, request);
+        if (request.method === 'POST' && api[2] === '/ops') return applyOps(env, id, request);
+        if (request.method === 'POST' && api[2] === '/keep') return keepGroup(env, id);
         if (request.method === 'DELETE' && !api[2]) return deleteGroup(env, id);
         return fail(405, 'Method not allowed');
       }
@@ -83,23 +101,26 @@ export default {
       return fail(500, 'Something went wrong');
     }
   },
+  async scheduled(event, env) {
+    await purgeExpired(env, Date.now());
+  },
 };
 
 // The statements that read a group: everything, or the entries written after
 // version `since`. Run in the same batch as any writes, so they see them.
 function readStatements(env, id, since) {
   return [
-    env.DB.prepare(`SELECT id, name, currency, version, split FROM groups WHERE id = ? AND ${LIVE}`).bind(id),
+    env.DB.prepare(`SELECT id, name, currency, version, split, purge_at FROM groups LEFT JOIN pending_deletes ON group_id = id WHERE id = ? AND ${LIVE}`).bind(id),
     env.DB.prepare('SELECT id, name, removed FROM members WHERE group_id = ? ORDER BY rowid').bind(id),
     since === null
       ? env.DB.prepare('SELECT id, data, deleted, created_at, updated_at FROM entries WHERE group_id = ?').bind(id)
       : env.DB.prepare('SELECT id, data, deleted, created_at, updated_at FROM entries WHERE group_id = ? AND v > ?').bind(id, since),
   ];
 }
-function groupFrom([g, members, entries], since) {
+function groupFrom([g, members, entries], since, now) {
   const row = g.results[0];
-  if (!row) return null;
-  const { split, ...group } = row;
+  if (!row || expired(row.purge_at, now)) return null;
+  const { split, purge_at: deleting, ...group } = row;
   if (split) group.split = JSON.parse(split);
   const state = {
     group,
@@ -107,6 +128,7 @@ function groupFrom([g, members, entries], since) {
     entries: entries.results.map(e => ({ ...JSON.parse(e.data), id: e.id, deleted: !!e.deleted, createdAt: e.created_at, updatedAt: e.updated_at })),
   };
   if (since !== null) state.delta = true;
+  if (deleting !== null) state.deleting = deleting;
   return state;
 }
 // A version the client already has, or null for everything. A version
@@ -125,17 +147,19 @@ async function missing(env, id) {
 async function getGroup(env, id, request) {
   let since = sinceOf(new URL(request.url).searchParams.get('since'));
   const tag = request.headers.get('If-None-Match');
+  const now = Date.now();
   if (since === null && tag) {
     // Old clients poll for the whole group: check the version first.
-    const head = await env.DB.prepare(`SELECT version FROM groups WHERE id = ? AND ${LIVE}`).bind(id).first();
-    if (!head) return missing(env, id);
+    const head = await env.DB.prepare(`SELECT version, purge_at FROM groups LEFT JOIN pending_deletes ON group_id = id WHERE id = ? AND ${LIVE}`).bind(id).first();
+    if (!head || expired(head.purge_at, now)) return missing(env, id);
     if (sameTag(tag, `"${head.version}"`)) return notModified(`"${head.version}"`);
   }
-  let state = groupFrom(await env.DB.batch(readStatements(env, id, since)), since);
+  let state = groupFrom(await env.DB.batch(readStatements(env, id, since)), since, now);
   if (!state) return missing(env, id);
   if (since !== null && since > state.group.version) {
     since = null;
-    state = groupFrom(await env.DB.batch(readStatements(env, id, null)), null);
+    state = groupFrom(await env.DB.batch(readStatements(env, id, null)), null, now);
+    if (!state) return missing(env, id);
   }
   const etag = `"${state.group.version}"`;
   if (sameTag(tag, etag)) return notModified(etag);
@@ -154,11 +178,11 @@ async function applyOps(env, id, request) {
 
   const now = Date.now();
   const [head, known] = await env.DB.batch([
-    env.DB.prepare('SELECT version, currency, (SELECT COUNT(*) FROM entries WHERE group_id = ?1) AS n FROM groups WHERE id = ?1').bind(id),
+    env.DB.prepare('SELECT version, currency, purge_at, (SELECT COUNT(*) FROM entries WHERE group_id = ?1) AS n FROM groups LEFT JOIN pending_deletes ON group_id = id WHERE id = ?1').bind(id),
     env.DB.prepare('SELECT id FROM members WHERE group_id = ?').bind(id),
   ]);
   const exists = head.results[0];
-  if (exists && !exists.currency) return deleted(422);
+  if (exists && (!exists.currency || expired(exists.purge_at, now))) return deleted(422);
   // A new group must start with its name and currency.
   if (!exists && !(ops[0] && ops[0].type === 'group')) return fail(404, 'No such group');
   // Entries may only name people in the group, including any added now.
@@ -214,25 +238,60 @@ async function applyOps(env, id, request) {
   // Writes and the read-back in one batch: one transaction, one round trip.
   const fresh = since !== null && exists && since <= exists.version ? since : null;
   const results = await env.DB.batch([...stmts, ...readStatements(env, id, fresh)]);
-  const state = groupFrom(results.slice(-3), fresh);
+  const state = groupFrom(results.slice(-3), fresh, now);
   if (!state) return deleted(422);
   return json(state, 200, { ETag: `"${state.group.version}"` });
 }
 
-// Anyone with the link can do this, as they can edit anything else; the app
-// asks first. Doing it twice is fine, so a lost answer can simply be retried.
+// Where a group stands, for the answers below.
+const standing = (env, id) => env.DB.prepare('SELECT currency, purge_at FROM groups LEFT JOIN pending_deletes ON group_id = id WHERE id = ?').bind(id);
+
+// Anyone with the link can do this, as they can edit anything else, and anyone
+// can undo it. Asking again keeps the first date, and changes nothing.
 async function deleteGroup(env, id) {
-  const row = await env.DB.prepare('SELECT currency FROM groups WHERE id = ?').bind(id).first();
+  const now = Date.now();
+  const [, , found] = await env.DB.batch([
+    env.DB.prepare(`UPDATE groups SET version = version + 1 WHERE id = ?1 AND ${LIVE} AND NOT EXISTS (SELECT 1 FROM pending_deletes WHERE group_id = ?1)`).bind(id),
+    env.DB.prepare(`INSERT INTO pending_deletes (group_id, purge_at) SELECT id, ?2 FROM groups WHERE id = ?1 AND ${LIVE} ON CONFLICT(group_id) DO NOTHING`).bind(id, now + GRACE_MS),
+    standing(env, id),
+  ]);
+  const row = found.results[0];
   if (!row) return fail(404, 'No such group');
-  if (row.currency) {
-    const now = Date.now();
+  if (!row.currency || expired(row.purge_at, now)) return json({ deleted: true });
+  return json({ deleting: row.purge_at });
+}
+
+// Calls the countdown off. Too late once it has run out, even if the cron
+// hasn't been round yet. Doing it twice is fine.
+async function keepGroup(env, id) {
+  const now = Date.now();
+  const [, , found] = await env.DB.batch([
+    env.DB.prepare('UPDATE groups SET version = version + 1 WHERE id = ?1 AND EXISTS (SELECT 1 FROM pending_deletes WHERE group_id = ?1 AND purge_at > ?2)').bind(id, now),
+    env.DB.prepare('DELETE FROM pending_deletes WHERE group_id = ?1 AND purge_at > ?2').bind(id, now),
+    standing(env, id),
+  ]);
+  const row = found.results[0];
+  if (!row) return fail(404, 'No such group');
+  if (!row.currency || row.purge_at !== null) return deleted(404);
+  return json({ deleting: null });
+}
+
+// The cron. With nothing due it's one indexed read and no writes. Every
+// statement in a round picks the same groups, and the last one is what clears
+// them, so a round is all or nothing and an undo can't land halfway through.
+// Anything past the rounds waits for tomorrow; it already reads as gone.
+async function purgeExpired(env, now) {
+  const due = `SELECT group_id FROM pending_deletes WHERE purge_at <= ?1 ORDER BY purge_at LIMIT ${PURGE_BATCH}`;
+  for (let round = 0; round < PURGE_ROUNDS; round++) {
+    const any = await env.DB.prepare('SELECT 1 FROM pending_deletes WHERE purge_at <= ? LIMIT 1').bind(now).first();
+    if (!any) return;
     await env.DB.batch([
-      env.DB.prepare('DELETE FROM entries WHERE group_id = ?').bind(id),
-      env.DB.prepare('DELETE FROM members WHERE group_id = ?').bind(id),
-      env.DB.prepare("UPDATE groups SET name = '', currency = '', split = NULL, version = 0, created_at = ?1, updated_at = ?1 WHERE id = ?2").bind(now, id),
+      env.DB.prepare(`DELETE FROM entries WHERE group_id IN (${due})`).bind(now),
+      env.DB.prepare(`DELETE FROM members WHERE group_id IN (${due})`).bind(now),
+      env.DB.prepare(`UPDATE groups SET name = '', currency = '', split = NULL, version = 0, created_at = ?1, updated_at = ?1 WHERE id IN (${due})`).bind(now),
+      env.DB.prepare(`DELETE FROM pending_deletes WHERE group_id IN (${due})`).bind(now),
     ]);
   }
-  return json({ deleted: true });
 }
 
 // An op's removed/deleted: 1 or 0 when it says, null (keep what's there) when it doesn't.
