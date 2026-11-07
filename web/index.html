@@ -2,11 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- A group link is /g/<id>, but the files sit at the top: without this, lib.js and the fonts would be looked for under /g/. -->
+<script>if (location.pathname.startsWith('/g/')) document.write('<base href="/">');</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#E8ECE5" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1412" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tally">
 <title>Tally</title>
 <style>
 /* Hanken Grotesk ships with the page (fonts/, SIL OFL) so the app looks the same offline. */
@@ -95,7 +103,7 @@ body {
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
-  padding-block: 28px 104px;
+  padding-block: calc(28px + env(safe-area-inset-top, 0px)) calc(104px + env(safe-area-inset-bottom, 0px));
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
@@ -454,6 +462,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 .toast:not(:has(button:not([hidden]))) { padding-right: 16px; }
 .toast[popover]:not(:popover-open) { display: none; }
 .toast button { min-height: 42px; padding: 0 10px; border: 0; background: none; color: var(--on-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.install-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; font-size: .84rem; line-height: 1.35; color: var(--muted); }
+.install-hint button { flex: none; width: 44px; height: 44px; margin: -10px -12px -10px 0; padding: 0; background: none; border: 0; font-size: 1.2rem; color: var(--muted); }
 .get-app { justify-self: start; margin: 0; font-size: .84rem; color: var(--muted); }
 .get-app a { color: inherit; }
 .get-app .privacy { display: inline-block; padding: 10px 8px 10px 0; font-size: .8rem; }
@@ -482,17 +492,22 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 .update-pct { min-width: 3.2ch; text-align: right; font-size: .86rem; font-weight: 600; }
 
 @media (max-width: 520px) {
-  body { padding-top: 12px; }
-  dialog { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
+  body { padding-top: calc(12px + env(safe-area-inset-top, 0px)); }
+  dialog { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); border: 0; border-radius: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   dialog, dialog::backdrop, .update-track span { transition: none; }
   dialog { transform: none; }
 }
+/* iPhones zoom the page into any field under 16px; only iOS matches this. */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea { font-size: 16px; }
+}
 </style>
 </head>
 <body>
 <main class="wrap">
+  <p class="install-hint" id="installHint" hidden><span>Keep Tally on your iPhone: tap Share, then Add to Home Screen.</span><button type="button" aria-label="Dismiss">×</button></p>
   <header class="top">
     <div class="top-left">
       <button class="icon-btn" id="back" type="button" aria-label="All groups" hidden>
@@ -552,7 +567,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       <h2>Groups</h2>
       <div class="card list rows" id="groupList"></div>
     </section>
-    <p class="get-app" id="getApp" hidden><a href="https://tally.matisseduffield.workers.dev/app">Get the Android app</a></p>
+    <p class="get-app" id="getApp" hidden><a href="/app">Get the Android app</a></p>
     <p class="get-app"><a class="privacy" href="https://teloone.au/apps/tally/privacy/" rel="noreferrer">Privacy</a> <a class="privacy" href="https://www.exchangerate-api.com" rel="noreferrer">Rates By Exchange Rate API</a></p>
   </div>
 
@@ -794,6 +809,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 <div class="toast" id="toast" role="status" popover="manual"><span id="toastText"></span><button type="button" id="toastUndo" hidden>Undo</button></div>
 
 <script src="lib.js"></script>
+<script src="pwa.js"></script>
 <script>
 (() => {
   const $ = id => document.getElementById(id);
@@ -802,7 +818,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   const SITE = 'https://tally.matisseduffield.workers.dev';
   // Served from the site itself the API is same-origin; in the app (bundled
   // page) or a local preview it's the site's.
-  const API = location.origin === SITE ? '' : SITE;
+  const onSite = location.protocol === 'https:' && location.hostname !== 'appassets.androidplatform.net';
+  const API = onSite ? '' : SITE;
   const POLL_MS = 15_000;
   // Daily rates from ExchangeRate-API, whose terms ask for the credit link in the page.
   const RATES_URL = 'https://open.er-api.com/v6/latest/USD';
@@ -934,7 +951,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     netCache.set(g, { rev: g.rev, net });
     return net;
   };
-  const linkOf = id => `${SITE}/g/${id}`;
+  const linkOf = id => `${onSite ? location.origin : SITE}/g/${id}`;
   const dateOf = ms => new Date(ms).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
 
   // Changes are applied here at once and queued for the server. `rev`
@@ -1152,7 +1169,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     shownCount = PAGE;
     $('searchBox').value = '';
     $('searchBox').hidden = true;
-    if (push) history.pushState({ g: id, own: true }, '', location.origin === SITE ? `/g/${id}` : `#g=${id}`);
+    if (push) history.pushState({ g: id, own: true }, '', onSite ? `/g/${id}` : `#g=${id}`);
     render();
     scrollTo(0, 0);
     sync(id);
@@ -1160,7 +1177,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   function goHome(push = true) {
     if (current && toastUndo) { clearTimeout(toastTimer); hideToast(); } // its Undo belongs to the group left behind
     current = null;
-    if (push) history.pushState({}, '', location.origin === SITE ? '/' : '#');
+    if (push) history.pushState({}, '', onSite ? '/' : '#');
     render();
     for (const id of groupIds) sync(id);
   }
@@ -2431,12 +2448,21 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const csv = groupCsv(g);
     const name = `${g.group.name.replace(/[^\w\- ]+/g, '').trim() || 'Tally'}.csv`;
     if (app) return toApp({ type: 'share', title: name, text: csv });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv' }));
-    a.download = name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    toast('Spreadsheet downloaded');
+    const file = new File(['\ufeff' + csv], name, { type: 'text/csv' });
+    const download = () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(file);
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 40000);   // Safari asks first, and needs it until then
+      toast('Spreadsheet downloaded');
+    };
+    // A home screen app on an iPhone has no downloads to speak of, so the file goes to the share sheet.
+    if (/iPhone|iPad|iPod/.test(navigator.userAgent) && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file] }).catch(e => { if (e.name !== 'AbortError') download(); });
+      return;
+    }
+    download();
   });
   // Takes the open group off this device, leaving its unsaved settings behind.
   function dropCurrent() {
@@ -2715,8 +2741,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   // ---- boot ----
   const pathId = (location.pathname.match(/^\/g\/([A-Za-z0-9_-]{22})$/) || [])[1] || (location.hash.match(/g=([A-Za-z0-9_-]{22})/) || [])[1];
   history.replaceState(pathId ? { g: pathId } : {}, '');
-  // Only on the website: never inside the app, even on a WebView too old for the bridge.
-  $('getApp').hidden = !!app || location.origin !== SITE;
+  // Only in Android browsers: never inside the app, even on a WebView too old for the bridge.
+  $('getApp').hidden = !!app || !onSite || !/Android/.test(navigator.userAgent);
   render();
   if (pathId) openFromLink(pathId, false);
   if (!pathId || !groups.has(pathId)) for (const id of groupIds) sync(id);

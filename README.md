@@ -42,6 +42,15 @@ no limits on how many expenses you add, no ads, and any currency.
 - `app/`: the Android app, a Kotlin WebView wrapper around `web/` (bundled as
   assets), with a message bridge for Back, sharing, haptics and updates.
 
+## On an iPhone
+
+The website installs from Safari with Share, then Add to Home Screen: `web/manifest.json`
+(`.json` because the Worker's file list has no `.webmanifest`), `web/icons/` (rendered from the
+launcher icon), the Apple tags, and `web/pwa.js`, which registers `web/sw.js` and shows a one-time
+hint in Safari on an iPhone. `pwa.js` does nothing on `appassets.androidplatform.net`, so neither
+runs in the Android app. `sw.js` is network-first with a cached copy for offline opening, and only
+touches the files it names: never `/api/`, and never a `/g/` address, which is a group's secret.
+
 ## The server
 
 There are no accounts. A group's 22-character random id is its link, and
