@@ -272,6 +272,8 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .input::placeholder { color: var(--faint); }
 .hint { font-size: .82rem; color: var(--muted); }
 .hint.bad { color: var(--neg); }
+a.credit { color: var(--muted); }
+a.credit[hidden] { display: none; }
 a.link { text-decoration: none; }
 .del-name { margin: 0; font-size: 1.1rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .del-text { margin: 0 0 8px; font-size: .95rem; line-height: 1.45; overflow-wrap: anywhere; }
@@ -551,7 +553,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       <div class="card list rows" id="groupList"></div>
     </section>
     <p class="get-app" id="getApp" hidden><a href="https://tally.matisseduffield.workers.dev/app">Get the Android app</a></p>
-    <p class="get-app"><a class="privacy" href="https://teloone.au/apps/tally/privacy/" rel="noreferrer">Privacy</a></p>
+    <p class="get-app"><a class="privacy" href="https://teloone.au/apps/tally/privacy/" rel="noreferrer">Privacy</a> <a class="privacy" href="https://www.exchangerate-api.com" rel="noreferrer">Rates By Exchange Rate API</a></p>
   </div>
 
   <!-- One group -->
@@ -650,6 +652,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
         <input class="big-amount" id="expAmount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done" data-done aria-label="Amount">
       </div>
       <span class="hint" id="expConv" hidden></span>
+      <a class="hint credit" id="expCredit" href="https://www.exchangerate-api.com" rel="noreferrer" hidden>Rates By Exchange Rate API</a>
     </div>
     <div class="blk">
       <div class="blk-head"><span class="field-label">Paid by</span></div>
@@ -801,11 +804,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   // page) or a local preview it's the site's.
   const API = location.origin === SITE ? '' : SITE;
   const POLL_MS = 15_000;
-  // Daily rates from the open currency-api project (CC0), on its two mirrors.
-  const RATES_URLS = [
-    'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.min.json',
-    'https://latest.currency-api.pages.dev/v1/currencies/usd.min.json',
-  ];
+  // Daily rates from ExchangeRate-API, whose terms ask for the credit link in the page.
+  const RATES_URL = 'https://open.er-api.com/v6/latest/USD';
   const RATES_TTL = 6 * 60 * 60_000;
   const COMMON = ['EUR', 'USD', 'GBP', 'AUD', 'NZD', 'CAD', 'JPY', 'CHF', 'THB', 'IDR', 'SGD', 'INR'];
 
@@ -1120,21 +1120,25 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   // ---- rates (for expenses in another currency) ----
   let rates = store.get('rates');
   async function loadRates(force) {
-    if (!force && rates && Date.now() - rates.at < RATES_TTL) return rates;
-    for (const url of RATES_URLS) {
-      try {
-        const r = L.parseRates(await (await fetch(url, { cache: 'no-store' })).json());
-        if (r) {
-          rates = { at: Date.now(), r };
-          store.set('rates', rates);
-          break;
-        }
-      } catch {}
-    }
+    // Rates saved by an older version have no file time, so replace them first.
+    if (!force && rates && rates.updated && Date.now() - rates.at < RATES_TTL) return rates;
+    try {
+      const got = L.parseRates(await (await fetch(RATES_URL, { cache: 'no-store' })).json());
+      if (got) {
+        rates = { at: Date.now(), ...got };
+        store.set('rates', rates);
+      }
+    } catch {}
     return rates;
   }
   // Units of `to` for 1 `from`.
   const rateOf = (from, to) => L.rateBetween(rates && rates.r, from, to);
+  // How old the rates are, by the file's own time. Those saved by an older version
+  // only know when they were saved.
+  const rateAge = () => {
+    const when = rates.updated || rates.at;
+    return L.rateNote(when, Date.now(), dateOf(when));
+  };
   // Why there's no rate: nothing downloaded yet, or none for this currency.
   const noRate = (from, to) => (rates ? `Tally has no rate between ${from} and ${to}. Choose another currency.` : `No ${from} rate yet. Connect once to fetch rates.`);
 
@@ -1882,12 +1886,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const amount = parse($('expAmount').value);
     // Conversion line for foreign currencies.
     const rate = currentRate(g);
-    $('expConv').hidden = draft.currency === code;
+    $('expConv').hidden = $('expCredit').hidden = draft.currency === code;
     if (draft.currency !== code) {
       // A saved expense keeps the rate it was added at, so only a new one is today's.
       const saved = draft.editing && draft.rate && draft.origCurrency === draft.currency;
       $('expConv').textContent = Number.isFinite(rate)
-        ? `${amount > 0 ? '≈ ' + moneyMajor(amount * rate, code) + ' · ' : ''}1 ${draft.currency} = ${nf({ maximumSignificantDigits: 5 }).format(rate)} ${code}${saved ? '' : ' · daily rate from currency-api'}`
+        ? `${amount > 0 ? '≈ ' + moneyMajor(amount * rate, code) + ' · ' : ''}1 ${draft.currency} = ${nf({ maximumSignificantDigits: 5 }).format(rate)} ${code}${saved ? '' : ` · ${rateAge()}`}`
         : noRate(draft.currency, code);
     }
     // Paid by.

@@ -3,22 +3,39 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const L = require('../web/lib.js');
 
-test('the daily rate file becomes uppercase codes per 1 USD', () => {
-  const r = L.parseRates({ date: '2026-11-06', usd: { eur: 0.893, aud: 1.45, jpy: 150.2, usd: 1 } });
-  assert.deepEqual(r, { EUR: 0.893, AUD: 1.45, JPY: 150.2, USD: 1 });
+// The shape of https://open.er-api.com/v6/latest/USD.
+const answer = (rates, more = {}) => ({ result: 'success', time_last_update_unix: 1794009751, base_code: 'USD', rates, ...more });
+
+test('ExchangeRate-API\'s answer gives rates per 1 USD and the file\'s own time', () => {
+  const { r, updated } = L.parseRates(answer({ USD: 1, EUR: 0.896, AUD: 1.45, JPY: 150.2 }));
+  assert.deepEqual(r, { USD: 1, EUR: 0.896, AUD: 1.45, JPY: 150.2 });
+  assert.equal(updated, 1794009751000);
 });
 
 test('only codes the server accepts are kept', () => {
-  const r = L.parseRates({ usd: { eur: 0.9, '1inch': 5, ar: 2, pi: 3, shib: 90000, toolongcode: 1 } });
+  const { r } = L.parseRates(answer({ EUR: 0.9, eur: 1, X1: 2, TOOLONG: 3, SHIB: 90000 }));
   assert.deepEqual(Object.keys(r).sort(), ['EUR', 'SHIB', 'USD']);
 });
 
-test('bad rates are dropped, and a file without them is refused', () => {
-  const r = L.parseRates({ usd: { eur: 0.9, gbp: 0, aud: -1, jpy: 'x', chf: null } });
-  assert.deepEqual(r, { EUR: 0.9, USD: 1 });
-  for (const bad of [null, {}, { usd: null }, { usd: 'x' }, { usd: {} }, { usd: { gbp: 0.8 } }, { data: { rates: { EUR: '0.9' } } }]) {
-    assert.equal(L.parseRates(bad), null);
-  }
+test('bad rates are dropped, and anything else is refused', () => {
+  assert.deepEqual(L.parseRates(answer({ EUR: 0.9, GBP: 0, AUD: -1, JPY: 'x', CHF: null })).r, { EUR: 0.9, USD: 1 });
+  for (const bad of [
+    null, {}, { rates: { EUR: 0.9 } },
+    answer({ EUR: 0.9 }, { result: 'error' }),
+    answer({ EUR: 0.9 }, { time_last_update_unix: undefined }),
+    answer({ EUR: 0.9 }, { time_last_update_unix: 'soon' }),
+    answer({ GBP: 0.8 }), answer(null), answer('x'),
+    { date: '2026-11-06', usd: { eur: 0.9 } }, // the file Tally used to read
+    { data: { rates: { EUR: '0.9' } } }, // and Coinbase
+  ]) assert.equal(L.parseRates(bad), null);
+});
+
+test('a rate always says how old it is, using the file\'s time', () => {
+  const day = 86400000, t = 1794009751000;
+  assert.equal(L.rateNote(t, t, '7 November'), 'daily rate from 7 November');
+  assert.equal(L.rateNote(t, t + day + 1000, '7 November'), 'daily rate from 7 November');
+  assert.equal(L.rateNote(t, t + 2 * day, '7 November'), 'saved rate, 2 days old (7 November)');
+  assert.equal(L.rateNote(t, t + 30 * day, '7 November'), 'saved rate, 30 days old (7 November)');
 });
 
 test('rates between two currencies go through USD', () => {
