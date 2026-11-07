@@ -30,9 +30,17 @@ test('bad rates are dropped, and anything else is refused', () => {
   ]) assert.equal(L.parseRates(bad), null);
 });
 
+test('Coinbase\'s answer gives live rates, dated now', () => {
+  const out = L.parseLiveRates({ data: { currency: 'USD', rates: { EUR: '0.896', AUD: '1.45', eur: '1', GBP: '0', X1: '2' } } }, 5000);
+  assert.deepEqual(out, { r: { EUR: 0.896, AUD: 1.45, USD: 1 }, updated: 5000, live: true });
+  for (const bad of [null, {}, { data: {} }, { data: { rates: { AUD: '1.45' } } }, answer({ EUR: 0.9 })]) assert.equal(L.parseLiveRates(bad, 5000), null);
+});
+
 test('a rate always says how old it is, using the file\'s time', () => {
   const day = 86400000, t = 1794009751000;
   assert.equal(L.rateNote(t, t, '7 November'), 'daily rate from 7 November');
+  assert.equal(L.rateNote(t, t, '7 November', true), 'live rate from 7 November');
+  assert.equal(L.rateNote(t, t + 2 * day, '7 November', true), 'saved rate, 2 days old (7 November)');
   assert.equal(L.rateNote(t, t + day + 1000, '7 November'), 'daily rate from 7 November');
   assert.equal(L.rateNote(t, t + 2 * day, '7 November'), 'saved rate, 2 days old (7 November)');
   assert.equal(L.rateNote(t, t + 30 * day, '7 November'), 'saved rate, 30 days old (7 November)');

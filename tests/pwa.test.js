@@ -8,7 +8,7 @@ const vm = require('node:vm');
 const WEB = path.join(__dirname, '../web');
 const read = file => fs.readFileSync(path.join(WEB, file));
 const NAME = 'Tally';
-const PASS_THROUGH = ['https://tally.teloone.au/api/g/AAAAAAAAAAAAAAAAAAAAAA', 'https://tally.teloone.au/app', 'https://open.er-api.com/v6/latest/USD', 'https://tally.teloone.au/manifest.json'];
+const PASS_THROUGH = ['https://tally.teloone.au/api/g/AAAAAAAAAAAAAAAAAAAAAA', 'https://tally.teloone.au/app', 'https://open.er-api.com/v6/latest/USD', 'https://api.coinbase.com/v2/exchange-rates?currency=USD', 'https://tally.teloone.au/manifest.json'];
 const KEPT = ['lib.js', 'pwa.js', 'fonts/hanken-grotesk-latin.woff2'];
 
 const SAFARI = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1';
@@ -175,4 +175,25 @@ test('a page never decides on a host where it could ask', () => {
   const page = read('index.html').toString();
   assert.doesNotMatch(page, /location\.origin === SITE/);
   assert.doesNotMatch(page, /href="https:\/\/tally\.matisseduffield/);
+});
+
+test('group links use the new address, and both addresses open in the app', () => {
+  assert.match(read('index.html').toString(), /const linkOf = id => `\$\{SITE\}\/g\/\$\{id\}`/);
+  assert.match(read('index.html').toString(), /const SITE = 'https:\/\/tally\.teloone\.au'/);
+  const manifest = fs.readFileSync(path.join(__dirname, '../app/src/main/AndroidManifest.xml'), 'utf8');
+  const filter = manifest.match(/<intent-filter android:autoVerify="true">[\s\S]*?<\/intent-filter>/)[0];
+  for (const host of ['tally.teloone.au', 'tally.matisseduffield.workers.dev']) assert.match(filter, new RegExp(`android:host="${host.replace(/\./g, '\\.')}" android:pathPrefix="/g/"`));
+});
+
+test('the Worker vouches for the app on both addresses, and serves old and new group links', async t => {
+  const worker = await loadWorker();
+  t.mock.method(globalThis, 'fetch', async () => new Response('<html>'));
+  for (const host of ['tally.teloone.au', 'tally.matisseduffield.workers.dev']) {
+    const links = await worker.fetch(new Request(`https://${host}/.well-known/assetlinks.json`), {});
+    assert.equal(links.status, 200, host);
+    assert.equal((await links.json())[0].target.package_name, 'com.matisseduffield.tally');
+    const page = await worker.fetch(new Request(`https://${host}/g/AAAAAAAAAAAAAAAAAAAAAA`), {});
+    assert.equal(page.status, 200, host);
+    assert.equal(page.headers.get('Content-Type'), 'text/html; charset=utf-8');
+  }
 });

@@ -32,12 +32,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Group links (https://tally.matisseduffield.workers.dev/g/...) open
-                 here; the site's assetlinks.json vouches for this app. -->
+            <!-- Group links open here, on the new address and the old one, which
+                 stays for good; each site's assetlinks.json vouches for this app. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="tally.teloone.au" android:pathPrefix="/g/" />
                 <data android:scheme="https" android:host="tally.matisseduffield.workers.dev" android:pathPrefix="/g/" />
             </intent-filter>
         </activity>

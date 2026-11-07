@@ -195,13 +195,8 @@
   }
   const isId = s => typeof s === 'string' && /^[A-Za-z0-9_-]{22}$/.test(s);
 
-  // ExchangeRate-API's answer: { result, time_last_update_unix, rates: { EUR: 0.9, ... } },
-  // units per 1 USD. Gives the rates, keeping what the server accepts as a currency
-  // code, and when the file itself was updated. Null if it isn't that answer.
-  function parseRates(json) {
-    const rates = json && json.result === 'success' && json.rates;
-    const updated = json && Number(json.time_last_update_unix) * 1000;
-    if (!rates || typeof rates !== 'object' || !(updated > 0)) return null;
+  // Rates as units per 1 USD, keeping what the server accepts as a currency code.
+  function cleanRates(rates) {
     const r = {};
     for (const [code, v] of Object.entries(rates)) {
       const n = Number(v);
@@ -209,14 +204,31 @@
     }
     if (!r.EUR) return null;
     r.USD = 1;
-    return { r, updated };
+    return r;
+  }
+  // Coinbase's answer: { data: { rates: { EUR: '0.9', ... } } }. It has no time of
+  // its own, so these date from `now`. Null if it isn't that answer.
+  function parseLiveRates(json, now) {
+    const rates = json && json.data && json.data.rates;
+    const r = rates && typeof rates === 'object' ? cleanRates(rates) : null;
+    return r && { r, updated: now, live: true };
+  }
+  // ExchangeRate-API's answer: { result, time_last_update_unix, rates: { EUR: 0.9, ... } }.
+  // Gives the rates and when the file itself was updated. Null if it isn't that answer.
+  function parseRates(json) {
+    const rates = json && json.result === 'success' && json.rates;
+    const updated = json && Number(json.time_last_update_unix) * 1000;
+    if (!rates || typeof rates !== 'object' || !(updated > 0)) return null;
+    const r = cleanRates(rates);
+    return r && { r, updated };
   }
   // What to say about rates last updated at `updated`, given that date as text.
-  // The file changes daily, so two days means they're saved ones that couldn't
-  // be refreshed: say so, since an expense keeps its rate for good.
-  function rateNote(updated, now, date) {
+  // Two days means they're saved ones that couldn't be refreshed: say so, since
+  // an expense keeps its rate for good.
+  function rateNote(updated, now, date, live) {
     const days = Math.floor((now - updated) / 86400000);
-    return days >= 2 ? `saved rate, ${days} days old (${date})` : `daily rate from ${date}`;
+    if (days >= 2) return `saved rate, ${days} days old (${date})`;
+    return `${live ? 'live' : 'daily'} rate from ${date}`;
   }
   // Units of `to` for 1 `from`, or NaN. The server refuses a rate of 1e10 or
   // more, so one that large is no rate at all.
@@ -231,7 +243,7 @@
   const QUIET_POLLS = 4;
   const pollDelay = (quiet, fast) => (quiet < QUIET_POLLS ? fast : fast * 4);
 
-  const lib = { parseRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, newId, isId };
+  const lib = { parseRates, parseLiveRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, newId, isId };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.TallyLib = lib;
 })(this);

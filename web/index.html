@@ -815,15 +815,17 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   const $ = id => document.getElementById(id);
   const L = TallyLib;
   const locale = navigator.language || 'en-US';
-  const SITE = 'https://tally.matisseduffield.workers.dev';
+  const SITE = 'https://tally.teloone.au';   // the address in group links
   // Served from the site itself the API is same-origin; in the app (bundled
   // page) or a local preview it's the site's.
   const onSite = location.protocol === 'https:' && location.hostname !== 'appassets.androidplatform.net';
-  const API = onSite ? '' : SITE;
+  const API = onSite ? '' : 'https://tally.matisseduffield.workers.dev';
   const POLL_MS = 15_000;
-  // Daily rates from ExchangeRate-API, whose terms ask for the credit link in the page.
-  const RATES_URL = 'https://open.er-api.com/v6/latest/USD';
-  const RATES_TTL = 6 * 60 * 60_000;
+  // Live rates from Coinbase, or daily ones from ExchangeRate-API if that fails.
+  // ExchangeRate-API's terms ask for the credit link in the page.
+  const LIVE_RATES_URL = 'https://api.coinbase.com/v2/exchange-rates?currency=USD';
+  const DAILY_RATES_URL = 'https://open.er-api.com/v6/latest/USD';
+  const RATES_TTL = 60 * 60_000;
   const COMMON = ['EUR', 'USD', 'GBP', 'AUD', 'NZD', 'CAD', 'JPY', 'CHF', 'THB', 'IDR', 'SGD', 'INR'];
 
   let fmtLocale = locale;
@@ -951,7 +953,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     netCache.set(g, { rev: g.rev, net });
     return net;
   };
-  const linkOf = id => `${onSite ? location.origin : SITE}/g/${id}`;
+  const linkOf = id => `${SITE}/g/${id}`;
   const dateOf = ms => new Date(ms).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
 
   // Changes are applied here at once and queued for the server. `rev`
@@ -1139,22 +1141,21 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   async function loadRates(force) {
     // Rates saved by an older version have no file time, so replace them first.
     if (!force && rates && rates.updated && Date.now() - rates.at < RATES_TTL) return rates;
-    try {
-      const got = L.parseRates(await (await fetch(RATES_URL, { cache: 'no-store' })).json());
-      if (got) {
-        rates = { at: Date.now(), ...got };
-        store.set('rates', rates);
-      }
-    } catch {}
+    const get = url => fetch(url, { cache: 'no-store' }).then(res => res.json()).catch(() => null);
+    const got = L.parseLiveRates(await get(LIVE_RATES_URL), Date.now()) || L.parseRates(await get(DAILY_RATES_URL));
+    if (got) {
+      rates = { at: Date.now(), ...got };
+      store.set('rates', rates);
+    }
     return rates;
   }
   // Units of `to` for 1 `from`.
   const rateOf = (from, to) => L.rateBetween(rates && rates.r, from, to);
-  // How old the rates are, by the file's own time. Those saved by an older version
+  // How old the rates are, by their own time. Those saved by an older version
   // only know when they were saved.
   const rateAge = () => {
     const when = rates.updated || rates.at;
-    return L.rateNote(when, Date.now(), dateOf(when));
+    return L.rateNote(when, Date.now(), dateOf(when), rates.live);
   };
   // Why there's no rate: nothing downloaded yet, or none for this currency.
   const noRate = (from, to) => (rates ? `Tally has no rate between ${from} and ${to}. Choose another currency.` : `No ${from} rate yet. Connect once to fetch rates.`);

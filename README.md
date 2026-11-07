@@ -4,11 +4,12 @@ Split costs with anyone: a free, simple take on shared expense apps. No sign-up,
 no limits on how many expenses you add, no ads, and any currency.
 
 - Groups with a private link: anyone with it can open the group in a browser
-  (https://tally.matisseduffield.workers.dev) or in the Android app, say which
+  (https://tally.teloone.au) or in the Android app, say which
   member they are, and add expenses. Everyone sees the same balances.
-- Expenses in any currency, converted into the group's currency at the day's
-  rate (ExchangeRate-API, updated daily) when added; the rate is stored with the
-  expense, and the form shows how old it is.
+- Expenses in any currency, converted into the group's currency when added, at
+  Coinbase's live rate, or ExchangeRate-API's daily rate if Coinbase can't be
+  reached. Rates are fetched at most hourly. The rate is stored with the expense,
+  and the form shows how old it is.
 - Split equally, by exact amounts, by percentages or by shares, paid by one
   person or several. A group can keep a default split for new expenses.
 - Repeating expenses (weekly or monthly): any device that opens the group
@@ -51,6 +52,10 @@ hint in Safari on an iPhone. `pwa.js` does nothing on `appassets.androidplatform
 runs in the Android app. `sw.js` is network-first with a cached copy for offline opening, and only
 touches the files it names: never `/api/`, and never a `/g/` address, which is a group's secret.
 
+Group links use https://tally.teloone.au. The old address, https://tally.matisseduffield.workers.dev,
+runs the same Worker and keeps working for good: its links still open, and the Android
+app accepts both and still syncs through the old one, so it never depends on the new domain.
+
 ## The server
 
 There are no accounts. A group's 22-character random id is its link, and
@@ -77,7 +82,7 @@ git push origin v1.1.0
 ```
 
 CI builds the signed APK and force-pushes it, `latest.json` and `web/` to
-`tally-releases`. Download link: https://tally.matisseduffield.workers.dev/app
+`tally-releases`. Download link: https://tally.teloone.au/app
 (redirects to
 https://raw.githubusercontent.com/matisseduffield/tally-releases/main/Tally.apk).
 
