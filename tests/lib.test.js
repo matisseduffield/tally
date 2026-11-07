@@ -86,6 +86,14 @@ test('numbers and sums parse either decimal mark', () => {
   assert.equal(L.evaluate('(40+25)/2', ','), 32.5);
   assert.ok(Number.isNaN(L.evaluate('2+', ',')));
   assert.ok(Number.isNaN(L.evaluate('alert(1)', ',')));
+  // A currency with no cents reads its receipts' thousands anywhere
+  assert.equal(L.evaluate('150.000', ',', true), 150000);
+  assert.equal(L.evaluate('1.250.000', ',', true), 1250000);
+  assert.equal(L.evaluate('150.000', ','), 150);
+  assert.equal(L.evaluate('12.5', ',', true), 12.5);
+  // A second point is a typo, and a bare 0 is never grouped
+  assert.ok(Number.isNaN(L.parseNumber('1.5.', ',')));
+  assert.equal(L.parseNumber('0.500', '.'), 0.5);
 });
 
 test('allocate splits whole cents that add up exactly', () => {

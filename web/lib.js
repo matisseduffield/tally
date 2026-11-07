@@ -19,8 +19,9 @@
 
   // One number as typed: either "." or "," can be the decimal point. When both
   // appear the last one is; a lone separator is grouping only when it's the
-  // locale's group mark followed by exactly three digits ("1.500" in Germany).
-  function parseNumber(s, group) {
+  // locale's group mark followed by exactly three digits ("1.500" in Germany), or the
+  // currency has no cents ("150.000" on a rupiah receipt is 150,000 anywhere).
+  function parseNumber(s, group, whole = false) {
     s = String(s).replace(/['’\s  ]/g, '');
     if (!s) return NaN;
     const hasDot = s.includes('.'), hasComma = s.includes(',');
@@ -30,15 +31,18 @@
     } else if (hasDot || hasComma) {
       const ch = hasDot ? '.' : ',';
       const parts = s.split(ch);
-      if (parts.length > 2) s = parts.join('');
-      else if (ch === group && parts[1].length === 3 && parts[0].length > 0) s = parts.join('');
+      // Every group three digits after something other than a bare 0; "1.5." is a
+      // typo, not 15, and "0.500" is a half.
+      const threes = /^\d*[1-9]\d*$/.test(parts[0]) && parts.slice(1).every(p => p.length === 3);
+      if (threes && (parts.length > 2 || ch === group || whole)) s = parts.join('');
+      else if (parts.length > 2) return NaN;
       else s = (parts[0] || '0') + '.' + parts[1];
     }
     return /^\d*\.?\d+$|^\d+\.$/.test(s) ? parseFloat(s) : NaN;
   }
 
   // Amount fields accept simple sums such as 12*3.5 or (40+25)/2. Hand-parsed; nothing is eval'd.
-  function evaluate(text, group) {
+  function evaluate(text, group, whole = false) {
     const src = String(text).replace(/[\s  ]/g, '').replace(/[×xX]/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-');
     if (!src) return NaN;
     const tokens = src.match(/[0-9.,'’]+|[-+*/()]/g);
@@ -50,7 +54,7 @@
       if (t === '-') return -factor();
       if (t === '+') return factor();
       if (t === '(') { const v = expr(); if (tokens[i++] !== ')') return NaN; return v; }
-      return t === undefined ? NaN : parseNumber(t, group);
+      return t === undefined ? NaN : parseNumber(t, group, whole);
     }
     function term() {
       let v = factor();

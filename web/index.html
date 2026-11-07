@@ -336,6 +336,7 @@ a.link { text-decoration: none; }
 .blk-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 24px; }
 .blk-head .field-label { font-size: .84rem; color: var(--ink); font-weight: 600; }
 .blk-head .val { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .92rem; }
+.blk-head { flex-wrap: wrap; }
 .blk-head .seg { margin: -12px -10px -12px 0; flex-wrap: nowrap; }
 .blk-head .link { padding: 6px 0; margin: -6px 0; }
 .blk .input, .blk .split-row input { background: var(--surface); }
@@ -850,7 +851,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   let fmtLocale = locale;
   try { fmtLocale = new Intl.Locale(locale, { numberingSystem: 'latn' }).toString(); } catch {}
   const GROUP_SEP = (new Intl.NumberFormat(fmtLocale).formatToParts(12345.6).find(p => p.type === 'group') || { value: ',' }).value;
-  const parse = s => L.evaluate(s, GROUP_SEP);
+  // A currency with no cents reads "150.000" as thousands, as its receipts print it.
+  const parse = (s, code) => L.evaluate(s, GROUP_SEP, !!code && L.fractionDigits(code) === 0);
 
   let currencyNames = null;
   try { currencyNames = new Intl.DisplayNames([locale], { type: 'currency' }); } catch {}
@@ -1877,21 +1879,32 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     renderExpense();
     openDlg($('expDlg'));
     if (!e) offerFocus($('expAmount'));
-    if (draft.currency !== g.group.currency) loadRates().then(renderExpense);
+    if (draft.currency !== g.group.currency) loadRates().then(() => whenSplitFree(renderExpense));
+  }
+  // Rates that arrive while you're typing in the split wait until you're done there,
+  // so the rows aren't rebuilt under your finger.
+  function whenSplitFree(fn) {
+    const split = $('expSplit');
+    if (!split.contains(document.activeElement)) return fn();
+    split.addEventListener('focusout', function done(e) {
+      if (split.contains(e.relatedTarget)) return;
+      split.removeEventListener('focusout', done);
+      fn();
+    });
   }
   // Members shown in the split: everyone current, plus anyone already in this expense.
   const splitMembers = g => g.members.filter(m => !m.removed || draft.included.has(m.id) || draft.paidBy === m.id || draft.paid[m.id]);
   // Several payers: member -> amount (expense currency) for those who put something in.
   function draftPaid() {
     const out = {};
-    for (const [id, v] of Object.entries(draft.paid)) { const n = L.parseNumber(v || '', GROUP_SEP); if (n > 0) out[id] = n; }
+    for (const [id, v] of Object.entries(draft.paid)) { const n = L.parseNumber(v || '', GROUP_SEP, L.fractionDigits(draft.currency) === 0); if (n > 0) out[id] = n; }
     return out;
   }
   function draftParts(g, amount) {
     const parts = {};
     for (const m of splitMembers(g)) {
       if (draft.mode === 'equal') { if (draft.included.has(m.id)) parts[m.id] = 1; continue; }
-      const v = L.parseNumber(draft.values[m.id] || '', GROUP_SEP);
+      const v = L.parseNumber(draft.values[m.id] || '', GROUP_SEP, draft.mode === 'exact' && L.fractionDigits(draft.currency) === 0);
       if (v > 0) parts[m.id] = v;
     }
     return parts;
@@ -1910,9 +1923,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     }
     if (!Object.keys(parts).length) return 'Choose who it’s split between';
     if (!Number.isFinite(currentRate(g))) return noRate(draft.currency, g.group.currency);
+    if (L.toMinor(amount * currentRate(g), g.group.currency) < 1) return 'Too small';
     const sum = Object.values(parts).reduce((s, v) => s + v, 0);
     if (draft.mode === 'exact' && Math.abs(sum - amount) > 0.005) return '';
-    if (draft.mode === 'percent' && Math.abs(sum - 100) > 0.001) return '';
+    if (draft.mode === 'percent' && Math.abs(sum - 100) > 0.05) return '';
     return '';
   }
   const currentRate = g => (draft.currency === g.group.currency ? 1 : (draft.editing && draft.rate && draft.origCurrency === draft.currency ? draft.rate : rateOf(draft.currency, g.group.currency)));
@@ -1922,7 +1936,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const code = g.group.currency;
     if (draft.origCurrency === undefined) draft.origCurrency = draft.currency;
     $('expCur').textContent = draft.currency;
-    const amount = parse($('expAmount').value);
+    const amount = parse($('expAmount').value, draft.currency);
     // Conversion line for foreign currencies.
     const rate = currentRate(g);
     $('expConv').hidden = $('expCredit').hidden = draft.currency === code;
@@ -2026,7 +2040,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       if (Math.abs(diff) > 0.005) { right = diff > 0 ? `${moneyMajor(diff, draft.currency)} left` : `${moneyMajor(-diff, draft.currency)} over`; bad = true; }
     } else if (draft.mode === 'percent') {
       left = `${nf({ maximumFractionDigits: 2 }).format(sum)}% of 100%`;
-      if (Math.abs(sum - 100) > 0.001) { right = sum < 100 ? `${nf({ maximumFractionDigits: 2 }).format(100 - sum)}% left` : 'Over 100%'; bad = true; }
+      if (Math.abs(sum - 100) > 0.05) { right = sum < 100 ? `${nf({ maximumFractionDigits: 2 }).format(100 - sum)}% left` : 'Over 100%'; bad = true; }
     } else {
       left = `${nf({ maximumFractionDigits: 2 }).format(sum)} shares`;
       if (sum > 0 && amount > 0) right = `${moneyMajor(amount / sum, draft.currency)} per share`;
@@ -2062,7 +2076,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       if (!draft.several) {
         // Start with whoever was the payer covering it all.
         draft.several = true;
-        const amount = parse($('expAmount').value);
+        const amount = parse($('expAmount').value, draft.currency);
         draft.paid = amount > 0 ? { [draft.paidBy]: plainNum(amount, draft.currency) } : {};
       }
     } else {
@@ -2084,7 +2098,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (!input) return;
     draft.paid[input.dataset.payer] = input.value;
     const g = groups.get(current);
-    const amount = parse($('expAmount').value);
+    const amount = parse($('expAmount').value, draft.currency);
     renderPayFoot(amount);
     const parts = draftParts(g, amount);
     renderExpenseFoot(g, amount, parts, {});
@@ -2105,7 +2119,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   }
   $('expMakeDefault').addEventListener('click', () => {
     const g = groups.get(current);
-    const sp = draftDefault(g, draftParts(g, parse($('expAmount').value)));
+    const sp = draftDefault(g, draftParts(g, parse($('expAmount').value, draft.currency)));
     if (sp === undefined) return;
     change(g, [{ type: 'group', name: g.group.name, currency: g.group.currency, split: sp }]);
     $('expMakeDefault').hidden = true;
@@ -2119,7 +2133,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     // Start the new mode from an even split of whoever was ticked.
     const g = groups.get(current);
     const inc = splitMembers(g).filter(m => draft.included.has(m.id));
-    const amount = parse($('expAmount').value);
+    const amount = parse($('expAmount').value, draft.currency);
     if (inc.length) {
       const evenly = total => L.allocate(total, Object.fromEntries(inc.map(m => [m.id, 1])));
       const evenPct = evenly(10000), evenAmt = amount > 0 ? evenly(L.toMinor(amount, draft.currency)) : {};
@@ -2145,7 +2159,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (!input) return;
     draft.values[input.dataset.member] = input.value;
     const g = groups.get(current);
-    const amount = parse($('expAmount').value);
+    const amount = parse($('expAmount').value, draft.currency);
     const parts = draftParts(g, amount);
     fillParts(g, amount, parts);
     renderExpenseFoot(g, amount, parts, {});
@@ -2160,11 +2174,15 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   });
   $('expWhat').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('expAmount').focus(); } });
   $('expAmount').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !$('expSave').disabled) { e.preventDefault(); $('expSave').click(); }
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    // On a phone, Done only puts the keyboard away; you may still want to change the split.
+    if (!fineMouse.matches) $('expAmount').blur();
+    else if (!$('expSave').disabled) $('expSave').click();
   });
   $('expSave').addEventListener('click', () => {
     const g = groups.get(current);
-    const amount = parse($('expAmount').value);
+    const amount = parse($('expAmount').value, draft.currency);
     const parts = draftParts(g, amount);
     const rate = currentRate(g);
     if (draftProblem(g, amount, parts) || !(amount > 0)) return;
@@ -2282,7 +2300,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const people = g.members.filter(m => !m.removed || m.id === pay.from || m.id === pay.to);
     $('payFrom').replaceChildren(...people.map(m => chip(m.id === g.me ? 'You' : m.name, m.id === pay.from, { member: m.id })));
     $('payTo').replaceChildren(...people.filter(m => m.id !== pay.from).map(m => chip(m.id === g.me ? 'You' : m.name, m.id === pay.to, { member: m.id })));
-    const amount = parse($('payAmount').value);
+    const amount = parse($('payAmount').value, groups.get(current).group.currency);
     $('payGo').disabled = !(pay.from && pay.to && pay.from !== pay.to && amount > 0 && amount < 1e10 && L.toMinor(amount, g.group.currency) >= 1);
     $('payHint').textContent = '';
   }
@@ -2316,7 +2334,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   });
   $('payGo').addEventListener('click', () => {
     const g = groups.get(current);
-    const amount = parse($('payAmount').value);
+    const amount = parse($('payAmount').value, groups.get(current).group.currency);
     if (!(pay.from && pay.to && amount > 0)) return;
     recordPayment(pay.from, pay.to, L.toMinor(amount, g.group.currency));
   });
