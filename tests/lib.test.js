@@ -172,3 +172,17 @@ test('repeats fall due weekly or monthly, keeping month ends', () => {
   assert.deepEqual(L.occurrences('2020-01-01', 'weekly', '2026-11-02', 60, '2026-10-20'), ['2026-10-21', '2026-10-28']);
   assert.deepEqual(L.occurrences('2026-01-31', 'monthly', '2026-05-01', 60, '2026-03-31'), ['2026-04-30']);
 });
+
+test('home totals lead each column with a currency that has something in it', () => {
+  // Rupiah has the most at stake, but nothing owed in it: that column leads with dollars.
+  const o = L.overview([{ code: 'IDR', net: 838787500 }, { code: 'AUD', net: -15620 }, { code: 'EUR', net: 0 }]);
+  assert.deepEqual(o.owed, { lead: 'IDR', amount: 838787500, also: [] });
+  assert.deepEqual(o.owe, { lead: 'AUD', amount: 15620, also: [] });
+  // Groups in the same currency add up; the rest are listed after the lead.
+  const m = L.overview([{ code: 'EUR', net: 5000 }, { code: 'EUR', net: 2500 }, { code: 'GBP', net: 1000 }, { code: 'GBP', net: -400 }]);
+  assert.deepEqual(m.owed, { lead: 'EUR', amount: 7500, also: [['GBP', 1000]] });
+  assert.deepEqual(m.owe, { lead: 'GBP', amount: 400, also: [] });
+  // All square: the biggest currency leads with nothing, and no groups means no lead.
+  assert.deepEqual(L.overview([{ code: 'JPY', net: 0 }]).owe, { lead: 'JPY', amount: 0, also: [] });
+  assert.equal(L.overview([]).owed.lead, undefined);
+});

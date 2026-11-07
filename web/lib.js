@@ -185,6 +185,25 @@
     return out;
   }
 
+  // Home's two totals from your balance in each group ([{ code, net }]).
+  // Currencies are ranked by everything at stake in them; each column leads
+  // with the first that has anything in it and lists the rest after, so a
+  // column never reads "0, and $20". `lead` is undefined with no groups.
+  function overview(items) {
+    const owed = new Map(), owe = new Map();
+    for (const { code, net } of items) {
+      if (!owed.has(code)) { owed.set(code, 0); owe.set(code, 0); }
+      if (net > 0) owed.set(code, owed.get(code) + net);
+      else if (net < 0) owe.set(code, owe.get(code) - net);
+    }
+    const codes = [...owed.keys()].sort((a, b) => (owed.get(b) + owe.get(b)) - (owed.get(a) + owe.get(a)));
+    const side = map => {
+      const lead = codes.find(c => map.get(c)) || codes[0];
+      return { lead, amount: map.get(lead) || 0, also: codes.filter(c => c !== lead && map.get(c)).map(c => [c, map.get(c)]) };
+    };
+    return { owed: side(owed), owe: side(owe) };
+  }
+
   // Random, unguessable ids (128 bits, URL-safe). A group's id is its link.
   function newId() {
     const bytes = new Uint8Array(16);
@@ -243,7 +262,7 @@
   const QUIET_POLLS = 4;
   const pollDelay = (quiet, fast) => (quiet < QUIET_POLLS ? fast : fast * 4);
 
-  const lib = { parseRates, parseLiveRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, newId, isId };
+  const lib = { parseRates, parseLiveRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, overview, newId, isId };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.TallyLib = lib;
 })(this);

@@ -11,6 +11,7 @@
 <meta name="theme-color" content="#0E1412" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='18 18 72 72'%3E%3Crect x='18' y='18' width='72' height='72' rx='16' fill='%231F6F54'/%3E%3CclipPath id='c'%3E%3Cpath d='M0,0H108V20.23L0,72.23ZM0,108H108V35.77L0,87.77Z'/%3E%3C/clipPath%3E%3Cg fill='none' stroke='%23FAF8F3' stroke-width='7.6' stroke-linecap='round'%3E%3Cpath clip-path='url(%23c)' d='M36,33V75M48,33V75M60,33V75M72,33V75'/%3E%3Cpath d='M27,67L81,41'/%3E%3C/g%3E%3C/svg%3E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -152,7 +153,7 @@ button { cursor: pointer; }
 
 /* Cards and lists */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
-.section { display: grid; gap: 8px; }
+.section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .section h2 { margin: 0; font-size: .95rem; font-weight: 600; }
 .rows { display: grid; }
 .row {
@@ -174,8 +175,11 @@ button.row:active { background: color-mix(in srgb, var(--ink) 5%, transparent); 
    you: red you owe, green you're owed, ink for payments you made or got. */
 .flow { grid-column: 1; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: .84rem; color: var(--muted); white-space: nowrap; }
 .flow > span { flex: none; }
-.flow .who-a, .flow .who-b { color: var(--ink); }
-.flow .tail { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.flow .who-a, .flow .who-b { overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+.flow .who-a { max-width: 45%; }
+.flow .who-b { flex: 0 1 auto; min-width: 0; }
+/* Short of room, the original amount gives way before the names do */
+.flow .tail { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .flow svg { flex: none; display: block; }
 .flow .ink { color: var(--ink); }
 
@@ -198,7 +202,7 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 .intro .lead { margin: 0; max-width: 21ch; font-size: 1.55rem; font-weight: 500; line-height: 1.25; letter-spacing: -.01em; }
 .steps { list-style: none; margin: 0; padding: 0; border-bottom: 1px solid var(--line); }
 .steps li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 2px; padding: 14px 0; border-top: 1px solid var(--line); }
-.steps .n { grid-row: 1 / span 2; font-size: .84rem; color: var(--faint); font-variant-numeric: tabular-nums; line-height: 1.5; }
+.steps .n { grid-row: 1 / span 2; font-size: .84rem; color: var(--faint); font-variant-numeric: tabular-nums; line-height: 22.5px; } /* the title's line, so the two share a baseline */
 .steps b { font-weight: 500; }
 .steps small { font-size: .84rem; color: var(--muted); }
 /* Home: name and your balance on the first line, details across the whole
@@ -212,11 +216,12 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 /* Home totals: a ledger strip, owed | owe, between hairlines */
 .totals { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .totals > div { display: grid; gap: 2px; padding: 14px 0 16px; min-width: 0; }
+.totals > div:first-child { padding-right: 12px; }
 .totals > div + div { border-left: 1px solid var(--line); padding-left: 16px; }
 .totals .lbl { font-size: .8rem; color: var(--muted); }
 .totals .val { font-size: 1.55rem; font-weight: 500; letter-spacing: -.01em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .totals .val.zero { color: var(--faint); }
-.totals .also { font-size: .78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.totals .also { font-size: .78rem; line-height: 1.35; color: var(--muted); }
 
 
 /* Everyone else's balance: a plain ruled list, like Bureau's quick amounts */
@@ -239,6 +244,8 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 .dock-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 600px; margin: 0 auto; }
 .dock-pair .btn { width: 100%; }
 .dock-pair.solo { grid-template-columns: 1fr; }
+/* Keeps "Join with a link" on one line on a 320px screen */
+@media (max-width: 360px) { .dock .btn { padding: 0 12px; } }
 
 /* Sheets (full screen on phones, centred panels on wide screens) */
 dialog {
@@ -247,7 +254,10 @@ dialog {
   padding: 0; border: 1px solid var(--line); border-radius: 8px;
   background: var(--surface); color: var(--ink);
 }
-dialog[open] { display: flex; flex-direction: column; }
+/* Laid out and placed the same whether open or not, so a sheet keeps its
+   shape and place while it fades out (it stops being :modal as it closes) */
+dialog { position: fixed; inset: 0; flex-direction: column; }
+dialog[open] { display: flex; }
 dialog::backdrop { background: var(--backdrop); }
 dialog:focus, dialog:focus-visible { outline: none; }
 dialog, dialog::backdrop {
@@ -378,7 +388,9 @@ a.link { text-decoration: none; }
 .chip:hover { color: var(--ink); }
 .chip[aria-pressed="true"] { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; text-decoration-color: var(--accent); }
 
-.who-line { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center; }
+/* From / To sit beside the first line of names when the names wrap */
+.who-line { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: start; }
+.who-line > .hint { line-height: 44px; }
 .who-line .chips { margin: 0 0 0 -10px; }
 
 /* Ruled lists of names (people in a new group, "which one is you") */
@@ -414,7 +426,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 .split-row .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .split-row .val { font-size: .9rem; color: var(--muted); text-align: right; }
 .split-row input {
-  width: 96px; min-height: 40px; padding: 0 10px; text-align: right;
+  width: 96px; min-height: 44px; padding: 0 10px; text-align: right;
   border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg);
 }
 .split-row input:focus { outline: none; border-color: var(--accent); }
@@ -830,6 +842,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   const LIVE_RATES_URL = 'https://api.coinbase.com/v2/exchange-rates?currency=USD';
   const DAILY_RATES_URL = 'https://open.er-api.com/v6/latest/USD';
   const RATES_TTL = 60 * 60_000;
+  // A request stuck on a weak signal gives up after a while, so the app says
+  // it's offline and tries again rather than waiting minutes for an answer.
+  const within = ms => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined);
   const COMMON = ['EUR', 'USD', 'GBP', 'AUD', 'NZD', 'CAD', 'JPY', 'CHF', 'THB', 'IDR', 'SGD', 'INR'];
 
   let fmtLocale = locale;
@@ -1031,9 +1046,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       // With a version from the server, only newer entries come back.
       const since = g.etag && Number.isInteger(g.group.version) ? g.group.version : null;
       if (sending.length) {
-        res = await fetch(`${API}/api/g/${id}/ops`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(since === null ? { ops: sending } : { ops: sending, since }) });
+        res = await fetch(`${API}/api/g/${id}/ops`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(since === null ? { ops: sending } : { ops: sending, since }), signal: within(20_000) });
       } else {
-        res = await fetch(`${API}/api/g/${id}${since === null ? '' : '?since=' + since}`, { headers: g.etag ? { 'If-None-Match': g.etag } : {}, cache: 'no-store' });
+        res = await fetch(`${API}/api/g/${id}${since === null ? '' : '?since=' + since}`, { headers: g.etag ? { 'If-None-Match': g.etag } : {}, cache: 'no-store', signal: within(20_000) });
       }
       offline = false;
       retries.delete(id);
@@ -1127,7 +1142,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     }
   }
   async function fetchGroup(id) {
-    const res = await fetch(`${API}/api/g/${id}`, { cache: 'no-store' });
+    const res = await fetch(`${API}/api/g/${id}`, { cache: 'no-store', signal: within(20_000) });
     if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
     return { ...(await res.json()), etag: res.headers.get('ETag') };
   }
@@ -1145,7 +1160,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   async function loadRates(force) {
     // Rates saved by an older version have no file time, so replace them first.
     if (!force && rates && rates.updated && Date.now() - rates.at < RATES_TTL) return rates;
-    const get = url => fetch(url, { cache: 'no-store' }).then(res => res.json()).catch(() => null);
+    const get = url => fetch(url, { cache: 'no-store', signal: within(10_000) }).then(res => res.json()).catch(() => null);
     const got = L.parseLiveRates(await get(LIVE_RATES_URL), Date.now()) || L.parseRates(await get(DAILY_RATES_URL));
     if (got) {
       rates = { at: Date.now(), ...got };
@@ -1251,30 +1266,31 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   }
 
   // Home's totals: what you're owed and what you owe across every group.
-  // The currency with the most at stake leads; others are listed under it.
   function renderOverview() {
-    const owed = new Map(), owe = new Map();
-    for (const id of groupIds) {
-      const g = groups.get(id);
-      if (!g || g.gone || !g.me) continue;
-      const v = netOf(g)[g.me] || 0;
-      const code = g.group.currency;
-      if (!owed.has(code)) { owed.set(code, 0); owe.set(code, 0); }
-      if (v > 0) owed.set(code, owed.get(code) + v); else if (v < 0) owe.set(code, owe.get(code) - v);
-    }
-    const codes = [...owed.keys()].sort((a, b) => (owed.get(b) + owe.get(b)) - (owed.get(a) + owe.get(a)));
-    const main = codes[0] || (groupIds.length && groups.get(groupIds[0]) ? groups.get(groupIds[0]).group.currency : 'USD');
-    const fill = (map, valId, alsoId) => {
-      const v = map.get(main) || 0;
-      $(valId).textContent = money(v, main);
-      $(valId).className = 'val ' + (v ? (map === owed ? 'pos' : 'neg') : 'zero');
-      const also = codes.slice(1).filter(c => map.get(c)).map(c => money(map.get(c), c));
+    const items = groupIds.map(id => groups.get(id)).filter(g => g && !g.gone && g.me)
+      .map(g => ({ code: g.group.currency, net: netOf(g)[g.me] || 0 }));
+    const sides = L.overview(items);
+    const main = groupIds.length && groups.get(groupIds[0]) ? groups.get(groupIds[0]).group.currency : 'USD';
+    const fill = (side, pos, valId, alsoId) => {
+      const code = side.lead || main;
+      $(valId).textContent = money(side.amount, code);
+      $(valId).className = 'val ' + (side.amount ? (pos ? 'pos' : 'neg') : 'zero');
+      fitVal($(valId));
+      const also = side.also.map(([c, v]) => money(v, c));
       $(alsoId).textContent = also.length ? `and ${also.join(', ')}` : '';
       $(alsoId).hidden = !also.length;
     };
-    fill(owed, 'ovOwed', 'ovOwedAlso');
-    fill(owe, 'ovOwe', 'ovOweAlso');
+    fill(sides.owed, true, 'ovOwed', 'ovOwedAlso');
+    fill(sides.owe, false, 'ovOwe', 'ovOweAlso');
   }
+  // A total too wide for its half of the strip steps down in size rather
+  // than being cut short (a long amount in rupiah on a small phone).
+  function fitVal(el) {
+    el.style.fontSize = '';
+    let px = parseFloat(getComputedStyle(el).fontSize);
+    while (el.scrollWidth > el.clientWidth && px > 15) el.style.fontSize = (px -= 1) + 'px';
+  }
+  addEventListener('resize', () => { for (const el of document.querySelectorAll('.totals .val')) if (el.offsetParent) fitVal(el); });
 
   function renderGroup(g) {
     const code = g.group.currency;
@@ -1292,6 +1308,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('sumMeta').textContent = spent ? `your share ${money(myShare, code)}` : '';
     $('sumMeta').hidden = !spent;
     $('groupTotals').hidden = !entriesOf(g).length;
+    if (!$('groupTotals').hidden) { fitVal($('sumAmt')); fitVal($('sumSpent')); }
     // Everyone else's balance.
     const others = g.members.filter(m => m.id !== g.me && (!m.removed || net[m.id]));
     $('balSection').hidden = !others.length || !entriesOf(g).length;
@@ -2250,7 +2267,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       row.lastChild.append(done);
       return row;
     }));
-    pay = entry ? { id: entry.id, from: entry.from, to: entry.to, editing: true } : { id: L.newId(), from: g.me, to: null, editing: false };
+    pay = entry ? { id: entry.id, from: entry.from, to: entry.to, date: entry.date, editing: true } : { id: L.newId(), from: g.me, to: null, editing: false };
     $('payAmount').value = entry ? plainNum(L.fromMinor(L.entryTotal(entry, code), code), code) : '';
     $('payAmount').placeholder = `Amount in ${code}`;
     $('payDelete').hidden = !entry;
@@ -2275,7 +2292,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   function recordPayment(from, to, minor) {
     const g = groups.get(current);
     const code = g.group.currency;
-    const data = { kind: 'payment', amount: L.fromMinor(minor, code), currency: code, rate: 1, date: today(), from, to, by: g.me };
+    // A payment being edited keeps its own date; only a new one is today's.
+    const date = (pay.editing && pay.date) || today();
+    const data = { kind: 'payment', amount: L.fromMinor(minor, code), currency: code, rate: 1, date, from, to, by: g.me };
     $('payDlg').close();
     haptic();
     const id = pay.editing ? pay.id : L.newId();
@@ -2527,7 +2546,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('delHint').hidden = true;
     let res = null, answer = {};
     try {
-      res = await fetch(`${API}/api/g/${id}`, { method: 'DELETE' });
+      res = await fetch(`${API}/api/g/${id}`, { method: 'DELETE', signal: within(20_000) });
       answer = await res.clone().json().catch(() => ({}));
     } catch {}
     // 404: the server has nothing under this id, so it's gone either way.
@@ -2558,7 +2577,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (!g) return;
     $('delUndo').disabled = true;
     let res = null;
-    try { res = await fetch(`${API}/api/g/${id}/keep`, { method: 'POST' }); } catch {}
+    try { res = await fetch(`${API}/api/g/${id}/keep`, { method: 'POST', signal: within(20_000) }); } catch {}
     $('delUndo').disabled = false;
     if (res && res.ok) {
       haptic();

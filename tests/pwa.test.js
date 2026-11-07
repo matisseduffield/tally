@@ -198,3 +198,9 @@ test('the Worker vouches for the app on both addresses, and serves old and new g
     assert.equal(page.headers.get('Content-Type'), 'text/html; charset=utf-8');
   }
 });
+
+test('editing a payment keeps its date; only a new one is dated today', () => {
+  const page = read('index.html').toString();
+  assert.match(page, /pay = entry \? \{ id: entry\.id, from: entry\.from, to: entry\.to, date: entry\.date, editing: true \}/);
+  assert.match(page, /const date = \(pay\.editing && pay\.date\) \|\| today\(\);\s+const data = \{ kind: 'payment', [^}]*\bdate, /);
+});
