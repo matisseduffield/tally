@@ -38,8 +38,10 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="tally.teloone.au" android:pathPrefix="/g/" />
-                <data android:scheme="https" android:host="tally.matisseduffield.workers.dev" android:pathPrefix="/g/" />
+                <data android:scheme="https" />
+                <data android:host="tally.teloone.au" />
+                <data android:host="tally.matisseduffield.workers.dev" />
+                <data android:pathPrefix="/g/" />
             </intent-filter>
         </activity>
 

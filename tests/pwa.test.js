@@ -182,7 +182,8 @@ test('group links use the new address, and both addresses open in the app', () =
   assert.match(read('index.html').toString(), /const SITE = 'https:\/\/tally\.teloone\.au'/);
   const manifest = fs.readFileSync(path.join(__dirname, '../app/src/main/AndroidManifest.xml'), 'utf8');
   const filter = manifest.match(/<intent-filter android:autoVerify="true">[\s\S]*?<\/intent-filter>/)[0];
-  for (const host of ['tally.teloone.au', 'tally.matisseduffield.workers.dev']) assert.match(filter, new RegExp(`android:host="${host.replace(/\./g, '\\.')}" android:pathPrefix="/g/"`));
+  for (const host of ['tally.teloone.au', 'tally.matisseduffield.workers.dev']) assert.ok(filter.includes(`android:host="${host}"`), host);
+  assert.ok(filter.includes('android:scheme="https"') && filter.includes('android:pathPrefix="/g/"'));
 });
 
 test('the Worker vouches for the app on both addresses, and serves old and new group links', async t => {
