@@ -6,8 +6,9 @@ no limits on how many expenses you add, no ads, and any currency.
 - Groups with a private link: anyone with it can open the group in a browser
   (https://tally.matisseduffield.workers.dev) or in the Android app, say which
   member they are, and add expenses. Everyone sees the same balances.
-- Expenses in any currency, converted into the group's currency at the live
-  rate (Coinbase) when added; the rate is stored with the expense.
+- Expenses in any currency, converted into the group's currency at the day's
+  rate (the open currency-api project, updated daily) when added; the rate is
+  stored with the expense.
 - Split equally, by exact amounts, by percentages or by shares, paid by one
   person or several. A group can keep a default split for new expenses.
 - Repeating expenses (weekly or monthly): any device that opens the group

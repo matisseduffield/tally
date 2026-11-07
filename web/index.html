@@ -801,8 +801,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   // page) or a local preview it's the site's.
   const API = location.origin === SITE ? '' : SITE;
   const POLL_MS = 15_000;
-  const RATES_URL = 'https://api.coinbase.com/v2/exchange-rates?currency=USD';
-  const RATES_TTL = 60 * 60_000;
+  // Daily rates from the open currency-api project (CC0), on its two mirrors.
+  const RATES_URLS = [
+    'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.min.json',
+    'https://latest.currency-api.pages.dev/v1/currencies/usd.min.json',
+  ];
+  const RATES_TTL = 6 * 60 * 60_000;
   const COMMON = ['EUR', 'USD', 'GBP', 'AUD', 'NZD', 'CAD', 'JPY', 'CHF', 'THB', 'IDR', 'SGD', 'INR'];
 
   let fmtLocale = locale;
@@ -959,9 +963,36 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     g.pending = [...(g.pending || []), ...ops];
     savePending(g);
     render();
+    wake();
     sync(g.group.id);
   }
   for (const g of groups.values()) for (const op of g.pending) applyOp(g, op);
+
+  // ---- polling ----
+  // Quick while things are happening, easing off once a few polls find nothing.
+  // A change here or from someone else, a tap, or coming back to the app wakes
+  // it. Only a slow wait gets cut short, so steady tapping can't keep putting
+  // the next poll off. The home screen polls every group, so it goes half as
+  // often while quick; once slow, both poll at the same pace.
+  let quiet = 0, pollTimer = 0, tick = 0;
+  const easedOff = () => L.pollDelay(quiet, POLL_MS) > POLL_MS;
+  function poll() {
+    if (!document.hidden) {
+      const slow = easedOff();
+      quiet++;
+      if (current) sync(current);
+      else if (slow || ++tick % 2 === 0) groupIds.forEach(sync);
+    }
+    pollTimer = setTimeout(poll, L.pollDelay(quiet, POLL_MS));
+  }
+  function wake() {
+    const slow = easedOff();
+    quiet = 0;
+    if (slow) {
+      clearTimeout(pollTimer);
+      pollTimer = setTimeout(poll, POLL_MS);
+    }
+  }
 
   // ---- sync ----
   const syncing = new Set();
@@ -1020,6 +1051,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       for (const op of rest) applyOp(g, op);
       saveGroup(g);
       render();
+      wake();
       if (!g.pending.length) fillRepeats(id);
     } catch {
       offline = true;
@@ -1089,22 +1121,22 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   let rates = store.get('rates');
   async function loadRates(force) {
     if (!force && rates && Date.now() - rates.at < RATES_TTL) return rates;
-    try {
-      const json = await (await fetch(RATES_URL, { cache: 'no-store' })).json();
-      const r = {};
-      for (const [k, v] of Object.entries(json.data.rates)) { const n = parseFloat(v); if (n > 0) r[k] = n; }
-      r.USD = 1;
-      rates = { at: Date.now(), r };
-      store.set('rates', rates);
-    } catch {}
+    for (const url of RATES_URLS) {
+      try {
+        const r = L.parseRates(await (await fetch(url, { cache: 'no-store' })).json());
+        if (r) {
+          rates = { at: Date.now(), r };
+          store.set('rates', rates);
+          break;
+        }
+      } catch {}
+    }
     return rates;
   }
   // Units of `to` for 1 `from`.
-  const rateOf = (from, to) => {
-    if (from === to) return 1;
-    const r = rates && rates.r;
-    return r && r[from] > 0 && r[to] > 0 ? r[to] / r[from] : NaN;
-  };
+  const rateOf = (from, to) => L.rateBetween(rates && rates.r, from, to);
+  // Why there's no rate: nothing downloaded yet, or none for this currency.
+  const noRate = (from, to) => (rates ? `Tally has no rate between ${from} and ${to}. Choose another currency.` : `No ${from} rate yet. Connect once to fetch rates.`);
 
   // ---- views ----
   let current = null; // open group id
@@ -1834,7 +1866,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       if (Math.abs(sum - amount) > 0.005) return 'What was paid doesn’t add up';
     }
     if (!Object.keys(parts).length) return 'Choose who it’s split between';
-    if (!Number.isFinite(currentRate(g))) return `No ${draft.currency} rate yet. Connect once to fetch rates.`;
+    if (!Number.isFinite(currentRate(g))) return noRate(draft.currency, g.group.currency);
     const sum = Object.values(parts).reduce((s, v) => s + v, 0);
     if (draft.mode === 'exact' && Math.abs(sum - amount) > 0.005) return '';
     if (draft.mode === 'percent' && Math.abs(sum - 100) > 0.001) return '';
@@ -1852,9 +1884,11 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const rate = currentRate(g);
     $('expConv').hidden = draft.currency === code;
     if (draft.currency !== code) {
+      // A saved expense keeps the rate it was added at, so only a new one is today's.
+      const saved = draft.editing && draft.rate && draft.origCurrency === draft.currency;
       $('expConv').textContent = Number.isFinite(rate)
-        ? `${amount > 0 ? '≈ ' + moneyMajor(amount * rate, code) + ' · ' : ''}1 ${draft.currency} = ${nf({ maximumSignificantDigits: 5 }).format(rate)} ${code}`
-        : `No ${draft.currency} rate yet`;
+        ? `${amount > 0 ? '≈ ' + moneyMajor(amount * rate, code) + ' · ' : ''}1 ${draft.currency} = ${nf({ maximumSignificantDigits: 5 }).format(rate)} ${code}${saved ? '' : ' · daily rate from currency-api'}`
+        : noRate(draft.currency, code);
     }
     // Paid by.
     $('expPaid').replaceChildren(
@@ -2683,12 +2717,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   if (pathId) openFromLink(pathId, false);
   if (!pathId || !groups.has(pathId)) for (const id of groupIds) sync(id);
   toApp({ type: 'hello' });
-  let tick = 0;
-  setInterval(() => {
-    if (document.hidden) return;
-    if (current) sync(current);
-    else if (++tick % 2 === 0) groupIds.forEach(sync);
-  }, POLL_MS);
+  pollTimer = setTimeout(poll, POLL_MS);
   // Another tab changed a group: take its copy when nothing of ours is waiting to send.
   addEventListener('storage', e => {
     if (e.key === 'tally.groups') {
@@ -2711,7 +2740,14 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       render();
     } catch {}
   });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) (current ? [current] : groupIds).forEach(sync); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    wake();
+    (current ? [current] : groupIds).forEach(sync);
+  });
+  addEventListener('focus', wake);
+  addEventListener('pointerdown', wake, { passive: true });
+  addEventListener('keydown', wake);
   addEventListener('online', () => groupIds.forEach(sync));
 })();
 </script>

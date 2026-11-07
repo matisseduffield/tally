@@ -3,6 +3,56 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const L = require('../web/lib.js');
 
+test('the daily rate file becomes uppercase codes per 1 USD', () => {
+  const r = L.parseRates({ date: '2026-11-06', usd: { eur: 0.893, aud: 1.45, jpy: 150.2, usd: 1 } });
+  assert.deepEqual(r, { EUR: 0.893, AUD: 1.45, JPY: 150.2, USD: 1 });
+});
+
+test('only codes the server accepts are kept', () => {
+  const r = L.parseRates({ usd: { eur: 0.9, '1inch': 5, ar: 2, pi: 3, shib: 90000, toolongcode: 1 } });
+  assert.deepEqual(Object.keys(r).sort(), ['EUR', 'SHIB', 'USD']);
+});
+
+test('bad rates are dropped, and a file without them is refused', () => {
+  const r = L.parseRates({ usd: { eur: 0.9, gbp: 0, aud: -1, jpy: 'x', chf: null } });
+  assert.deepEqual(r, { EUR: 0.9, USD: 1 });
+  for (const bad of [null, {}, { usd: null }, { usd: 'x' }, { usd: {} }, { usd: { gbp: 0.8 } }, { data: { rates: { EUR: '0.9' } } }]) {
+    assert.equal(L.parseRates(bad), null);
+  }
+});
+
+test('rates between two currencies go through USD', () => {
+  const r = { USD: 1, EUR: 0.8, AUD: 1.6 };
+  assert.equal(L.rateBetween(r, 'EUR', 'EUR'), 1);
+  assert.equal(L.rateBetween(r, 'USD', 'EUR'), 0.8);
+  assert.equal(L.rateBetween(r, 'EUR', 'AUD'), 2);
+  assert.equal(L.rateBetween(r, 'AUD', 'EUR'), 0.5);
+});
+
+test('a currency with no rate is NaN, not a wrong number', () => {
+  const r = { USD: 1, EUR: 0.8 };
+  assert.ok(Number.isNaN(L.rateBetween(r, 'EUR', 'XSU')));
+  assert.ok(Number.isNaN(L.rateBetween(r, 'XSU', 'EUR')));
+  assert.ok(Number.isNaN(L.rateBetween(null, 'EUR', 'USD')));
+  assert.equal(L.rateBetween(null, 'EUR', 'EUR'), 1);
+});
+
+test('a rate the server would refuse counts as none', () => {
+  const r = { USD: 1, VEB: 89387077330, EUR: 0.9 };
+  assert.ok(Number.isNaN(L.rateBetween(r, 'USD', 'VEB')));
+  assert.ok(L.rateBetween(r, 'VEB', 'USD') > 0);
+});
+
+test('rates saved by the old source still work', () => {
+  // Same shape and direction: uppercase codes, units per 1 USD.
+  assert.ok(Math.abs(L.rateBetween({ USD: 1, EUR: 0.9, GBP: 0.72 }, 'EUR', 'GBP') - 0.8) < 1e-9);
+});
+
+test('polling stays quick for a few quiet polls, then eases off', () => {
+  const waits = [0, 1, 2, 3, 4, 5, 50].map(q => L.pollDelay(q, 15000));
+  assert.deepEqual(waits, [15000, 15000, 15000, 15000, 60000, 60000, 60000]);
+});
+
 test('numbers and sums parse either decimal mark', () => {
   assert.equal(L.parseNumber('12,50', ','), 12.5);
   assert.equal(L.parseNumber('1,234.5', ','), 1234.5);

@@ -195,7 +195,35 @@
   }
   const isId = s => typeof s === 'string' && /^[A-Za-z0-9_-]{22}$/.test(s);
 
-  const lib = { fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, newId, isId };
+  // The daily rate file: { date, usd: { eur: 0.9, ... } }, lowercase codes, units
+  // per 1 USD. Keeps what the server accepts as a currency code. Null if it isn't
+  // that file.
+  function parseRates(json) {
+    const usd = json && json.usd;
+    if (!usd || typeof usd !== 'object') return null;
+    const r = {};
+    for (const [k, v] of Object.entries(usd)) {
+      const code = k.toUpperCase(), n = Number(v);
+      if (/^[A-Z]{3,5}$/.test(code) && n > 0 && Number.isFinite(n)) r[code] = n;
+    }
+    if (!r.EUR) return null;
+    r.USD = 1;
+    return r;
+  }
+  // Units of `to` for 1 `from`, or NaN. The server refuses a rate of 1e10 or
+  // more, so one that large is no rate at all.
+  function rateBetween(r, from, to) {
+    if (from === to) return 1;
+    const rate = r && r[from] > 0 && r[to] > 0 ? r[to] / r[from] : NaN;
+    return rate > 0 && rate < 1e10 ? rate : NaN;
+  }
+
+  // How long to wait before the next poll: `fast` until a few polls have found
+  // nothing new, then four times that.
+  const QUIET_POLLS = 4;
+  const pollDelay = (quiet, fast) => (quiet < QUIET_POLLS ? fast : fast * 4);
+
+  const lib = { parseRates, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, newId, isId };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.TallyLib = lib;
 })(this);
