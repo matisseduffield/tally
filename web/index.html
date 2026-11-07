@@ -466,7 +466,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 .install-hint button { flex: none; width: 44px; height: 44px; margin: -10px -12px -10px 0; padding: 0; background: none; border: 0; font-size: 1.2rem; color: var(--muted); }
 .get-app { justify-self: start; margin: 0; font-size: .84rem; color: var(--muted); }
 .get-app a { color: inherit; }
-.get-app .privacy { display: inline-block; padding: 10px 8px 10px 0; font-size: .8rem; }
+.legal { display: flex; justify-content: center; gap: 48px; }
+.legal a { padding: 12px 8px; font-size: .84rem; color: var(--muted); text-decoration: none; }
+.rate-credit { margin: -8px 0 0; text-align: center; font-size: .76rem; color: var(--muted); }
+.rate-credit a { color: inherit; text-decoration: none; }
 .split-row .part { margin-left: 8px; font-size: .82rem; color: var(--muted); }
 .by-line { font-size: .82rem; color: var(--muted); }
 .act-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; }
@@ -568,7 +571,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       <div class="card list rows" id="groupList"></div>
     </section>
     <p class="get-app" id="getApp" hidden><a href="/app">Get the Android app</a></p>
-    <p class="get-app"><a class="privacy" href="https://teloone.au/apps/tally/privacy/" rel="noreferrer">Privacy</a> <a class="privacy" href="https://teloone.au/apps/tally/terms/" rel="noreferrer">Terms</a> <a class="privacy" href="https://www.exchangerate-api.com" rel="noreferrer">Rates By Exchange Rate API</a></p>
+    <nav class="legal" aria-label="Legal"><a href="https://teloone.au/apps/tally/privacy/" rel="noreferrer">Privacy</a><a href="https://teloone.au/apps/tally/terms/" rel="noreferrer">Terms</a></nav>
+    <p class="rate-credit"><a href="https://www.exchangerate-api.com" rel="noreferrer">Rates By Exchange Rate API</a></p>
   </div>
 
   <!-- One group -->
