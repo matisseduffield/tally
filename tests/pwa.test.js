@@ -108,6 +108,55 @@ test('the service worker answers from the network when it is quick, and from its
   assert.equal(await (await sw.answer).text(), 'new');
 });
 
+// One sw.js serving several requests: `network(url)` answers or hangs, `kept` maps
+// file names to the kept copies.
+function swSession(t, network, kept) {
+  const on = {};
+  const scope = {
+    addEventListener: (type, fn) => { on[type] = fn; }, location: new URL('https://tally.teloone.au/sw.js'), URL, Response, console,
+    setTimeout: (...a) => setTimeout(...a), clearTimeout: id => clearTimeout(id),
+    fetch: async request => network(request.url),
+    caches: { open: async () => ({ put: async () => {} }), match: async key => (kept[key.split('/').pop()] ? new Response(kept[key.split('/').pop()]) : undefined) },
+  };
+  vm.runInNewContext(read('sw.js').toString(), scope);
+  try { t.mock.timers.enable({ apis: ['setTimeout'] }); } catch {} // already on for this test
+  return async request => {
+    let answer;
+    on.fetch({ request: { method: 'GET', mode: 'cors', ...request }, clientId: '', resultingClientId: '', ...request.ids, respondWith(p) { answer = p; }, waitUntil() {} });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    t.mock.timers.tick(3100);
+    return (await answer).text();
+  };
+}
+const hang = () => new Promise(() => {});
+const PAGE = 'https://tally.teloone.au/';
+const LIB = 'https://tally.teloone.au/lib.js';
+
+test('a page that opened from the kept copy gets its files from there too', async t => {
+  const kept = { 'index.html': 'old page', 'lib.js': 'old lib' };
+  // A weak signal for the page only: lib.js would arrive new straight away.
+  const ask = swSession(t, url => (url === PAGE ? hang() : new Response('new lib')), kept);
+  assert.equal(await ask({ url: PAGE, mode: 'navigate', ids: { resultingClientId: 'a' } }), 'old page');
+  assert.equal(await ask({ url: LIB, ids: { clientId: 'a' } }), 'old lib');
+  // Another tab whose page came new still gets the new file.
+  const ask2 = swSession(t, () => new Response('new'), kept);
+  assert.equal(await ask2({ url: PAGE, mode: 'navigate', ids: { resultingClientId: 'b' } }), 'new');
+  assert.equal(await ask2({ url: LIB, ids: { clientId: 'b' } }), 'new');
+  assert.equal(await ask({ url: LIB, ids: { clientId: 'c' } }), 'new lib');
+});
+
+test('without client ids, files just after a kept page come from the kept copies', async t => {
+  const ask = swSession(t, url => (url === PAGE ? hang() : new Response('new lib')), { 'index.html': 'old page', 'lib.js': 'old lib' });
+  assert.equal(await ask({ url: PAGE, mode: 'navigate' }), 'old page');
+  assert.equal(await ask({ url: LIB }), 'old lib');
+});
+
+test('an error from the network is answered from the kept copy when there is one', async t => {
+  const ask = swSession(t, url => new Response('broken', { status: url === PAGE ? 503 : 404 }), { 'index.html': 'old page' });
+  assert.equal(await ask({ url: PAGE, mode: 'navigate', ids: { resultingClientId: 'a' } }), 'old page');
+  assert.equal(await ask({ url: LIB, ids: { clientId: 'z' } }), 'broken');
+});
+
 test('the manifest is complete and has no host in it', () => {
   const m = JSON.parse(read('manifest.json'));
   assert.equal(m.name, NAME);

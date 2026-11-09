@@ -1165,29 +1165,35 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 
   // ---- rates (for expenses in another currency) ----
   let rates = store.get('rates');
-  let ratesLoading = null;
+  let ratesLoading = null, ratesSince = 0;
   function loadRates(force) {
     // Rates saved by an older version have no file time, so replace them first.
     if (!force && rates && rates.updated && Date.now() - rates.at < RATES_TTL) return Promise.resolve(rates);
-    if (ratesLoading) return ratesLoading;
+    // One request at a time; one that hangs (no timeout on older Safari) is given up after 20 s.
+    if (ratesLoading && Date.now() - ratesSince < 20_000) return ratesLoading;
     const get = url => fetch(url, { cache: 'no-store', signal: within(10_000) }).then(res => res.json()).catch(() => null);
-    ratesLoading = (async () => {
-      const got = L.parseLiveRates(await get(LIVE_RATES_URL), Date.now()) || L.parseRates(await get(DAILY_RATES_URL));
-      if (got) {
-        rates = { at: Date.now(), ...got };
-        store.set('rates', rates);
+    ratesSince = Date.now();
+    const loading = (async () => {
+      try {
+        const got = L.parseLiveRates(await get(LIVE_RATES_URL), Date.now()) || L.parseRates(await get(DAILY_RATES_URL));
+        if (got) {
+          rates = { at: Date.now(), ...got };
+          store.set('rates', rates);
+        }
+      } catch {} finally {
+        if (ratesLoading === loading) ratesLoading = null;
       }
-      ratesLoading = null;
       return rates;
     })();
-    return ratesLoading;
+    return (ratesLoading = loading);
   }
   // Rates are fetched ahead of need (at start, when a group opens, when the signal
   // returns), so someone who goes offline abroad still has a recent set.
   function freshenRates() {
-    loadRates().then(() => {
+    const before = rates;
+    loadRates().then(now => {
       const g = current && groups.get(current);
-      if (draft && g && $('expDlg').open && draft.currency !== g.group.currency) whenSplitFree(renderExpense);
+      if (now !== before && draft && g && $('expDlg').open && draft.currency !== g.group.currency) whenSplitFree(renderExpense);
     });
   }
   // Units of `to` for 1 `from`.
@@ -1909,16 +1915,18 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     renderExpense();
     openDlg($('expDlg'));
     if (!e) offerFocus($('expAmount'));
-    if (draft.currency !== g.group.currency) loadRates().then(() => whenSplitFree(renderExpense));
+    const before = rates;
+    if (draft.currency !== g.group.currency) loadRates().then(now => now !== before && whenSplitFree(renderExpense));
   }
-  // Rates that arrive while you're typing in the split wait until you're done there,
-  // so the rows aren't rebuilt under your finger.
+  // Rates that arrive while you're typing in the split or the payers wait until
+  // you're done there, so the rows (and the keyboard) aren't pulled from under you.
   function whenSplitFree(fn) {
-    const split = $('expSplit');
-    if (!split.contains(document.activeElement)) return fn();
-    split.addEventListener('focusout', function done(e) {
-      if (split.contains(e.relatedTarget)) return;
-      split.removeEventListener('focusout', done);
+    const busy = el => !!el && ($('expSplit').contains(el) || $('expPayers').contains(el));
+    if (!busy(document.activeElement)) return fn();
+    const dlg = $('expDlg');
+    dlg.addEventListener('focusout', function done(e) {
+      if (busy(e.relatedTarget)) return;
+      dlg.removeEventListener('focusout', done);
       fn();
     });
   }
@@ -2199,8 +2207,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (!c) return;
     draft.currency = c;
     renderExpense();
-    await loadRates();
-    renderExpense();
+    const before = rates;
+    if (await loadRates() !== before) whenSplitFree(renderExpense);
   });
   $('expWhat').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('expAmount').focus(); } });
   $('expAmount').addEventListener('keydown', e => {
@@ -2865,7 +2873,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   addEventListener('focus', wake);
   addEventListener('pointerdown', wake, { passive: true });
   addEventListener('keydown', wake);
-  addEventListener('online', () => { groupIds.forEach(sync); freshenRates(); });
+  addEventListener('online', () => { groupIds.forEach(sync); if (groupIds.length) freshenRates(); });
 })();
 </script>
 </body>
