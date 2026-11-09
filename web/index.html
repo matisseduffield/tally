@@ -829,12 +829,20 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 
 <div class="toast" id="toast" role="status" popover="manual"><span id="toastText"></span><button type="button" id="toastUndo" hidden>Undo</button></div>
 
-<script src="lib.js"></script>
-<script src="pwa.js"></script>
+<script src="lib.js?v=2"></script>
+<script src="pwa.js?v=2"></script>
 <script>
 (() => {
   const $ = id => document.getElementById(id);
   const L = TallyLib;
+  // Just after a release a cache can hand over an old lib.js with this page:
+  // reload once to get the matching one rather than run the two together.
+  const LIB_VERSION = 2; // the ?v= on lib.js above
+  if (L.VERSION !== LIB_VERSION) {
+    let tried = true;
+    try { tried = sessionStorage.getItem('tally.libReload') === String(LIB_VERSION); sessionStorage.setItem('tally.libReload', LIB_VERSION); } catch {}
+    if (!tried) { location.reload(); return; }
+  }
   const locale = navigator.language || 'en-US';
   const SITE = 'https://tally.teloone.au';   // the address in group links
   // Served from the site itself the API is same-origin; in the app (bundled

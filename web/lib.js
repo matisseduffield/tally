@@ -266,7 +266,11 @@
   const QUIET_POLLS = 4;
   const pollDelay = (quiet, fast) => (quiet < QUIET_POLLS ? fast : fast * 4);
 
-  const lib = { parseRates, parseLiveRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, overview, newId, isId };
+  // Matches the ?v= the page loads this file with; the page checks it, so a page
+  // and a lib.js from different releases never run together. Bump both together.
+  const VERSION = 2;
+
+  const lib = { VERSION, parseRates, parseLiveRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, overview, newId, isId };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.TallyLib = lib;
 })(this);

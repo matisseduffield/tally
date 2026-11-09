@@ -95,7 +95,7 @@ export default {
       }
       if (url.pathname === '/app') return new Response(null, { status: 302, headers: { Location: APK, 'Cache-Control': 'no-store', ...PRIVATE } });
       if (url.pathname === '/.well-known/assetlinks.json') return json(ASSET_LINKS, 200, { 'Cache-Control': 'public, max-age=3600' });
-      if (request.method === 'GET') return serveWeb(url.pathname);
+      if (request.method === 'GET') return serveWeb(url.pathname, url.search);
       return fail(404, 'Not found');
     } catch (e) {
       return fail(500, 'Something went wrong');
@@ -356,14 +356,18 @@ function cleanSplit(sp, modes) {
 
 // The app's page and its files. Every page path is the app itself (it reads
 // the group from the URL); a short edge cache keeps GitHub out of most loads.
+// The page names its scripts with ?v=N, which is passed on, so each version is
+// cached apart: a new page never gets an old lib.js from either cache.
 const TYPES = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', json: 'application/json', woff2: 'font/woff2', svg: 'image/svg+xml', png: 'image/png' };
-async function serveWeb(path) {
+async function serveWeb(path, search = '') {
   let file = path.replace(/^\/+/, '');
   if (!file || /^g\/[^/]+$/.test(file)) file = 'index.html';
   if (!/^[a-z0-9-]+(\/[a-z0-9-]+)*\.(html|js|json|woff2|svg|png)$/.test(file)) return fail(404, 'Not found');
-  const res = await fetch(WEB + file, { cf: { cacheTtl: 300, cacheEverything: true } });
+  const version = /^\?v=\d+$/.test(search) ? search : '';
+  const res = await fetch(WEB + file + version, { cf: { cacheTtl: 300, cacheEverything: true } });
   if (!res.ok) return fail(404, 'Not found');
   const type = TYPES[file.split('.').pop()];
-  const cache = file.endsWith('.woff2') ? 'public, max-age=604800' : 'public, max-age=60';
+  // The page is checked every time, so it and the versions it names arrive together.
+  const cache = file.endsWith('.html') ? 'no-cache' : version || file.endsWith('.woff2') ? 'public, max-age=604800' : 'public, max-age=60';
   return new Response(res.body, { headers: { 'Content-Type': type, 'Cache-Control': cache, ...PRIVATE } });
 }

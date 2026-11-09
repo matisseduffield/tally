@@ -9,7 +9,7 @@ const WEB = path.join(__dirname, '../web');
 const read = file => fs.readFileSync(path.join(WEB, file));
 const NAME = 'Tally';
 const PASS_THROUGH = ['https://tally.teloone.au/api/g/AAAAAAAAAAAAAAAAAAAAAA', 'https://tally.teloone.au/app', 'https://open.er-api.com/v6/latest/USD', 'https://api.coinbase.com/v2/exchange-rates?currency=USD', 'https://tally.teloone.au/manifest.json'];
-const KEPT = ['lib.js', 'pwa.js', 'fonts/hanken-grotesk-latin.woff2'];
+const KEPT = ['lib.js', 'lib.js?v=2', 'pwa.js?v=2', 'fonts/hanken-grotesk-latin.woff2'];
 
 const SAFARI = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1';
 const CHROME_IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/138.0.7204.156 Mobile/15E148 Safari/604.1';
@@ -41,10 +41,23 @@ function runPwa({ hostname = 'tally.teloone.au', ua = SAFARI, standalone = false
   return { calls, hint };
 }
 
+// The Cache API over a Map, keyed by full address.
+function fakeCaches(start = {}) {
+  const store = new Map(Object.entries(start).map(([k, v]) => [k, v]));
+  const cache = {
+    put: async (key, res) => { store.set(typeof key === 'string' ? key : key.url, await res.text()); },
+    match: async key => (store.has(key) ? new Response(store.get(key)) : undefined),
+    keys: async () => [...store.keys()].map(url => ({ url })),
+    delete: async key => store.delete(key.url || key),
+    addAll: async () => {},
+  };
+  return { store, caches: { open: async () => cache, match: cache.match, keys: async () => [], delete: async () => true } };
+}
+
 // sw.js with its events caught, to see what it would answer.
 function loadSw() {
   const on = {};
-  const scope = { addEventListener: (type, fn) => { on[type] = fn; }, location: new URL('https://tally.teloone.au/sw.js'), URL, Response, console, setTimeout, clearTimeout, fetch: async () => new Response(''), caches: { open: async () => ({ put: async () => {} }), match: async () => undefined } };
+  const scope = { addEventListener: (type, fn) => { on[type] = fn; }, location: new URL('https://tally.teloone.au/sw.js'), URL, Response, console, setTimeout, clearTimeout, fetch: async () => new Response(''), caches: fakeCaches().caches };
   vm.runInNewContext(read('sw.js').toString(), scope);
   return request => {
     let answered = false;
@@ -62,7 +75,7 @@ async function swAnswer(t, { network, kept }) {
     // Looked up when called, so the test's fake clock drives them.
     setTimeout: (...a) => setTimeout(...a), clearTimeout: id => clearTimeout(id),
     fetch: network,
-    caches: { open: async () => ({ put: async (key, res) => put.push([key, await res.text()]) }), match: async () => (kept ? new Response(kept) : undefined) },
+    caches: { open: async () => ({ put: async (key, res) => put.push([key, await res.text()]), match: async () => undefined, keys: async () => [] }), match: async () => (kept ? new Response(kept) : undefined) },
   };
   vm.runInNewContext(read('sw.js').toString(), scope);
   let answer;
@@ -116,7 +129,7 @@ function swSession(t, network, kept) {
     addEventListener: (type, fn) => { on[type] = fn; }, location: new URL('https://tally.teloone.au/sw.js'), URL, Response, console,
     setTimeout: (...a) => setTimeout(...a), clearTimeout: id => clearTimeout(id),
     fetch: async request => network(request.url),
-    caches: { open: async () => ({ put: async () => {} }), match: async key => (kept[key.split('/').pop()] ? new Response(kept[key.split('/').pop()]) : undefined) },
+    caches: { open: async () => ({ put: async () => {}, match: async () => undefined, keys: async () => [] }), match: async key => (kept[key.split('/').pop()] ? new Response(kept[key.split('/').pop()]) : undefined) },
   };
   vm.runInNewContext(read('sw.js').toString(), scope);
   try { t.mock.timers.enable({ apis: ['setTimeout'] }); } catch {} // already on for this test
@@ -130,10 +143,12 @@ function swSession(t, network, kept) {
 }
 const hang = () => new Promise(() => {});
 const PAGE = 'https://tally.teloone.au/';
-const LIB = 'https://tally.teloone.au/lib.js';
+const LIB = 'https://tally.teloone.au/lib.js?v=2';
+const INDEX_URL = 'https://tally.teloone.au/index.html';
+const LIB_PINNED = '2:b8d7bdb6019df984';
 
 test('a page that opened from the kept copy gets its files from there too', async t => {
-  const kept = { 'index.html': 'old page', 'lib.js': 'old lib' };
+  const kept = { 'index.html': 'old page', 'lib.js?v=2': 'old lib' };
   // A weak signal for the page only: lib.js would arrive new straight away.
   const ask = swSession(t, url => (url === PAGE ? hang() : new Response('new lib')), kept);
   assert.equal(await ask({ url: PAGE, mode: 'navigate', ids: { resultingClientId: 'a' } }), 'old page');
@@ -146,7 +161,7 @@ test('a page that opened from the kept copy gets its files from there too', asyn
 });
 
 test('without client ids, files just after a kept page come from the kept copies', async t => {
-  const ask = swSession(t, url => (url === PAGE ? hang() : new Response('new lib')), { 'index.html': 'old page', 'lib.js': 'old lib' });
+  const ask = swSession(t, url => (url === PAGE ? hang() : new Response('new lib')), { 'index.html': 'old page', 'lib.js?v=2': 'old lib' });
   assert.equal(await ask({ url: PAGE, mode: 'navigate' }), 'old page');
   assert.equal(await ask({ url: LIB }), 'old lib');
 });
@@ -155,6 +170,93 @@ test('an error from the network is answered from the kept copy when there is one
   const ask = swSession(t, url => new Response('broken', { status: url === PAGE ? 503 : 404 }), { 'index.html': 'old page' });
   assert.equal(await ask({ url: PAGE, mode: 'navigate', ids: { resultingClientId: 'a' } }), 'old page');
   assert.equal(await ask({ url: LIB, ids: { clientId: 'z' } }), 'broken');
+});
+
+// sw.js keeping a page: `files` answers the network by address.
+async function keepFromNetwork(t, pageText, files, start) {
+  const on = {};
+  const fetched = [];
+  const { store, caches } = fakeCaches(start);
+  const scope = {
+    addEventListener: (type, fn) => { on[type] = fn; }, location: new URL('https://tally.teloone.au/sw.js'), URL, Response, console,
+    setTimeout: (...a) => setTimeout(...a), clearTimeout: id => clearTimeout(id), caches,
+    fetch: async (req, init) => {
+      const url = typeof req === 'string' ? req : req.url;
+      if (url === PAGE) return new Response(pageText);
+      fetched.push([url, init && init.cache]);
+      return url in files ? new Response(files[url]) : new Response('nf', { status: 404 });
+    },
+  };
+  vm.runInNewContext(read('sw.js').toString(), scope);
+  const waits = [];
+  on.fetch({ request: { method: 'GET', mode: 'navigate', url: PAGE }, clientId: '', resultingClientId: 'a', respondWith() {}, waitUntil(p) { waits.push(p); } });
+  await Promise.all(waits);
+  return { store, fetched };
+}
+const V = n => `https://tally.teloone.au/lib.js?v=${n}`;
+const PAGE_V3 = '<script src="lib.js?v=3"></script><script src="pwa.js?v=2"></script>';
+
+test('a kept page comes with the exact files it names, fetched past the caches', async t => {
+  const pwa = 'https://tally.teloone.au/pwa.js?v=2';
+  const { store, fetched } = await keepFromNetwork(t, PAGE_V3, { [V(3)]: 'lib 3', [pwa]: 'pwa 2' }, { [V(2)]: 'lib 2', [pwa]: 'pwa 2' });
+  assert.equal(store.get(INDEX_URL), PAGE_V3);
+  assert.equal(store.get(V(3)), 'lib 3');
+  assert.equal(store.has(V(2)), false, 'the old version is dropped');
+  assert.deepEqual(fetched, [[V(3), 'reload']], 'a version already kept is not fetched again');
+});
+
+test('a page whose files can’t be fetched is not kept', async t => {
+  const { store } = await keepFromNetwork(t, PAGE_V3, {}, { [INDEX_URL]: 'old page', [V(2)]: 'lib 2' });
+  assert.equal(store.get(INDEX_URL), 'old page');
+  assert.equal(store.get(V(2)), 'lib 2');
+});
+
+test('a kept page asking for its old version never has it replaced by today’s file', async t => {
+  const on = {};
+  const { store, caches } = fakeCaches({ [INDEX_URL]: 'old page', [V(2)]: 'lib 2' });
+  const scope = {
+    addEventListener: (type, fn) => { on[type] = fn; }, location: new URL('https://tally.teloone.au/sw.js'), URL, Response, console,
+    setTimeout: (...a) => setTimeout(...a), clearTimeout: id => clearTimeout(id), caches,
+    // GitHub ignores ?v=, so after a release an old version's address answers with the new file.
+    fetch: async req => ((typeof req === 'string' ? req : req.url) === PAGE ? hang() : new Response('lib 3')),
+  };
+  vm.runInNewContext(read('sw.js').toString(), scope);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const waits = [];
+  const ask = async (request, ids) => {
+    let answer;
+    on.fetch({ request: { method: 'GET', mode: 'cors', ...request }, clientId: '', resultingClientId: '', ...ids, respondWith(p) { answer = p; }, waitUntil(p) { waits.push(p); } });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    t.mock.timers.tick(3100);
+    return (await answer).text();
+  };
+  assert.equal(await ask({ url: PAGE, mode: 'navigate' }, { resultingClientId: 'a' }), 'old page');
+  assert.equal(await ask({ url: V(2) }, { clientId: 'a' }), 'lib 2');
+  await Promise.race([Promise.all(waits), Promise.resolve()]);
+  assert.equal(store.get(V(2)), 'lib 2');
+});
+
+test('the page loads lib.js by the version lib.js says it is', () => {
+  const page = read('index.html').toString();
+  const v = Number(page.match(/<script src="lib\.js\?v=(\d+)"><\/script>/)[1]);
+  assert.equal(require('../web/lib.js').VERSION, v);
+  assert.equal(Number(page.match(/const LIB_VERSION = (\d+);/)[1]), v);
+  // lib.js as of this version. If this fails because lib.js changed, bump VERSION
+  // in lib.js, ?v= and LIB_VERSION in index.html, then record the new hash here.
+  const hash = require('node:crypto').createHash('sha256').update(read('lib.js').toString().replace(/\r\n/g, '\n')).digest('hex').slice(0, 16);
+  assert.equal(`${v}:${hash}`, LIB_PINNED, 'lib.js changed without a new version');
+});
+
+test('the Worker passes ?v= on, so each version is cached apart', async t => {
+  const worker = await loadWorker();
+  const asked = [];
+  t.mock.method(globalThis, 'fetch', async url => { asked.push(url); return new Response('x'); });
+  const get = async path => (await worker.fetch(new Request(`https://tally.teloone.au${path}`), {})).headers.get('Cache-Control');
+  assert.equal(await get('/lib.js?v=3'), 'public, max-age=604800');
+  assert.equal(await get('/lib.js?v=x'), 'public, max-age=60');
+  assert.equal(await get('/'), 'no-cache');
+  assert.equal(await get('/g/AAAAAAAAAAAAAAAAAAAAAA'), 'no-cache');
+  assert.deepEqual(asked.map(u => u.split('/web/')[1]), ['lib.js?v=3', 'lib.js', 'index.html', 'index.html']);
 });
 
 test('the manifest is complete and has no host in it', () => {
@@ -234,7 +336,7 @@ test('the page has the home screen tags', () => {
   assert.match(page, /theme-color[^>]*prefers-color-scheme: light/);
   assert.match(page, /theme-color[^>]*prefers-color-scheme: dark/);
   assert.match(page, /viewport-fit=cover/);
-  assert.match(page, /<script src="pwa\.js"><\/script>/);
+  assert.match(page, /<script src="pwa\.js\?v=\d+"><\/script>/);
 });
 
 const loadWorker = () => import('data:text/javascript;base64,' + fs.readFileSync(path.join(__dirname, '../worker/worker.js')).toString('base64')).then(m => m.default);
@@ -267,7 +369,7 @@ test('a group link is kept as the one app page, never under its own address', ()
 test('a group link finds its files at the top', async t => {
   const page = read('index.html').toString();
   const base = page.indexOf('<base href="/">');
-  assert.ok(base > 0 && base < page.indexOf('rel="manifest"') && base < page.indexOf('@font-face') && base < page.indexOf('src="lib.js"'));
+  assert.ok(base > 0 && base < page.indexOf('rel="manifest"') && base < page.indexOf('@font-face') && base < page.indexOf('src="lib.js?v='));
 });
 
 test('a release publishes every file the website needs', () => {

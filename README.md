@@ -49,7 +49,7 @@ The website installs from Safari with Share, then Add to Home Screen: `web/manif
 (`.json` because the Worker's file list has no `.webmanifest`), `web/icons/` (rendered from the
 launcher icon), the Apple tags, and `web/pwa.js`, which registers `web/sw.js` and shows a one-time
 hint in Safari on an iPhone. `pwa.js` does nothing on `appassets.androidplatform.net`, so neither
-runs in the Android app. `sw.js` is network-first with a cached copy for offline opening (or after 3 s on a weak signal, refreshing it in the background; a page opened from the copy gets its files from the copies too, so a page and its script are always one release), and only
+runs in the Android app. `sw.js` is network-first with a cached copy for offline opening (or after 3 s on a weak signal, refreshing it in the background; the page is kept together with the exact `?v=` files it names, and a page opened from the copy gets only those), and only
 touches the files it names: never `/api/`, and never a `/g/` address, which is a group's secret.
 
 Group links use https://tally.teloone.au. The old address, https://tally.matisseduffield.workers.dev,
@@ -80,6 +80,12 @@ Tag an annotated `v*` version; its "- " lines become the update notes:
 git tag -a v1.1.0 -m "Tally 1.1.0" -m "- What changed"
 git push origin v1.1.0
 ```
+
+When `web/lib.js` changes, bump its `VERSION` and the matching `lib.js?v=` and
+`LIB_VERSION` in `web/index.html` (likewise `pwa.js?v=` for `pwa.js`); a test pins
+lib.js's hash so a missed bump fails. The Worker passes `?v=` on to GitHub, so each
+version is cached apart and a new page never gets an old lib.js; the page also
+checks `VERSION` and reloads once if they differ.
 
 CI builds the signed APK and force-pushes it, `latest.json` and `web/` to
 `tally-releases`. Download link: https://tally.teloone.au/app
