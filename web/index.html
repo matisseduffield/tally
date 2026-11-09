@@ -213,6 +213,10 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 .group-row .row-title { grid-column: 1; grid-row: 1; }
 .group-row .g-amt { grid-column: 2; grid-row: 1; font-weight: 500; white-space: nowrap; text-align: right; }
 .group-row .row-sub { grid-column: 1 / -1; grid-row: 2; }
+/* What the amount means, in words as well as colour */
+.group-row .g-lbl { grid-column: 2; grid-row: 2; font-size: .78rem; color: var(--muted); text-align: right; white-space: nowrap; }
+.group-row .g-lbl:empty { display: none; }
+.group-row:has(.g-lbl:not(:empty)) .row-sub { grid-column: 1; }
 .group-row.gone .row-title { color: var(--muted); }
 
 /* Home totals: a ledger strip, owed | owe, between hairlines */
@@ -276,7 +280,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
   display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 6px 8px 6px 4px;
   border-bottom: 1px solid var(--line);
 }
-.sheet-head h2 { flex: 1; margin: 0; font-size: 1rem; font-weight: 600; }
+.sheet-head h2 { flex: 1; min-width: 0; margin: 0; font-size: 1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sheet-head .icon-btn { margin: 0; }
 .sheet-head .btn { min-height: 44px; padding: 0 16px; }
 .sheet-body { padding: 18px 20px 28px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; }
@@ -339,7 +343,11 @@ button.cell:active, a.cell:active { background: color-mix(in srgb, var(--ink) 5%
    anywhere on the row opens the phone's own picker. */
 .over, .date-native { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; }
 .date-native::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; margin: 0; cursor: pointer; }
-.cell:has(.over:focus-visible), .cell:has(.date-native:focus-visible), .cell:has(.row-in:focus-visible), .cell.text:focus-within, .amount-row:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
+.cell:has(.over:focus-visible), .cell:has(.date-native:focus-visible), .cell:has(.row-in:focus-visible), .cell.text:focus-within, .amount-row:focus-within,
+button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visible) { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.cell > .cur-btn:focus-visible { outline: none; }
+/* A panel clips its edge, so anything else focused inside it is ringed inwards */
+.blk :focus-visible { outline-offset: -2px; }
 /* A text field that is the row itself, like a name in a list */
 .row-in { flex: 1; min-width: 0; min-height: 50px; padding: 0; border: 0; background: none; outline: none; }
 .row-in::placeholder { color: var(--faint); }
@@ -685,7 +693,7 @@ button.cell:active, a.cell:active { background: color-mix(in srgb, var(--ink) 5%
         <div class="cells" id="expPayerRows"></div>
         <div class="split-foot"><span id="expPayFoot"></span><span id="expPayFootRight"></span></div>
       </div>
-      <label class="cell"><span class="row-k">Date</span><span class="row-v chev" id="expDateText"></span><input class="date-native" type="date" id="expDate" aria-label="Date"></label>
+      <label class="cell"><span class="row-k">Date</span><span class="row-v chev" id="expDateText" aria-hidden="true"></span><input class="date-native" type="date" id="expDate" aria-label="Date"></label>
       <label class="cell" id="expRepeatField"><span class="row-k">Repeats</span><span class="row-v chev" id="expRepeatText" aria-hidden="true"></span>
         <select class="over" id="expRepeat" aria-label="Repeats"><option value="">Never</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
     </div>
@@ -739,7 +747,7 @@ button.cell:active, a.cell:active { background: color-mix(in srgb, var(--ink) 5%
   <div class="sheet-body blocks">
     <div class="blk">
       <div class="cell text"><input class="title-input" id="setName" maxlength="60" autocomplete="off" enterkeyhint="done" data-done aria-label="Group name"></div>
-      <div class="cell"><span class="row-k">Currency</span><button class="cur-btn" type="button" id="setCur" aria-label="Currency">EUR</button></div>
+      <div class="cell"><span class="row-k">Currency<small id="setCurWhy" hidden>Fixed once there are expenses</small></span><button class="cur-btn" type="button" id="setCur" aria-label="Currency">EUR</button></div>
       <div class="cell tall" id="setSplitField" hidden><span class="row-k"><b>New expenses</b><small id="setSplitText"></small></span><button class="link" type="button" id="setSplitReset">Split equally</button></div>
     </div>
     <span class="field-label sec">People</span>
@@ -747,6 +755,7 @@ button.cell:active, a.cell:active { background: color-mix(in srgb, var(--ink) 5%
       <div class="cells" id="setMembers"></div>
       <div class="cell"><input class="row-in" id="setNew" aria-label="Add someone" placeholder="Add someone" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="link add-go" type="button" id="setAdd">Add</button></div>
     </div>
+    <span class="hint">Tap a name to change it. Anyone with the link can see, change and delete this group.</span>
     <div class="blk">
       <button class="cell go" type="button" id="setExport">Export CSV</button>
       <a class="cell go tall" href="mailto:googleplay@telo.au?subject=Report%20a%20Tally%20group&amp;body=Paste%20the%20group%E2%80%99s%20link%20here%2C%20and%20tell%20us%20what%E2%80%99s%20wrong%3A%0A%0A"><span class="row-k">Report a problem<small>Opens an email to googleplay@telo.au</small></span></a>
@@ -1246,7 +1255,7 @@ button.cell:active, a.cell:active { background: color-mix(in srgb, var(--ink) 5%
       row.className = 'row group-row' + (g.gone ? ' gone' : '');
       row.dataset.open = id;
       const people = live(g).length;
-      row.innerHTML = `<span class="row-title"></span><span class="g-amt"></span><span class="row-sub"></span>`;
+      row.innerHTML = `<span class="row-title"></span><span class="g-amt"></span><span class="row-sub"></span><span class="g-lbl" aria-hidden="true"></span>`;
       row.querySelector('.row-title').textContent = g.group.name;
       const latest = entriesOf(g).reduce((a, e) => ((e.updatedAt || e.createdAt || 0) > ((a && (a.updatedAt || a.createdAt)) || 0) ? e : a), null);
       const who = `${people} ${people === 1 ? 'person' : 'people'}`;
@@ -1257,6 +1266,8 @@ button.cell:active, a.cell:active { background: color-mix(in srgb, var(--ink) 5%
       const amt = row.querySelector('.g-amt');
       amt.textContent = net ? b.amount : '';
       amt.classList.add(b.cls || 'muted');
+      // Red and green alone don't tell everyone which way it goes.
+      row.querySelector('.g-lbl').textContent = net > 0 ? 'you’re owed' : net < 0 ? 'you owe' : '';
       row.setAttribute('aria-label', `${g.group.name}. ${net ? `${b.label} ${b.amount}` : 'Settled up'}`);
       return row;
     }));
@@ -1402,7 +1413,6 @@ button.cell:active, a.cell:active { background: color-mix(in srgb, var(--ink) 5%
   // The template a repeating copy came from, and how often it repeats.
   const repeatOf = (g, e) => e.repeat || ((e.of && (g.entries.find(x => x.id === e.of) || {}).repeat) || '');
 
-  const SHOWN_LABELS = new Set(['not involved', 'just you', 'even']);
   // An entry as seen by you: the two sides, the arrow's direction and tone,
   // and your bottom line. Used by the row and the detail sheet.
   function view(g, e) {
@@ -1465,9 +1475,9 @@ button.cell:active, a.cell:active { background: color-mix(in srgb, var(--ink) 5%
     // The original amount: in its own currency when that isn't the group's.
     const every = repeatOf(g, e);
     row.querySelector('.tail').textContent = '· ' + moneyMajor(e.amount, e.currency) + (every ? ` · ${every}` : '');
-    // "you owe", "you lent", "paid you" only repeat the colour and the arrow, so
-    // they're left to the row's label; a grey amount still says why it's grey.
-    row.querySelector('.row-amt small').textContent = SHOWN_LABELS.has(v.label) ? v.label : '';
+    // Who owes whom isn't clear from the arrow and the colour alone, so the word
+    // stays; only "payment" goes, as the row's title already says it.
+    row.querySelector('.row-amt small').textContent = v.label === 'payment' ? '' : v.label;
     const amt = row.querySelector('.row-amt span');
     amt.textContent = v.amount;
     amt.className = v.amtTone;
@@ -2366,6 +2376,8 @@ button.cell:active, a.cell:active { background: color-mix(in srgb, var(--ink) 5%
     $('setCur').textContent = g.group.currency;
     // Fixed once there are expenses, so past amounts stay right.
     $('setCur').disabled = g.entries.length > 0;
+    $('setCurWhy').hidden = !$('setCur').disabled;
+    if ($('setCur').disabled) $('setCur').setAttribute('aria-describedby', 'setCurWhy'); else $('setCur').removeAttribute('aria-describedby');
     renderSplitDefault(g);
     renderMembers();
     $('setDelete').hidden = !!g.gone || !!g.deleting;

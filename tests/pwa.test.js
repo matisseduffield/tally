@@ -422,3 +422,7 @@ test('sheet pickers are the real controls laid over their rows, and no sheet rai
   assert.doesNotMatch(page, /\sautofocus/);
   assert.match(page, /d\.showModal\(\);\s+[^\n]*\n[^\n]*\n\s+if \(!fineMouse\.matches\) d\.focus\(\);/);
 });
+
+test('group settings warn that the link gives full access', () => {
+  assert.match(read('index.html').toString(), /Anyone with the link can see, change and delete this group\./);
+});
