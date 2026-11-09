@@ -184,8 +184,8 @@ button.row:active { background: color-mix(in srgb, var(--ink) 5%, transparent); 
 .flow .who-a, .flow .who-b { white-space: normal; overflow-wrap: break-word; color: var(--ink); }
 .flow .who-a { max-width: 45%; }
 .flow .who-b { flex: 0 1 auto; min-width: 0; }
-/* The original amount takes what's left of the line, and gives way before the names do */
-.flow .tail { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Short of room, the original amount goes on to the next line too */
+.flow .tail { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .flow svg { flex: none; display: block; }
 .flow .ink { color: var(--ink); }
 
@@ -1890,13 +1890,14 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     if (draft.currency !== g.group.currency) loadRates().then(now => now !== before && whenSplitFree(renderExpense));
     // Undo starts this expense afresh.
     const was = draft;
-    if (kept) toast('Draft restored', () => {
+    if (kept) toast('Draft restored', draftUndo = () => {
       if (draft !== was || !$('expDlg').open) return;
       store.del('draft.' + g.group.id);
       fillExpense(g, null, false, false);
       renderExpense();
     });
   }
+  let draftUndo = null; // the "Draft restored" toast's Undo, which goes when the sheet does
   // Sets the sheet up for `e` (or a new expense, or a copy of `e` with `again`);
   // a new one picks up a draft kept from earlier today when `restore`. Says whether it did.
   function fillExpense(g, e, again, restore) {
@@ -1948,8 +1949,9 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       $('expRepeatField').hidden = false;
       $('expBy').hidden = true;
     }
-    // Only a plain new expense is kept as a draft, and picks one up.
-    Object.assign(draft, { fresh: !e && !again, gid: g.group.id });
+    // Only a plain new expense is kept as a draft, and picks one up. `base` is
+    // the currency it would start in, so a draft only keeps one picked on purpose.
+    Object.assign(draft, { fresh: !e && !again, gid: g.group.id, base: draft.currency });
     const kept = restore && draft.fresh && L.keptDraft(store.get('draft.' + g.group.id), today(), ids);
     if (kept) {
       Object.assign(draft, {
@@ -1971,11 +1973,14 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     if (!typed) return store.del('draft.' + draft.gid);
     store.set('draft.' + draft.gid, {
       day: today(), title: $('expWhat').value, amount: $('expAmount').value, note: $('expNote').value, date: $('expDate').value,
-      currency: draft.currency, paidBy: draft.paidBy, several: draft.several, paid: draft.paid,
+      currency: draft.currency !== draft.base ? draft.currency : null, paidBy: draft.paidBy, several: draft.several, paid: draft.paid,
       mode: draft.mode, included: [...draft.included], values: draft.values, repeat: draft.repeat,
     });
   }
-  $('expDlg').addEventListener('close', keepDraft);
+  $('expDlg').addEventListener('close', () => {
+    keepDraft();
+    if (toastUndo && toastUndo === draftUndo) { clearTimeout(toastTimer); hideToast(); }
+  });
   // Rates that arrive while you're typing in the split or the payers wait until
   // you're done there, so the rows (and the keyboard) aren't pulled from under you.
   function whenSplitFree(fn) {
@@ -2390,6 +2395,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     const key = JSON.stringify(plan);
     if (!opening && key === pay.planKey) return;
     pay.planKey = key;
+    // The next payment moves up under the finger: a second tap of a double tap mustn't record it.
+    if (!opening) pay.redrawn = Date.now();
     // A redraw keeps focus on the same row (now the next payment), or the last.
     const focusAt = [...$('payList').children].findIndex(r => r.contains(document.activeElement));
     $('paySuggest').hidden = $('paySuggestLabel').hidden = !plan.length;
@@ -2456,6 +2463,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     toast(pay.editing ? 'Payment updated' : 'Payment recorded', undo);
   }
   $('payList').addEventListener('click', e => {
+    if (Date.now() - (pay.redrawn || 0) < 600) return;
     const ask = e.target.closest('[data-ask]');
     if (ask) {
       const g = groups.get(current);
@@ -2658,7 +2666,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   $('setForget').addEventListener('click', () => {
     const id = current;
     const g = groups.get(id);
-    const at = groupIds.indexOf(id), cur = store.get('cur.' + id);
+    const at = groupIds.indexOf(id), cur = store.get('cur.' + id), kept = store.get('draft.' + id);
     dropCurrent();
     toast(`Removed ${g.group.name}`, () => {
       groups.set(id, g);
@@ -2666,6 +2674,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       saveIds();
       saveGroup(g);
       if (cur) store.set('cur.' + id, cur);
+      if (kept) store.set('draft.' + id, kept);
       render();
       sync(id);
     });
@@ -2939,6 +2948,13 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   }
 
   // ---- boot ----
+  // Drafts from another day, or for groups no longer on this device, aren't wanted again.
+  try {
+    for (const k of Object.keys(localStorage)) {
+      const id = (k.match(/^tally\.draft\.(.+)$/) || [])[1];
+      if (id && (!groups.has(id) || (store.get('draft.' + id) || {}).day !== today())) store.del('draft.' + id);
+    }
+  } catch {}
   const pathId = (location.pathname.match(/^\/g\/([A-Za-z0-9_-]{22})$/) || [])[1] || (location.hash.match(/g=([A-Za-z0-9_-]{22})/) || [])[1];
   history.replaceState(pathId ? { g: pathId } : {}, '');
   // Only in Android browsers: never inside the app, even on a WebView too old for the bridge.

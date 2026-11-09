@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
         const val START_URL = "$APP_ORIGIN/assets/index.html"
         const val BRIDGE_NAME = "tallyApp"
         const val STATE_URL = "url"
+        const val STATE_LINK = "link"
 
         // Changes saved on a weak signal keep retrying this long after the app
         // goes out of sight; then the page's timers stop as usual.
@@ -61,6 +62,8 @@ class MainActivity : ComponentActivity() {
     private var pendingLink: String? = null
     private var unsent = false
     private var resumed = false
+    private var pausedAt = 0L
+    private var crashed = false
     private val pauseLater = Runnable { if (!resumed) web.pauseTimers() }
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
@@ -104,7 +107,10 @@ class MainActivity : ComponentActivity() {
 
                 // If Android ends the page's renderer (low memory), start the
                 // screen again rather than letting the whole app crash.
+                // A page that crashed starts again from the home screen, so a
+                // group that crashes it can't do so over and over.
                 override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                    crashed = detail.didCrash()
                     recreate()
                     return true
                 }
@@ -148,10 +154,12 @@ class MainActivity : ComponentActivity() {
         }
         // Started again (a theme or font size change, or Android ending the app
         // while it was away): reopen where the page was, such as a group's #g=id.
-        // The link that first opened the app was taken then, so it isn't again.
+        // The link that first opened the app was taken then, so it isn't again,
+        // unless the page hadn't been handed it yet.
         val restored = savedInstanceState?.getString(STATE_URL)?.takeIf(::isOwnPage)
         web.loadUrl(restored ?: START_URL)
         if (savedInstanceState == null) takeLink(intent)
+        else pendingLink = savedInstanceState.getString(STATE_LINK)
 
         updates.start(firstCreate = savedInstanceState == null)
     }
@@ -172,6 +180,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         resumed = false
+        pausedAt = System.currentTimeMillis()
         Watch.foreground = false
         web.onPause()
         if (unsent) web.postDelayed(pauseLater, UNSENT_GRACE_MS) else web.pauseTimers()
@@ -180,7 +189,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        web.url?.takeIf(::isOwnPage)?.let { outState.putString(STATE_URL, it) }
+        if (!crashed) web.url?.takeIf(::isOwnPage)?.let { outState.putString(STATE_URL, it) }
+        pendingLink?.let { outState.putString(STATE_LINK, it) }
     }
 
     override fun onDestroy() {
@@ -230,11 +240,16 @@ class MainActivity : ComponentActivity() {
             "back" -> pageBack.isEnabled = msg.optBoolean("enabled")
             "unsent" -> {
                 unsent = msg.optBoolean("on")
-                // Sent while out of sight: nothing left to retry, so stop now.
-                if (!unsent && !resumed) {
-                    web.removeCallbacks(pauseLater)
-                    web.pauseTimers()
-                }
+                if (resumed) return
+                web.removeCallbacks(pauseLater)
+                // Sent while out of sight: nothing left to retry, so stop now. A
+                // change that arrives just after the app left gets what's left of
+                // the same while, never a new one.
+                val left = pausedAt + UNSENT_GRACE_MS - System.currentTimeMillis()
+                if (unsent && left > 0) {
+                    web.resumeTimers()
+                    web.postDelayed(pauseLater, left)
+                } else web.pauseTimers()
             }
             "share" -> runCatching {
                 val send = Intent(Intent.ACTION_SEND)
