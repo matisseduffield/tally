@@ -41,7 +41,7 @@
   --surface: #F7F8F4;
   --ink: #14211C;
   --muted: #5B6861;
-  --faint: #66736C;
+  --faint: #5F6B65;
   --line: #CDD5CC;
   --line-strong: #8C968F;
   --accent: #2C53C4;
@@ -155,7 +155,7 @@ button { cursor: pointer; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .section h2 { margin: 0; font-size: .95rem; font-weight: 600; }
-.rows { display: grid; }
+.rows { display: grid; grid-template-columns: minmax(0, 1fr); } /* a long name shortens rather than widening the page */
 .row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px;
   min-height: 56px; padding: 10px 2px;
@@ -184,12 +184,13 @@ button.row:active { background: color-mix(in srgb, var(--ink) 5%, transparent); 
 .flow .ink { color: var(--ink); }
 
 /* An activity row opened in place: how it was split, notes, who added it */
-.det { display: grid; gap: 10px; padding: 2px 2px 16px; font-size: .88rem; }
+.det { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 2px 2px 16px; font-size: .88rem; }
 .det p { margin: 0; color: var(--muted); }
 .det .note { color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .det .bal-row { min-height: 38px; font-size: .88rem; }
-.det-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.det-foot .acts { display: flex; gap: 18px; }
+/* Short of room, "Added by" keeps its own row and the actions stay whole on the next */
+.det-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 12px; }
+.det-foot .acts { display: flex; gap: 18px; flex: none; margin-left: auto; white-space: nowrap; }
 button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 .day { padding: 14px 2px 4px; font-size: .8rem; font-weight: 500; color: var(--muted); }
 .empty { padding: 18px 0; font-size: .9rem; color: var(--muted); }
@@ -290,6 +291,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .input::placeholder { color: var(--faint); }
 .hint { font-size: .82rem; color: var(--muted); }
 .hint.bad { color: var(--neg); }
+.hint a { color: var(--accent); }
 a.credit { color: var(--muted); }
 a.credit[hidden] { display: none; }
 a.link { text-decoration: none; }
@@ -510,6 +512,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 @media (max-width: 520px) {
   body { padding-top: calc(12px + env(safe-area-inset-top, 0px)); }
   dialog { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); border: 0; border-radius: 0; }
+  /* The sheet fills the screen, so its body does too: a tap under a short form isn't a tap on the backdrop */
+  .sheet-body, .picker-list { flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
   dialog, dialog::backdrop, .update-track span { transition: none; }
@@ -885,6 +889,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   }
   const moneyMajor = (amount, code) => money(L.toMinor(amount, code), code);
   const plainNum = (n, code) => nf({ minimumFractionDigits: 0, maximumFractionDigits: L.fractionDigits(code) }).format(n);
+  // This locale's thousands mark ("," "." "’" or a space).
+  const groupMark = (nf({}).formatToParts(10000).find(p => p.type === 'group') || {}).value || ',';
   // "just now", "3 hours ago", "yesterday", "2 Nov".
   let rtf = null;
   try { rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }); } catch {}
@@ -1149,7 +1155,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     return { ...(await res.json()), etag: res.headers.get('ETag') };
   }
   function adopt(id, state, me) {
-    const g = { group: state.group, members: state.members, entries: state.entries, etag: state.etag, pending: [], me };
+    const g = { group: state.group, members: state.members, entries: state.entries, etag: state.etag, pending: [], me, added: Date.now() };
     groups.set(id, g);
     if (!groupIds.includes(id)) groupIds.unshift(id);
     saveIds();
@@ -1159,16 +1165,30 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 
   // ---- rates (for expenses in another currency) ----
   let rates = store.get('rates');
-  async function loadRates(force) {
+  let ratesLoading = null;
+  function loadRates(force) {
     // Rates saved by an older version have no file time, so replace them first.
-    if (!force && rates && rates.updated && Date.now() - rates.at < RATES_TTL) return rates;
+    if (!force && rates && rates.updated && Date.now() - rates.at < RATES_TTL) return Promise.resolve(rates);
+    if (ratesLoading) return ratesLoading;
     const get = url => fetch(url, { cache: 'no-store', signal: within(10_000) }).then(res => res.json()).catch(() => null);
-    const got = L.parseLiveRates(await get(LIVE_RATES_URL), Date.now()) || L.parseRates(await get(DAILY_RATES_URL));
-    if (got) {
-      rates = { at: Date.now(), ...got };
-      store.set('rates', rates);
-    }
-    return rates;
+    ratesLoading = (async () => {
+      const got = L.parseLiveRates(await get(LIVE_RATES_URL), Date.now()) || L.parseRates(await get(DAILY_RATES_URL));
+      if (got) {
+        rates = { at: Date.now(), ...got };
+        store.set('rates', rates);
+      }
+      ratesLoading = null;
+      return rates;
+    })();
+    return ratesLoading;
+  }
+  // Rates are fetched ahead of need (at start, when a group opens, when the signal
+  // returns), so someone who goes offline abroad still has a recent set.
+  function freshenRates() {
+    loadRates().then(() => {
+      const g = current && groups.get(current);
+      if (draft && g && $('expDlg').open && draft.currency !== g.group.currency) whenSplitFree(renderExpense);
+    });
   }
   // Units of `to` for 1 `from`.
   const rateOf = (from, to) => L.rateBetween(rates && rates.r, from, to);
@@ -1191,10 +1211,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     shownCount = PAGE;
     $('searchBox').value = '';
     $('searchBox').hidden = true;
-    if (push) history.pushState({ g: id, own: true }, '', onSite ? `/g/${id}` : `#g=${id}`);
+    // Joining from a group's link opens it where the link already put us: no second entry for Back.
+    if (push && !(history.state && history.state.g === id)) history.pushState({ g: id, own: true }, '', onSite ? `/g/${id}` : `#g=${id}`);
     render();
     scrollTo(0, 0);
     sync(id);
+    freshenRates();
   }
   function goHome(push = true) {
     if (current && toastUndo) { clearTimeout(toastTimer); hideToast(); } // its Undo belongs to the group left behind
@@ -1240,7 +1262,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('intro').hidden = groupIds.length > 0;
     $('groupsSection').hidden = $('overview').hidden = groupIds.length === 0;
     renderOverview();
-    const lastActive = id => groups.get(id).entries.reduce((t, e) => Math.max(t, e.updatedAt || e.createdAt || 0), 0);
+    // A group made or joined here counts as active from then, so it doesn't start at the bottom.
+    const lastActive = id => groups.get(id).entries.reduce((t, e) => Math.max(t, e.updatedAt || e.createdAt || 0), groups.get(id).added || 0);
     const order = groupIds.map(id => [id, lastActive(id)]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
     $('groupList').replaceChildren(...order.map(id => {
       const g = groups.get(id);
@@ -1335,10 +1358,14 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     // Activity, newest first, by day.
     $('searchBtn').hidden = entriesOf(g).length < 6 || !$('searchBox').hidden;
     const q = $('searchBox').hidden ? '' : $('searchBox').value.trim().toLowerCase();
+    // Amounts compare without spaces or thousands marks, so "1500", "1 500" and "1,500" all find €1,500.
+    const bare = t => String(t).toLowerCase().replace(/\s/g, '').split(groupMark).join('');
+    const qNum = /\d/.test(q) ? bare(q) : '';
     const matches = e => !q || [
       e.kind === 'payment' ? 'payment' : e.title, e.note, moneyMajor(e.amount, e.currency), plainNum(e.amount, e.currency),
       ...[e.paidBy, e.from, e.to, ...Object.keys((e.split && e.split.parts) || {}), ...Object.keys(e.paid || {})].filter(Boolean).map(id => memberName(g, id)),
-    ].some(t => t && String(t).toLowerCase().includes(q));
+    ].some(t => t && String(t).toLowerCase().includes(q))
+      || (qNum && [moneyMajor(e.amount, e.currency), plainNum(e.amount, e.currency), e.amount].some(t => bare(t).includes(qNum)));
     const list = entriesOf(g).filter(matches).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
     const out = [];
     let day = '';
@@ -1519,7 +1546,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       const lower = id => (id === g.me ? 'you' : name(id));
       const how = { exact: ' by amounts', percent: ' by percentage', shares: ' by shares' }[e.split.mode] || '';
       const split = ids.length === 1 ? `All for ${lower(ids[0])}`
-        : ids.length === 2 && !how ? `Split between ${name(ids[0])} and ${lower(ids[1])}`
+        : ids.length === 2 && !how ? `Split between ${lower(ids[0])} and ${lower(ids[1])}`
         : `Split ${ids.length} ways${how}`;
       const every = repeatOf(g, e);
       line(`${split} · ${when}${e.repeat ? ` · repeats ${every}` : e.of && every ? ` · from a ${every} repeat` : ''}`);
@@ -1604,7 +1631,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   for (const d of document.querySelectorAll('dialog')) {
     d.addEventListener('close', () => { syncBack(); placeToast(); });
     d.addEventListener('click', e => {
-      if (e.target === d || e.target.closest('[data-close]')) d.close();
+      if (e.target.closest('[data-close]')) return d.close();
+      // Only a tap on the backdrop itself closes: the sheet's own padding counts as the sheet.
+      const r = d.getBoundingClientRect();
+      if (e.target === d && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) d.close();
     });
   }
   // Android Back closes the top sheet, then leaves a group, then the app.
@@ -1736,7 +1766,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const id = L.newId(), meId = L.newId(), currency = $('newCur').textContent;
     store.set('myName', me);
     store.set('lastCurrency', currency);
-    const g = { group: { id, name, currency, version: 0 }, members: [], entries: [], pending: [], me: meId };
+    const g = { group: { id, name, currency, version: 0 }, members: [], entries: [], pending: [], me: meId, added: Date.now() };
     groups.set(id, g);
     groupIds.unshift(id);
     saveIds();
@@ -2657,7 +2687,21 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => { expanded = null; const g = groups.get(current); if (g) renderGroup(g); }, 120);
   });
-  $('searchBox').addEventListener('blur', () => { if (!$('searchBox').value.trim()) closeSearch(); });
+  // A tap on a row takes focus first; closing the field right then would move the
+  // rows under the finger and lose the tap, so it closes once the tap is through.
+  let pressed = false;
+  addEventListener('pointerdown', () => { pressed = true; }, true);
+  for (const t of ['pointerup', 'pointercancel']) addEventListener(t, () => { pressed = false; }, true);
+  $('searchBox').addEventListener('blur', () => {
+    const close = () => setTimeout(() => {
+      const box = $('searchBox');
+      if (!box.hidden && !box.value.trim() && document.activeElement !== box) closeSearch();
+    }, 0);
+    if (!pressed) return close();
+    const done = () => { removeEventListener('pointerup', done, true); removeEventListener('pointercancel', done, true); close(); };
+    addEventListener('pointerup', done, true);
+    addEventListener('pointercancel', done, true);
+  });
   // A person's balance: settle with them, the suggested payment filled in.
   $('people').addEventListener('click', e => {
     const row = e.target.closest('[data-person]');
@@ -2788,6 +2832,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   render();
   if (pathId) openFromLink(pathId, false);
   if (!pathId || !groups.has(pathId)) for (const id of groupIds) sync(id);
+  if (groupIds.length) freshenRates();
   toApp({ type: 'hello' });
   pollTimer = setTimeout(poll, POLL_MS);
   // Another tab changed a group: take its copy when nothing of ours is waiting to send.
@@ -2820,7 +2865,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   addEventListener('focus', wake);
   addEventListener('pointerdown', wake, { passive: true });
   addEventListener('keydown', wake);
-  addEventListener('online', () => groupIds.forEach(sync));
+  addEventListener('online', () => { groupIds.forEach(sync); freshenRates(); });
 })();
 </script>
 </body>

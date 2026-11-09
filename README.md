@@ -49,7 +49,7 @@ The website installs from Safari with Share, then Add to Home Screen: `web/manif
 (`.json` because the Worker's file list has no `.webmanifest`), `web/icons/` (rendered from the
 launcher icon), the Apple tags, and `web/pwa.js`, which registers `web/sw.js` and shows a one-time
 hint in Safari on an iPhone. `pwa.js` does nothing on `appassets.androidplatform.net`, so neither
-runs in the Android app. `sw.js` is network-first with a cached copy for offline opening, and only
+runs in the Android app. `sw.js` is network-first with a cached copy for offline opening (or after 3 s on a weak signal, refreshing it in the background), and only
 touches the files it names: never `/api/`, and never a `/g/` address, which is a group's secret.
 
 Group links use https://tally.teloone.au. The old address, https://tally.matisseduffield.workers.dev,

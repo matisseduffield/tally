@@ -1,8 +1,9 @@
 // Lets the website open with no signal. Pages and the app's own files come from
 // the network first, so a release shows straight away; the copies here are only
-// for when that fails. Anything not named below passes straight through, so /api/, group data and rates
+// for when that fails or takes over 3 s. Anything not named below passes straight through, so /api/, group data and rates
 // never land here. Registered by pwa.js, never in the Android app.
-const CACHE = 'tally';
+const CACHE = 'tally-2';
+const SLOW_MS = 3000;
 const at = file => new URL(file, location).href;
 const INDEX = at('index.html');
 const FILES = ['index.html', 'lib.js', 'pwa.js', 'fonts/hanken-grotesk-latin.woff2', 'fonts/hanken-grotesk-latin-ext.woff2'].map(at);
@@ -26,11 +27,19 @@ addEventListener('fetch', e => {
   const page = request.mode === 'navigate' && /^\/(g\/[^/]+)?$/.test(url.pathname);
   const key = page ? INDEX : url.href;
   if (!FILES.includes(key)) return;
-  e.respondWith(fetch(request).then(res => {
+  const network = fetch(request).then(res => {
     if (res.ok) {
       const copy = res.clone();
       e.waitUntil(caches.open(CACHE).then(cache => cache.put(key, copy)));
     }
     return res;
-  }).catch(() => caches.match(key).then(hit => hit || Response.error())));
+  });
+  // The fetch carries on after a slow-signal fallback, so the copy here is fresh next time.
+  e.waitUntil(network.catch(() => {}));
+  e.respondWith(new Promise(resolve => {
+    const fallback = () => caches.match(key).then(hit => hit ? resolve(hit) : network.then(resolve, () => resolve(Response.error())));
+    // On a weak signal, the copy here after a few seconds beats a blank screen.
+    const timer = setTimeout(fallback, SLOW_MS);
+    network.then(res => { clearTimeout(timer); resolve(res); }, () => { clearTimeout(timer); fallback(); });
+  }));
 });

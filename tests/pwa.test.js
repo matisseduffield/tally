@@ -44,7 +44,7 @@ function runPwa({ hostname = 'tally.teloone.au', ua = SAFARI, standalone = false
 // sw.js with its events caught, to see what it would answer.
 function loadSw() {
   const on = {};
-  const scope = { addEventListener: (type, fn) => { on[type] = fn; }, location: new URL('https://tally.teloone.au/sw.js'), URL, Response, console, fetch: async () => new Response(''), caches: { open: async () => ({ put: async () => {} }), match: async () => undefined } };
+  const scope = { addEventListener: (type, fn) => { on[type] = fn; }, location: new URL('https://tally.teloone.au/sw.js'), URL, Response, console, setTimeout, clearTimeout, fetch: async () => new Response(''), caches: { open: async () => ({ put: async () => {} }), match: async () => undefined } };
   vm.runInNewContext(read('sw.js').toString(), scope);
   return request => {
     let answered = false;
@@ -52,6 +52,61 @@ function loadSw() {
     return answered;
   };
 }
+
+// sw.js answering one page load, with the network and the kept copy faked.
+async function swAnswer(t, { network, kept }) {
+  const on = {};
+  const put = [];
+  const scope = {
+    addEventListener: (type, fn) => { on[type] = fn; }, location: new URL('https://tally.teloone.au/sw.js'), URL, Response, console,
+    // Looked up when called, so the test's fake clock drives them.
+    setTimeout: (...a) => setTimeout(...a), clearTimeout: id => clearTimeout(id),
+    fetch: network,
+    caches: { open: async () => ({ put: async (key, res) => put.push([key, await res.text()]) }), match: async () => (kept ? new Response(kept) : undefined) },
+  };
+  vm.runInNewContext(read('sw.js').toString(), scope);
+  let answer;
+  const waits = [];
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  on.fetch({ request: { method: 'GET', mode: 'navigate', url: 'https://tally.teloone.au/' }, respondWith(p) { answer = p; }, waitUntil(p) { waits.push(p); } });
+  return { answer, waits, put, tick: ms => t.mock.timers.tick(ms) };
+}
+const later = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+test('on a weak signal the service worker answers from its copy after 3 s, then refreshes it', async t => {
+  let arrive;
+  const sw = await swAnswer(t, { network: () => new Promise(resolve => { arrive = () => resolve(new Response('new')); }), kept: 'old' });
+  let got = null;
+  sw.answer.then(res => res.text()).then(text => { got = text; });
+  sw.tick(2900);
+  await Promise.resolve();
+  assert.equal(got, null);
+  sw.tick(200);
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  t.mock.timers.reset();
+  await later(0);
+  assert.equal(got, 'old');
+  arrive();
+  await Promise.all(sw.waits);
+  await later(0);
+  assert.deepEqual(sw.put, [['https://tally.teloone.au/index.html', 'new']]);
+});
+
+test('the service worker answers from the network when it is quick, and from its copy when it fails', async t => {
+  let sw = await swAnswer(t, { network: async () => new Response('new'), kept: 'old' });
+  assert.equal(await (await sw.answer).text(), 'new');
+  t.mock.timers.reset();
+  sw = await swAnswer(t, { network: async () => { throw new TypeError('offline'); }, kept: 'old' });
+  assert.equal(await (await sw.answer).text(), 'old');
+  t.mock.timers.reset();
+  // Slow with nothing kept: it waits for the network rather than failing.
+  let arrive;
+  sw = await swAnswer(t, { network: () => new Promise(resolve => { arrive = () => resolve(new Response('new')); }), kept: null });
+  sw.tick(3100);
+  t.mock.timers.reset();
+  arrive();
+  assert.equal(await (await sw.answer).text(), 'new');
+});
 
 test('the manifest is complete and has no host in it', () => {
   const m = JSON.parse(read('manifest.json'));
