@@ -44,6 +44,11 @@ class MainActivity : ComponentActivity() {
         const val APP_ORIGIN = "https://$APP_HOST"
         const val START_URL = "$APP_ORIGIN/assets/index.html"
         const val BRIDGE_NAME = "tallyApp"
+        const val STATE_URL = "url"
+
+        // Changes saved on a weak signal keep retrying this long after the app
+        // goes out of sight; then the page's timers stop as usual.
+        const val UNSENT_GRACE_MS = 10 * 60 * 1000L
 
         // The page's tallyBack() closes the top sheet or leaves the open
         // group, and says whether it did anything.
@@ -54,6 +59,9 @@ class MainActivity : ComponentActivity() {
     private val updates = AppUpdates(this, ::send)
     private var page: JavaScriptReplyProxy? = null
     private var pendingLink: String? = null
+    private var unsent = false
+    private var resumed = false
+    private val pauseLater = Runnable { if (!resumed) web.pauseTimers() }
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     // With the bridge, Back is only intercepted while the page has somewhere
@@ -138,16 +146,24 @@ class MainActivity : ComponentActivity() {
                 }
             })
         }
-        web.loadUrl(START_URL)
-        takeLink(intent)
+        // Started again (a theme or font size change, or Android ending the app
+        // while it was away): reopen where the page was, such as a group's #g=id.
+        // The link that first opened the app was taken then, so it isn't again.
+        val restored = savedInstanceState?.getString(STATE_URL)?.takeIf(::isOwnPage)
+        web.loadUrl(restored ?: START_URL)
+        if (savedInstanceState == null) takeLink(intent)
 
         updates.start(firstCreate = savedInstanceState == null)
     }
 
     // Out of sight, the page's timers and syncing stop entirely; they resume
-    // (and catch up) as soon as the app is back.
+    // (and catch up) as soon as the app is back. Changes not yet sent are the
+    // exception: the page keeps retrying them for a while (it says when it has
+    // some), and its timers stop once they're sent or the while is up.
     override fun onResume() {
         super.onResume()
+        resumed = true
+        web.removeCallbacks(pauseLater)
         Watch.foreground = true
         web.onResume()
         web.resumeTimers()
@@ -155,13 +171,20 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        resumed = false
         Watch.foreground = false
         web.onPause()
-        web.pauseTimers()
+        if (unsent) web.postDelayed(pauseLater, UNSENT_GRACE_MS) else web.pauseTimers()
         super.onPause()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        web.url?.takeIf(::isOwnPage)?.let { outState.putString(STATE_URL, it) }
+    }
+
     override fun onDestroy() {
+        web.removeCallbacks(pauseLater)
         web.destroy()
         super.onDestroy()
     }
@@ -205,6 +228,14 @@ class MainActivity : ComponentActivity() {
                 sendLink()
             }
             "back" -> pageBack.isEnabled = msg.optBoolean("enabled")
+            "unsent" -> {
+                unsent = msg.optBoolean("on")
+                // Sent while out of sight: nothing left to retry, so stop now.
+                if (!unsent && !resumed) {
+                    web.removeCallbacks(pauseLater)
+                    web.pauseTimers()
+                }
+            }
             "share" -> runCatching {
                 val send = Intent(Intent.ACTION_SEND)
                     .setType("text/plain")
@@ -234,6 +265,12 @@ class MainActivity : ComponentActivity() {
         if (prefs.getBoolean("askedNotifications", false)) return
         prefs.edit { putBoolean("askedNotifications", true) }
         askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    /** Only the bundled page itself, never another site, is reopened after a restart. */
+    private fun isOwnPage(url: String): Boolean {
+        val uri = url.toUri()
+        return uri.scheme == "https" && uri.host == APP_HOST && uri.path == "/assets/index.html"
     }
 
     // Only reachable when WEB_MESSAGE_LISTENER is supported: [page] is set by a bridge message.

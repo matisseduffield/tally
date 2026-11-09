@@ -266,11 +266,33 @@
   const QUIET_POLLS = 4;
   const pollDelay = (quiet, fast) => (quiet < QUIET_POLLS ? fast : fast * 4);
 
+  // A new expense left half-typed, as saved when its sheet closed: kept for the
+  // rest of that day only, with anyone no longer in the group (`ids`) left out.
+  // Null when it's from another day or nothing was typed in it.
+  function keptDraft(saved, day, ids) {
+    if (!saved || typeof saved !== 'object' || saved.day !== day) return null;
+    const text = k => (typeof saved[k] === 'string' ? saved[k] : '');
+    if (!text('title').trim() && !text('amount').trim() && !text('note').trim()) return null;
+    const known = obj => Object.fromEntries(Object.entries(obj && typeof obj === 'object' ? obj : {}).filter(([id, v]) => ids.includes(id) && typeof v === 'string'));
+    const included = (Array.isArray(saved.included) ? saved.included : []).filter(id => ids.includes(id));
+    return {
+      title: text('title'), amount: text('amount'), note: text('note'), date: text('date'),
+      currency: /^[A-Z]{3}$/.test(saved.currency) ? saved.currency : null,
+      paidBy: ids.includes(saved.paidBy) ? saved.paidBy : null,
+      several: saved.several === true,
+      paid: known(saved.paid),
+      mode: ['equal', 'exact', 'percent', 'shares'].includes(saved.mode) ? saved.mode : 'equal',
+      included: included.length ? included : ids.slice(),
+      values: known(saved.values),
+      repeat: ['weekly', 'monthly'].includes(saved.repeat) ? saved.repeat : '',
+    };
+  }
+
   // Matches the ?v= the page loads this file with; the page checks it, so a page
   // and a lib.js from different releases never run together. Bump both together.
-  const VERSION = 2;
+  const VERSION = 3;
 
-  const lib = { VERSION, parseRates, parseLiveRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, overview, newId, isId };
+  const lib = { VERSION, keptDraft, parseRates, parseLiveRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, overview, newId, isId };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.TallyLib = lib;
 })(this);

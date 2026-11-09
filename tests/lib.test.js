@@ -194,3 +194,23 @@ test('home totals lead each column with a currency that has something in it', ()
   assert.deepEqual(L.overview([{ code: 'JPY', net: 0 }]).owe, { lead: 'JPY', amount: 0, also: [] });
   assert.equal(L.overview([]).owed.lead, undefined);
 });
+
+test('a half-typed new expense is kept for the rest of its day, without people who left', () => {
+  const ids = ['a', 'b', 'c'];
+  const saved = { day: '2026-11-09', title: 'Dinner', amount: '84,50', note: '', date: '2026-11-09', currency: 'EUR', paidBy: 'b', several: false, paid: {}, mode: 'exact', included: ['a', 'b', 'gone'], values: { a: '40', gone: '44.5' }, repeat: '' };
+  const k = L.keptDraft(saved, '2026-11-09', ids);
+  assert.equal(k.title, 'Dinner');
+  assert.equal(k.amount, '84,50');
+  assert.equal(k.paidBy, 'b');
+  assert.deepEqual(k.included, ['a', 'b']);
+  assert.deepEqual(k.values, { a: '40' });
+  // The next day it's gone, and so is a draft with nothing typed in it.
+  assert.equal(L.keptDraft(saved, '2026-11-10', ids), null);
+  assert.equal(L.keptDraft({ ...saved, title: ' ', amount: '', note: '' }, '2026-11-09', ids), null);
+  assert.equal(L.keptDraft(null, '2026-11-09', ids), null);
+  // A payer who has left falls back to the default; an empty split to everyone.
+  const left = L.keptDraft({ ...saved, paidBy: 'gone', included: ['gone'], mode: 'odd' }, '2026-11-09', ids);
+  assert.equal(left.paidBy, null);
+  assert.deepEqual(left.included, ids);
+  assert.equal(left.mode, 'equal');
+});

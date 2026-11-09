@@ -104,7 +104,10 @@ body {
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
-  padding-block: calc(28px + env(safe-area-inset-top, 0px)) calc(104px + env(safe-area-inset-bottom, 0px));
+  /* --dock is the bottom bar's real height (set by the page as it changes, as
+     with larger text), so the end of the list and the toast clear it */
+  --dock: calc(71px + env(safe-area-inset-bottom, 0px));
+  padding-block: calc(28px + env(safe-area-inset-top, 0px)) calc(var(--dock) + 33px);
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
@@ -174,13 +177,15 @@ button.row:active { background: color-mix(in srgb, var(--ink) 5%, transparent); 
 /* Activity: who the money went from and to. The arrow points the way the
    money went (payer to whoever it was for); its colour is what it means for
    you: red you owe, green you're owed, ink for payments you made or got. */
-.flow { grid-column: 1; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: .84rem; color: var(--muted); white-space: nowrap; }
+.flow { grid-column: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; min-width: 0; font-size: .84rem; color: var(--muted); white-space: nowrap; }
 .flow > span { flex: none; }
-.flow .who-a, .flow .who-b { overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+/* Short of room (a long name, larger text) a name goes on to the next line and
+   wraps there rather than being cut short */
+.flow .who-a, .flow .who-b { white-space: normal; overflow-wrap: break-word; color: var(--ink); }
 .flow .who-a { max-width: 45%; }
 .flow .who-b { flex: 0 1 auto; min-width: 0; }
-/* Short of room, the original amount gives way before the names do */
-.flow .tail { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The original amount takes what's left of the line, and gives way before the names do */
+.flow .tail { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .flow svg { flex: none; display: block; }
 .flow .ink { color: var(--ink); }
 
@@ -231,13 +236,14 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 
 
 /* Everyone else's balance: a plain ruled list, like Bureau's quick amounts */
-.bal-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; padding: 0 2px; border-top: 1px solid var(--line); font-size: .92rem; }
+.bal-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; padding: 6px 2px; border-top: 1px solid var(--line); font-size: .92rem; }
 .bal-row:last-child { border-bottom: 1px solid var(--line); }
 #people .bal-row { width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; color: inherit; font: inherit; font-size: .92rem; text-align: left; cursor: pointer; }
 #people .bal-row:last-child { border-bottom: 0; }
 #people .bal-row:active { background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.bal-row > span:first-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bal-row > span:last-child { white-space: nowrap; font-weight: 500; }
+/* Short of room (a long name, larger text) the amount goes under the name rather than cutting it short */
+.bal-row > span:first-child { min-width: 0; overflow-wrap: break-word; }
+.bal-row > span:last-child { margin-left: auto; white-space: nowrap; font-weight: 500; }
 .bal-row small { margin-right: 6px; font-size: .82rem; font-weight: 400; color: var(--muted); }
 
 /* Bottom action bar */
@@ -441,7 +447,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 
 /* Settle up suggestions */
 .pay-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; padding: 12px 16px 4px; background: var(--surface); }
-.pay-row .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pay-row .who { min-width: 0; overflow-wrap: anywhere; }
 .pay-row .amt { font-weight: 500; white-space: nowrap; }
 .pay-row .acts { grid-column: 1 / -1; display: flex; gap: 20px; }
 .pay-row .link { padding: 8px 0; font-size: .86rem; }
@@ -465,7 +471,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 
 /* Toast: a popover, so it shows above open sheets too */
 .toast {
-  position: fixed; inset: auto auto calc(88px + env(safe-area-inset-bottom, 0px)) 50%; z-index: 20;
+  position: fixed; inset: auto auto calc(var(--dock) + 17px) 50%; z-index: 20;
   transform: translateX(-50%); margin: 0; border: 0; overflow: visible;
   display: flex; align-items: center; gap: 16px; max-width: calc(100vw - 32px); width: max-content;
   padding: 0 6px 0 16px; min-height: 42px; border-radius: 6px; background: var(--ink); color: var(--on-ink);
@@ -633,7 +639,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   <div class="sheet-body blocks">
     <div class="blk">
       <div class="cell text"><input class="title-input" id="newName" placeholder="Name, like Japan trip or Flat" maxlength="60" autocomplete="off" enterkeyhint="done" data-done aria-label="Group name"></div>
-      <div class="cell"><span class="row-k">Currency</span><button class="cur-btn" type="button" id="newCur" aria-label="Currency">EUR</button></div>
+      <div class="cell"><span class="row-k">Currency</span><button class="cur-btn" type="button" id="newCur" aria-label="Currency, EUR">EUR</button></div>
     </div>
     <span class="field-label sec">People</span>
     <div class="blk">
@@ -679,7 +685,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
         <input class="note-input" id="expNote" maxlength="200" autocomplete="off" enterkeyhint="done" data-done placeholder="Note" aria-label="Note">
       </div>
       <div class="cell amount-row">
-        <button class="cur-btn" type="button" id="expCur" aria-label="Currency">EUR</button>
+        <button class="cur-btn" type="button" id="expCur" aria-label="Currency, EUR">EUR</button>
         <input class="big-amount" id="expAmount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done" data-done aria-label="Amount">
       </div>
       <div class="cell small" id="expConvRow" hidden>
@@ -747,7 +753,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   <div class="sheet-body blocks">
     <div class="blk">
       <div class="cell text"><input class="title-input" id="setName" maxlength="60" autocomplete="off" enterkeyhint="done" data-done aria-label="Group name"></div>
-      <div class="cell"><span class="row-k">Currency<small id="setCurWhy" hidden>Fixed once there are expenses</small></span><button class="cur-btn" type="button" id="setCur" aria-label="Currency">EUR</button></div>
+      <div class="cell"><span class="row-k">Currency<small id="setCurWhy" hidden>Fixed once there are expenses</small></span><button class="cur-btn" type="button" id="setCur" aria-label="Currency, EUR">EUR</button></div>
       <div class="cell tall" id="setSplitField" hidden><span class="row-k"><b>New expenses</b><small id="setSplitText"></small></span><button class="link" type="button" id="setSplitReset">Split equally</button></div>
     </div>
     <span class="field-label sec">People</span>
@@ -796,7 +802,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 
 <div class="toast" id="toast" role="status" popover="manual"><span id="toastText"></span><button type="button" id="toastUndo" hidden>Undo</button></div>
 
-<script src="lib.js?v=2"></script>
+<script src="lib.js?v=3"></script>
 <script src="pwa.js?v=2"></script>
 <script>
 (() => {
@@ -804,7 +810,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   const L = TallyLib;
   // Just after a release a cache can hand over an old lib.js with this page:
   // reload once to get the matching one rather than run the two together.
-  const LIB_VERSION = 2; // the ?v= on lib.js above
+  const LIB_VERSION = 3; // the ?v= on lib.js above
   if (L.VERSION !== LIB_VERSION) {
     let tried = true;
     try { tried = sessionStorage.getItem('tally.libReload') === String(LIB_VERSION); sessionStorage.setItem('tally.libReload', LIB_VERSION); } catch {}
@@ -917,8 +923,15 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     toastOn = true;
     placeToast();
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(hideToast, undo ? 5000 : 2200);
+    if (!toastEl.contains(document.activeElement)) toastTimer = setTimeout(hideToast, undo ? 5000 : 2200);
   }
+  // Someone who has moved to Undo (a keyboard, a screen reader) keeps it until they move off.
+  toastEl.addEventListener('focusin', () => clearTimeout(toastTimer));
+  toastEl.addEventListener('focusout', e => {
+    if (!toastOn || toastEl.contains(e.relatedTarget)) return;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, 5000);
+  });
   $('toastUndo').addEventListener('click', () => {
     const undo = toastUndo;
     clearTimeout(toastTimer);
@@ -940,7 +953,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     groups.set(id, g);
   }
   groupIds = groupIds.filter(id => groups.has(id));
-  const savePending = g => { if (g.pending.length) store.set('p.' + g.group.id, g.pending); else store.del('p.' + g.group.id); };
+  const savePending = g => { if (g.pending.length) store.set('p.' + g.group.id, g.pending); else store.del('p.' + g.group.id); tellAppUnsent(); };
   const saveGroup = g => { const { pending, rev, ...rest } = g; store.set('g.' + g.group.id, rest); savePending(g); };
   const saveIds = () => store.set('groups', groupIds);
 
@@ -1231,7 +1244,11 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     renderStatus();
     syncBack();
     tellAppWatch();
+    tellAppUnsent();
+    renderedDay = today();
+    if (g && $('payDlg').open && pay && !pay.editing) renderSuggest(g, false);
   }
+  let renderedDay = '';
 
   function balanceText(net, code) {
     if (net > 0) return { label: "You're owed", amount: money(net, code), cls: 'pos' };
@@ -1300,6 +1317,17 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   }
   addEventListener('resize', () => { for (const el of document.querySelectorAll('.totals .val')) if (el.offsetParent) fitVal(el); });
 
+  // Redrawing a list (a sync, a change) keeps focus on the same row or button,
+  // found again by what it's for, so a keyboard or screen reader isn't thrown back to the top.
+  function keepFocus(box, draw) {
+    const el = document.activeElement;
+    const key = el && box.contains(el) && ['entry', 'edit', 'del', 'again', 'person'].find(k => k in el.dataset);
+    draw();
+    if (key && !box.contains(el)) {
+      const again = box.querySelector(`[data-${key}="${CSS.escape(el.dataset[key])}"]`);
+      if (again) again.focus({ preventScroll: true });
+    }
+  }
   function renderGroup(g) {
     const code = g.group.currency;
     const net = netOf(g);
@@ -1320,7 +1348,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     // Everyone else's balance.
     const others = g.members.filter(m => m.id !== g.me && (!m.removed || net[m.id]));
     $('balSection').hidden = !others.length || !entriesOf(g).length;
-    $('people').replaceChildren(...others.map(m => {
+    keepFocus($('people'), () => $('people').replaceChildren(...others.map(m => {
       const row = document.createElement('button');
       row.type = 'button';
       row.className = 'bal-row';
@@ -1334,7 +1362,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       amt.className = v > 0 ? 'pos' : v < 0 ? 'neg' : '';
       row.setAttribute('aria-label', `${m.name} ${v > 0 ? 'is owed' : v < 0 ? 'owes' : 'is settled'} ${v ? money(v, code) : ''}. Settle up`.trim());
       return row;
-    }));
+    })));
     $('settleBtn').hidden = Object.values(net).every(v => !v) && !entriesOf(g).length;
     $('dockPair').classList.toggle('solo', $('settleBtn').hidden);
 
@@ -1388,7 +1416,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       more.textContent = `Show ${Math.min(PAGE, list.length - shown.length)} more`;
       out.push(more);
     }
-    $('activity').replaceChildren(...out);
+    keepFocus($('activity'), () => $('activity').replaceChildren(...out));
   }
 
   const ARROW = {
@@ -1635,6 +1663,11 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     return false;
   };
 
+  // A currency button shows its code; its name says what it is and the code with it.
+  function showCur(btn, code) {
+    btn.textContent = code;
+    btn.setAttribute('aria-label', `Currency, ${code}`);
+  }
   // Currency picker shared by every currency button; resolves with a code or null.
   let pickResolve = null;
   let pickCurrent = '';
@@ -1714,7 +1747,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   function openNew() {
     $('newName').value = '';
     $('newMe').value = store.get('myName') || '';
-    $('newCur').textContent = store.get('lastCurrency') || homeCurrency;
+    showCur($('newCur'), store.get('lastCurrency') || homeCurrency);
     newOthers = [];
     renderNewOthers();
     canCreate();
@@ -1745,7 +1778,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     const c = e.target.closest('[data-i]');
     if (c) { newOthers.splice(Number(c.dataset.i), 1); renderNewOthers(); }
   });
-  $('newCur').addEventListener('click', async () => { const c = await pickCurrency($('newCur').textContent); if (c) $('newCur').textContent = c; });
+  $('newCur').addEventListener('click', async () => { const c = await pickCurrency($('newCur').textContent); if (c) showCur($('newCur'), c); });
   const canCreate = () => { $('createGo').disabled = !$('newName').value.trim() || !$('newMe').value.trim(); };
   $('newName').addEventListener('input', canCreate);
   $('newMe').addEventListener('input', canCreate);
@@ -1845,13 +1878,29 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   }
 
   // ---- expense sheet ----
-  let draft = null; // { id, currency, paidBy, mode, parts: {id: string}, included: Set, editing }
+  let draft = null; // { id, currency, paidBy, mode, parts: {id: string}, included: Set, editing, fresh, gid }
   function openExpense(entry, again) {
-    if (groups.get(current).deleted) return;
     const g = groups.get(current);
-    if (!g) return;
+    if (!g || g.deleted) return;
+    const kept = fillExpense(g, entry || null, again, true);
+    renderExpense();
+    openDlg($('expDlg'));
+    if (!entry) offerFocus($('expAmount'));
+    const before = rates;
+    if (draft.currency !== g.group.currency) loadRates().then(now => now !== before && whenSplitFree(renderExpense));
+    // Undo starts this expense afresh.
+    const was = draft;
+    if (kept) toast('Draft restored', () => {
+      if (draft !== was || !$('expDlg').open) return;
+      store.del('draft.' + g.group.id);
+      fillExpense(g, null, false, false);
+      renderExpense();
+    });
+  }
+  // Sets the sheet up for `e` (or a new expense, or a copy of `e` with `again`);
+  // a new one picks up a draft kept from earlier today when `restore`. Says whether it did.
+  function fillExpense(g, e, again, restore) {
     const members = live(g);
-    const e = entry || null;
     const ids = members.map(m => m.id);
     draft = {
       id: e ? e.id : L.newId(),
@@ -1899,12 +1948,34 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       $('expRepeatField').hidden = false;
       $('expBy').hidden = true;
     }
-    renderExpense();
-    openDlg($('expDlg'));
-    if (!e) offerFocus($('expAmount'));
-    const before = rates;
-    if (draft.currency !== g.group.currency) loadRates().then(now => now !== before && whenSplitFree(renderExpense));
+    // Only a plain new expense is kept as a draft, and picks one up.
+    Object.assign(draft, { fresh: !e && !again, gid: g.group.id });
+    const kept = restore && draft.fresh && L.keptDraft(store.get('draft.' + g.group.id), today(), ids);
+    if (kept) {
+      Object.assign(draft, {
+        currency: kept.currency || draft.currency, paidBy: kept.paidBy || draft.paidBy, several: kept.several, paid: kept.paid,
+        mode: kept.mode, included: new Set(kept.included), values: kept.values, repeat: kept.repeat,
+      });
+      $('expWhat').value = kept.title;
+      $('expAmount').value = kept.amount;
+      $('expNote').value = kept.note;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(kept.date)) { $('expDate').value = kept.date; showDate(); }
+    }
+    return !!kept;
   }
+  // A new expense closed before Save (Back, ×, Escape) or left open when the
+  // app goes out of sight is kept for the rest of the day; Save clears it.
+  function keepDraft() {
+    if (!draft || !draft.fresh || draft.saved) return;
+    const typed = [$('expWhat'), $('expAmount'), $('expNote')].some(el => el.value.trim());
+    if (!typed) return store.del('draft.' + draft.gid);
+    store.set('draft.' + draft.gid, {
+      day: today(), title: $('expWhat').value, amount: $('expAmount').value, note: $('expNote').value, date: $('expDate').value,
+      currency: draft.currency, paidBy: draft.paidBy, several: draft.several, paid: draft.paid,
+      mode: draft.mode, included: [...draft.included], values: draft.values, repeat: draft.repeat,
+    });
+  }
+  $('expDlg').addEventListener('close', keepDraft);
   // Rates that arrive while you're typing in the split or the payers wait until
   // you're done there, so the rows (and the keyboard) aren't pulled from under you.
   function whenSplitFree(fn) {
@@ -1960,7 +2031,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     if (!g || !draft) return;
     const code = g.group.currency;
     if (draft.origCurrency === undefined) draft.origCurrency = draft.currency;
-    $('expCur').textContent = draft.currency;
+    showCur($('expCur'), draft.currency);
     const amount = parse($('expAmount').value, draft.currency);
     // Conversion line for foreign currencies.
     const rate = currentRate(g);
@@ -2230,6 +2301,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     const prev = g.entries.find(x => x.id === draft.id);
     if (prev && prev.of) { data.of = prev.of; delete data.repeat; }
     store.set('cur.' + g.group.id, draft.currency);
+    draft.saved = true;
+    if (draft.fresh) store.del('draft.' + g.group.id);
     $('expDlg').close();
     haptic();
     const undo = undoFor(g, draft.id);
@@ -2248,8 +2321,16 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     const e = g && g.entries.find(x => x.id === id);
     if (!e) return;
     const mark = deleted => change(g, [{ type: 'entry', id, data: { ...stripMeta(e), by: g.me || e.by }, deleted }]);
+    const at = [...$('activity').querySelectorAll(':scope > .row')].findIndex(r => r.dataset.entry === id);
     mark(true);
-    toast(message, () => mark(false));
+    // Focus goes on to the row that took its place (its own went with it), and back to it on Undo.
+    const rows = $('activity').querySelectorAll(':scope > .row');
+    if (at >= 0 && !document.querySelector('dialog[open]')) (rows[Math.min(at, rows.length - 1)] || $('addBtn')).focus();
+    toast(message, () => {
+      mark(false);
+      const back = $('activity').querySelector(`:scope > [data-entry="${id}"]`);
+      if (back && !document.querySelector('dialog[open]')) back.focus();
+    });
   }
   // Undoing a save puts the entry back as it was, or removes it if it's new.
   function undoFor(g, id) {
@@ -2274,40 +2355,17 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   }
 
   // ---- settle up ----
-  let pay = null; // { from, to, editing }
+  let pay = null; // { from, to, editing, person, only, planKey }
   function openSettle(entry, person) {
     if (groups.get(current).deleted) return;
     const g = groups.get(current);
     const code = g.group.currency;
-    const all = L.settle(netOf(g));
-    const mine = person ? all.filter(p => p.from === person || p.to === person) : [];
-    const plan = mine.length ? mine : all;
-    $('paySuggest').hidden = $('paySuggestLabel').hidden = !!entry || !plan.length;
-    $('payTitle').textContent = entry ? 'Payment' : mine.length ? `Settle with ${memberName(g, person)}` : 'Settle up';
-    // The form only needs a heading to tell it from the suggestions above it.
-    $('payFormLabel').hidden = $('paySuggest').hidden;
-    $('payList').replaceChildren(...plan.map(p => {
-      const row = document.createElement('div');
-      row.className = 'pay-row';
-      row.innerHTML = '<span class="who"></span><span class="amt"></span><span class="acts"></span>';
-      const to = memberName(g, p.to);
-      row.firstChild.textContent = p.from === g.me ? `You pay ${to}` : `${memberName(g, p.from)} pays ${to === 'You' ? 'you' : to}`;
-      row.children[1].textContent = money(p.amount, code);
-      row.children[1].className = 'amt' + (p.from === g.me ? ' neg' : p.to === g.me ? ' pos' : '');
-      // Money owed to you: a nudge to send them, then mark it paid.
-      if (p.to === g.me) {
-        const ask = document.createElement('button');
-        ask.type = 'button'; ask.className = 'link'; ask.textContent = 'Ask';
-        Object.assign(ask.dataset, { ask: p.from, amount: p.amount });
-        row.lastChild.append(ask);
-      }
-      const done = document.createElement('button');
-      done.type = 'button'; done.className = 'link'; done.textContent = 'Mark paid';
-      Object.assign(done.dataset, { from: p.from, to: p.to, amount: p.amount });
-      row.lastChild.append(done);
-      return row;
-    }));
-    pay = entry ? { id: entry.id, from: entry.from, to: entry.to, date: entry.date, editing: true } : { id: L.newId(), from: g.me, to: null, editing: false };
+    pay = entry ? { id: entry.id, from: entry.from, to: entry.to, date: entry.date, editing: true } : { id: L.newId(), from: g.me, to: null, editing: false, person: person || null };
+    if (entry) {
+      $('paySuggest').hidden = $('paySuggestLabel').hidden = $('payFormLabel').hidden = true;
+      $('payList').replaceChildren();
+      $('payTitle').textContent = 'Payment';
+    } else renderSuggest(g, true);
     $('payAmount').value = entry ? plainNum(L.fromMinor(L.entryTotal(entry, code), code), code) : '';
     $('payCode').textContent = code;
     $('payDelete').hidden = !entry;
@@ -2316,6 +2374,58 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     $('payBy').hidden = !$('payBy').textContent;
     renderPay();
     openDlg($('payDlg'));
+  }
+  // The suggested payments: drawn as the sheet opens, and again (in the open
+  // sheet) whenever the balances change, as after Mark paid. Opened from a
+  // person's balance, it keeps to their payments.
+  function renderSuggest(g, opening) {
+    const code = g.group.currency;
+    const all = L.settle(netOf(g));
+    const mine = pay.person ? all.filter(p => p.from === pay.person || p.to === pay.person) : [];
+    if (opening) {
+      pay.only = mine.length > 0;
+      $('payTitle').textContent = pay.only ? `Settle with ${memberName(g, pay.person)}` : 'Settle up';
+    }
+    const plan = pay.only ? mine : all;
+    const key = JSON.stringify(plan);
+    if (!opening && key === pay.planKey) return;
+    pay.planKey = key;
+    // A redraw keeps focus on the same row (now the next payment), or the last.
+    const focusAt = [...$('payList').children].findIndex(r => r.contains(document.activeElement));
+    $('paySuggest').hidden = $('paySuggestLabel').hidden = !plan.length;
+    // The form only needs a heading to tell it from the suggestions above it.
+    $('payFormLabel').hidden = $('paySuggest').hidden;
+    $('payList').replaceChildren(...plan.map(p => {
+      const row = document.createElement('div');
+      row.className = 'pay-row';
+      row.innerHTML = '<span class="who"></span><span class="amt"></span><span class="acts"></span>';
+      const to = memberName(g, p.to);
+      const who = p.from === g.me ? `You pay ${to}` : `${memberName(g, p.from)} pays ${to === 'You' ? 'you' : to}`;
+      const amount = money(p.amount, code);
+      row.firstChild.textContent = who;
+      row.children[1].textContent = amount;
+      row.children[1].className = 'amt' + (p.from === g.me ? ' neg' : p.to === g.me ? ' pos' : '');
+      // Money owed to you: a nudge to send them, then mark it paid.
+      if (p.to === g.me) {
+        const ask = document.createElement('button');
+        ask.type = 'button'; ask.className = 'link'; ask.textContent = 'Ask';
+        ask.setAttribute('aria-label', `Ask ${memberName(g, p.from)} for ${amount}`);
+        Object.assign(ask.dataset, { ask: p.from, amount: p.amount });
+        row.lastChild.append(ask);
+      }
+      const done = document.createElement('button');
+      done.type = 'button'; done.className = 'link'; done.textContent = 'Mark paid';
+      // Each one says which payment it is, not just "Mark paid" again.
+      done.setAttribute('aria-label', `Mark paid: ${who} ${amount}`);
+      Object.assign(done.dataset, { from: p.from, to: p.to, amount: p.amount });
+      row.lastChild.append(done);
+      return row;
+    }));
+    const rows = $('payList').children;
+    if (focusAt >= 0) {
+      if (rows.length) rows[Math.min(focusAt, rows.length - 1)].querySelector('button[data-from]').focus();
+      else $('payDlg').focus();
+    }
   }
   function renderPay() {
     const g = groups.get(current);
@@ -2331,13 +2441,14 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   $('payAmount').addEventListener('input', renderPay);
   // With a keyboard, Enter records; on a phone, Done only puts the keyboard away.
   $('payAmount').addEventListener('keydown', e => { if (e.key === 'Enter' && fineMouse.matches && !$('payGo').disabled) $('payGo').click(); });
-  function recordPayment(from, to, minor) {
+  // Mark paid leaves the sheet open on the payments still to make (`stay`).
+  function recordPayment(from, to, minor, stay) {
     const g = groups.get(current);
     const code = g.group.currency;
     // A payment being edited keeps its own date; only a new one is today's.
     const date = (pay.editing && pay.date) || today();
     const data = { kind: 'payment', amount: L.fromMinor(minor, code), currency: code, rate: 1, date, from, to, by: g.me };
-    $('payDlg').close();
+    if (!stay) $('payDlg').close();
     haptic();
     const id = pay.editing ? pay.id : L.newId();
     const undo = undoFor(g, id);
@@ -2354,7 +2465,14 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       return;
     }
     const b = e.target.closest('button[data-from]');
-    if (b) recordPayment(b.dataset.from, b.dataset.to, Number(b.dataset.amount));
+    if (!b) return;
+    const at = [...$('payList').children].indexOf(b.closest('.pay-row'));
+    recordPayment(b.dataset.from, b.dataset.to, Number(b.dataset.amount), true);
+    // Redrawn by now: on to the next payment, or done once none are left.
+    const rows = $('payList').children;
+    if (rows.length) return rows[Math.min(at, rows.length - 1)].querySelector('button[data-from]').focus();
+    $('payDlg').close();
+    ($('settleBtn').offsetParent ? $('settleBtn') : $('addBtn')).focus();
   });
   $('payGo').addEventListener('click', () => {
     const g = groups.get(current);
@@ -2373,7 +2491,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     const g = groups.get(current);
     setOpened = { name: g.group.name, currency: g.group.currency };
     $('setName').value = g.group.name;
-    $('setCur').textContent = g.group.currency;
+    showCur($('setCur'), g.group.currency);
     // Fixed once there are expenses, so past amounts stay right.
     $('setCur').disabled = g.entries.length > 0;
     $('setCurWhy').hidden = !$('setCur').disabled;
@@ -2463,7 +2581,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   }
   $('setAdd').addEventListener('click', addMember);
   $('setNew').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addMember(); } });
-  $('setCur').addEventListener('click', async () => { const c = await pickCurrency($('setCur').textContent); if (c) $('setCur').textContent = c; });
+  $('setCur').addEventListener('click', async () => { const c = await pickCurrency($('setCur').textContent); if (c) showCur($('setCur'), c); });
   // Name and currency are kept however the sheet closes (Done, ×, Back).
   $('setDlg').addEventListener('close', () => {
     saveNames();
@@ -2526,7 +2644,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     const id = current;
     const g = groups.get(id);
     $('setName').value = g.group.name;
-    $('setCur').textContent = g.group.currency;
+    showCur($('setCur'), g.group.currency);
     $('setDlg').close();
     groups.delete(id);
     groupIds = groupIds.filter(x => x !== id);
@@ -2534,6 +2652,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     store.del('g.' + id);
     store.del('p.' + id);
     store.del('cur.' + id);
+    store.del('draft.' + id);
     goHome();
   }
   $('setForget').addEventListener('click', () => {
@@ -2696,6 +2815,16 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   });
   $('settingsBtn').addEventListener('click', openSettings);
   $('shareBtn').addEventListener('click', share);
+  // The bottom bar grows with larger text (its buttons wrap); the end of the
+  // list and the toast stay clear of it at whatever height it is.
+  if (typeof ResizeObserver === 'function') {
+    const docks = [$('dock'), $('homeDock')];
+    const fit = new ResizeObserver(() => {
+      const h = Math.max(...docks.map(d => Math.ceil(d.getBoundingClientRect().height)));
+      if (h) document.body.style.setProperty('--dock', h + 'px'); else document.body.style.removeProperty('--dock');
+    });
+    for (const d of docks) fit.observe(d);
+  }
 
   // ---- Android app bridge (absent in a browser) ----
   const app = window.tallyApp || null;
@@ -2800,6 +2929,14 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     const key = JSON.stringify(list);
     if (key !== lastWatch) { lastWatch = key; toApp({ type: 'watch', groups: list }); }
   }
+  // Whether changes made here are still waiting to be sent: while they are, the
+  // app lets the page keep retrying for a while after it goes out of sight.
+  let lastUnsent = null;
+  function tellAppUnsent() {
+    if (!app) return;
+    const on = [...groups.values()].some(g => g.pending.length && !g.gone && !g.deleted);
+    if (on !== lastUnsent) { lastUnsent = on; toApp({ type: 'unsent', on }); }
+  }
 
   // ---- boot ----
   const pathId = (location.pathname.match(/^\/g\/([A-Za-z0-9_-]{22})$/) || [])[1] || (location.hash.match(/g=([A-Za-z0-9_-]{22})/) || [])[1];
@@ -2835,8 +2972,10 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     } catch {}
   });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) return;
+    if (document.hidden) { if ($('expDlg').open) keepDraft(); return; }
     wake();
+    // Back on another day: "Today" and "Yesterday" move on, even if nothing else changed.
+    if (today() !== renderedDay) render();
     (current ? [current] : groupIds).forEach(sync);
   });
   addEventListener('focus', wake);

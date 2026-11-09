@@ -145,7 +145,7 @@ const hang = () => new Promise(() => {});
 const PAGE = 'https://tally.teloone.au/';
 const LIB = 'https://tally.teloone.au/lib.js?v=2';
 const INDEX_URL = 'https://tally.teloone.au/index.html';
-const LIB_PINNED = '2:b8d7bdb6019df984';
+const LIB_PINNED = '3:2628b5cd8580b719';
 
 test('a page that opened from the kept copy gets its files from there too', async t => {
   const kept = { 'index.html': 'old page', 'lib.js?v=2': 'old lib' };
