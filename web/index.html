@@ -141,14 +141,15 @@ button { cursor: pointer; }
 }
 .btn-primary { background: var(--ink); border: 1px solid var(--ink); color: var(--on-ink); }
 .btn-primary:hover { opacity: .9; }
-.btn-primary:disabled { opacity: .35; cursor: default; }
 .btn-danger { background: var(--neg); border: 1px solid var(--neg); color: var(--on-ink); }
-.btn-danger:disabled { opacity: .35; cursor: default; }
 .btn-secondary { background: transparent; border: 1px solid var(--line); color: var(--ink); }
 .btn-secondary:hover { border-color: var(--muted); }
+/* Not ready yet: an outline with muted text, never a faded slab that reads as live in the dark */
+.btn-primary:disabled, .btn-danger:disabled { background: transparent; border-color: var(--line-strong); color: var(--muted); opacity: 1; cursor: default; }
 .link { position: relative; padding: 6px 0; background: none; border: 0; font-size: .88rem; font-weight: 600; color: var(--accent); }
 /* Text buttons stay small on screen but take a full-size tap */
 .link::after { content: ""; position: absolute; inset: -9px -6px; }
+.link:disabled { color: var(--muted); cursor: default; }
 .danger { color: var(--neg); }
 
 /* Cards and lists */
@@ -253,7 +254,7 @@ dialog {
   width: min(480px, calc(100vw - 32px));
   max-height: min(720px, calc(100dvh - 48px));
   padding: 0; border: 1px solid var(--line); border-radius: 8px;
-  background: var(--surface); color: var(--ink);
+  background: var(--bg); color: var(--ink);
 }
 /* Laid out and placed the same whether open or not, so a sheet keeps its
    shape and place while it fades out (it stops being :modal as it closes) */
@@ -302,9 +303,71 @@ a.link { text-decoration: none; }
 .notice[hidden] { display: none; }
 .notice p { margin: 0; font-size: .88rem; line-height: 1.4; }
 
+/* Sheets group their settings on panels, one setting a row with hairlines
+   between (the panel's line colour showing through a 1px gap), the label on
+   the left and its value on the right, as Nudge does. */
+.sheet-body.blocks { gap: 10px; }
+.blk {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px;
+  /* clip, not hidden: a scroll container could be squeezed by the sheet rather than the sheet scrolling */
+  background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: clip;
+}
+.cells { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
+.cells:empty { display: none; }
+.cell {
+  position: relative; display: flex; align-items: center; gap: 12px;
+  width: 100%; min-height: 52px; padding: 0 16px;
+  background: var(--surface); border: 0; color: inherit; font: inherit; text-align: left; text-decoration: none;
+}
+button.cell, a.cell, label.cell { cursor: pointer; }
+button.cell:active, a.cell:active { background: color-mix(in srgb, var(--ink) 5%, var(--surface)); }
+.cell.tall { min-height: 64px; padding-top: 10px; padding-bottom: 10px; }
+.cell.go { color: var(--accent); font-weight: 600; }
+.cell.bad { color: var(--neg); font-weight: 600; }
+.row-k { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.row-k b { display: block; font-weight: 500; }
+.row-k small { display: block; margin-top: 1px; font-size: .8rem; font-weight: 400; line-height: 1.35; color: var(--muted); }
+.row-v { flex: none; max-width: 60%; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-v.unset { color: var(--accent); }
+/* A picker's value carries the same small chevron as the currency button */
+.row-v.chev { position: relative; padding-right: 18px; }
+.row-v.chev::after {
+  content: ""; position: absolute; right: 3px; top: 50%; width: 6px; height: 6px; margin-top: -5px;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg);
+}
+/* The real <select> or date input lies invisible over its row, so a tap
+   anywhere on the row opens the phone's own picker. */
+.over, .date-native { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; }
+.date-native::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; margin: 0; cursor: pointer; }
+.cell:has(.over:focus-visible), .cell:has(.date-native:focus-visible), .cell:has(.row-in:focus-visible), .cell.text:focus-within, .amount-row:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
+/* A text field that is the row itself, like a name in a list */
+.row-in { flex: 1; min-width: 0; min-height: 50px; padding: 0; border: 0; background: none; outline: none; }
+.row-in::placeholder { color: var(--faint); }
+.row-in.num { text-align: right; }
+/* Add shows only once there's something to add; Enter adds too */
+.row-in:placeholder-shown ~ .add-go { display: none; }
+.cell .act { color: var(--muted); font-weight: 500; }
+.cell > .link { flex: none; }
+/* A small heading over a panel */
+.sec { margin: 6px 2px -4px; }
+.terms { margin: 2px 2px 0; font-size: .8rem; color: var(--muted); }
+.terms a { color: inherit; }
+.blk + .hint { margin: -4px 2px 0; }
+.hint:empty { display: none; }
+
+/* Name (and a note under it) as plain text on a panel */
+.cell.text { display: block; padding: 4px 16px 6px; }
+.title-input {
+  display: block; width: 100%; min-height: 46px; padding: 0; border: 0; border-radius: 0;
+  background: transparent; font-size: 1.15rem; font-weight: 500; outline: none;
+}
+.title-input::placeholder { color: var(--faint); font-weight: 400; }
+.note-input { display: block; width: 100%; min-height: 32px; padding: 0 0 4px; border: 0; background: transparent; font-size: .92rem; outline: none; }
+.note-input::placeholder { color: var(--faint); }
+.cell.small { display: grid; gap: 2px; min-height: 0; padding: 8px 16px; }
+
 /* Amount line in the expense sheet: currency button + big number */
-.amount-row { display: flex; align-items: center; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
-.amount-row:focus-within { border-bottom-color: var(--accent); }
+.amount-row { gap: 10px; min-height: 68px; }
 .cur-btn {
   flex: none; display: inline-flex; align-items: center; gap: 6px;
   min-height: 44px; padding: 0 10px; margin-left: -10px;
@@ -316,55 +379,15 @@ a.link { text-decoration: none; }
   content: ""; width: 6px; height: 6px; margin-top: -4px;
   border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg);
 }
+/* As a row's value (a group's currency), the whole row is its button */
+.cell > .cur-btn:last-child { margin: 0 -10px 0 0; font-size: 1rem; }
+.cell > .cur-btn:last-child::before { content: ""; position: absolute; inset: 0; }
 .big-amount {
   flex: 1; min-width: 0; padding: 4px 0; border: 0; background: transparent;
   font-size: 2.2rem; font-weight: 500; letter-spacing: -.02em; text-align: right; caret-color: var(--accent);
 }
 .big-amount:focus { outline: none; }
-.title-input {
-  width: 100%; min-height: 48px; padding: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
-  background: transparent; font-size: 1.15rem; font-weight: 500;
-}
-.title-input:focus { outline: none; border-bottom-color: var(--accent); }
-.title-input::placeholder { color: var(--faint); font-weight: 400; }
-
-/* The expense and settle-up sheets group each setting in its own panel, the
-   page colour set into the sheet like Bureau's card; short settings (date,
-   repeats, note) are one line: label left, value right. */
-.blk {
-  position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px;
-  padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
-}
-.blk-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 24px; }
-.blk-head .field-label { font-size: .84rem; color: var(--ink); font-weight: 600; }
-.blk-head .val { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .92rem; }
-.blk-head { flex-wrap: wrap; }
-.blk-head .seg { margin: -12px -10px -12px 0; flex-wrap: nowrap; }
-.blk-head .link { padding: 6px 0; margin: -6px 0; }
-.blk .input, .blk .split-row input { background: var(--surface); }
-.blk .split-row:last-child { border-bottom: 0; }
-.blk .pay-row:last-child { border-bottom: 0; }
-.blk:focus-within:has(.date-native:focus-visible) { border-color: var(--accent); }
-.blk .split { margin-bottom: -10px; }
-.blk .split-foot { border-top: 1px solid var(--line); padding-top: 10px; }
-.blk .amount-row { padding-bottom: 4px; border-bottom: 1px solid transparent; }
-.blk .amount-row:focus-within { border-bottom-color: var(--accent); }
-.blk .title-input { min-height: 40px; }
-.blk.tap { cursor: pointer; }
-.blk.tap:active { background: color-mix(in srgb, var(--ink) 5%, var(--bg)); }
-.sheet-body.blocks { gap: 12px; }
-.blk-head .cur-btn { margin: -10px -10px -10px 0; }
-.blk .pick > :last-child { border-bottom: 0; }
-.blk .pick + .pick { margin-top: -10px; }
-.blk .pick:empty { display: none; }
-.blk .rows > .row:last-child { border-bottom: 0; }
-.blk .add-row { margin-top: 2px; }
-.blk > .hint { margin-top: -4px; }
-/* A text field that sits in a ruled row, like a name in a list */
-.inline-input { flex: 1; min-width: 0; min-height: 46px; padding: 0; border: 0; background: none; }
-.inline-input:focus { outline: none; }
-.inline-input::placeholder { color: var(--faint); }
-.pick-row:focus-within { border-top-color: var(--accent); }
+.big-amount::placeholder { color: var(--faint); }
 
 /* Lists in a card (home groups, balances, activity): the rows' own rules
    separate them; the card's edge replaces the first and last rule. */
@@ -375,84 +398,50 @@ a.link { text-decoration: none; }
 .card.list .det { padding-bottom: 14px; }
 .card.list .more { display: block; width: 100%; padding: 14px 0; border-top: 1px solid var(--line); text-align: center; }
 
-/* Date: the panel shows the date in words; the real date input covers it,
-   invisible, so a tap anywhere on it opens the phone's own picker. */
-.date-native { position: absolute; inset: 0; border-radius: 8px; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
-.date-native::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; margin: 0; cursor: pointer; }
-.big-amount::placeholder { color: var(--faint); }
-
-/* Picking one person (who paid, from, to): names as text, the chosen one
-   underlined, the same way Bureau picks a trend range */
-.chips { display: flex; flex-wrap: wrap; margin: -6px 0 -6px -10px; }
-.chip {
-  min-width: 44px; min-height: 44px; padding: 0 10px;
-  background: none; border: 0; font-size: .95rem; color: var(--muted);
-}
-.chip:hover { color: var(--ink); }
-.chip[aria-pressed="true"] { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; text-decoration-color: var(--accent); }
-
-/* From / To sit beside the first line of names when the names wrap */
-.who-line { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: start; }
-.who-line > .hint { line-height: 44px; }
-.who-line .chips { margin: 0 0 0 -10px; }
-
-/* Ruled lists of names (people in a new group, "which one is you") */
-.pick { display: grid; }
-.pick-row {
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  width: 100%; min-height: 48px; padding: 0 2px;
-  background: none; border: 0; border-top: 1px solid var(--line); text-align: left;
-}
-.pick > :last-child { border-bottom: 1px solid var(--line); }
-button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.pick-row .act { padding: 12px 0 12px 12px; background: none; border: 0; font-size: .86rem; color: var(--muted); }
-
-/* Segmented control (split modes) */
-.seg { display: flex; flex-wrap: wrap; margin: -6px 0 2px -10px; }
+/* Segmented control (split modes): the chosen one underlined, as Bureau picks a trend range */
+.seg { display: flex; flex-wrap: wrap; }
 .seg button { min-width: 44px; min-height: 44px; padding: 0 10px; border: 0; background: none; font-size: .95rem; color: var(--muted); }
 .seg button:hover { color: var(--ink); }
 .seg button[aria-pressed="true"] { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; text-decoration-color: var(--accent); }
+.cell.seg-cell { min-height: 50px; padding: 0 6px; }
 
-/* Split rows */
-.split { display: grid; }
+/* Split and payer rows: the name (with what it comes to under it) and a
+   plain number that underlines only while it's being typed in */
 .split-row {
-  display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px;
-  min-height: 48px; border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  min-height: 52px; padding: 4px 16px; background: var(--surface);
 }
-.split-row:last-child { border-bottom: 1px solid var(--line); }
+.split-row.tick-row { grid-template-columns: 22px minmax(0, 1fr) auto; cursor: pointer; }
 .split-row .tick {
   width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--faint);
   display: grid; place-items: center; background: none; padding: 0;
 }
 .split-row .tick[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
 .split-row .tick[aria-checked="true"]::after { content: ""; width: 5px; height: 9px; margin-top: -2px; border: solid var(--on-accent); border-width: 0 2px 2px 0; transform: rotate(45deg); }
-.split-row .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.split-row .who { min-width: 0; }
+.split-row .nm { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.split-row .part { display: block; font-size: .8rem; line-height: 1.3; color: var(--muted); }
+.split-row .part:empty { display: none; }
 .split-row .val { font-size: .9rem; color: var(--muted); text-align: right; }
 .split-row input {
-  width: 96px; min-height: 44px; padding: 0 10px; text-align: right;
-  border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg);
+  width: 104px; min-height: 40px; padding: 0 2px; text-align: right;
+  border: 0; border-bottom: 1.5px solid transparent; border-radius: 0; background: none; font-size: 1rem;
 }
-.split-row input:focus { outline: none; border-color: var(--accent); }
-.split-foot { display: flex; justify-content: space-between; padding-top: 8px; font-size: .82rem; color: var(--muted); }
+.split-row input:focus { outline: none; border-bottom-color: var(--accent); }
+.split-row input::placeholder { color: var(--faint); }
+.split-foot { display: flex; justify-content: space-between; gap: 12px; padding: 9px 16px; background: var(--surface); font-size: .82rem; color: var(--muted); }
 
 /* Settle up suggestions */
-.pay-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; padding: 12px 0 4px; border-top: 1px solid var(--line); }
-.pay-row:last-child { border-bottom: 1px solid var(--line); }
+.pay-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; padding: 12px 16px 4px; background: var(--surface); }
 .pay-row .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pay-row .amt { font-weight: 500; white-space: nowrap; }
 .pay-row .acts { grid-column: 1 / -1; display: flex; gap: 20px; }
 .pay-row .link { padding: 8px 0; font-size: .86rem; }
-
-/* Member rows in settings */
-.member-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 48px; }
-.member-row .link { font-weight: 500; color: var(--muted); }
-.member-row .acts { display: flex; gap: 18px; }
-.add-row { display: flex; gap: 8px; }
-.add-row .input { flex: 1; }
+.pay-code { flex: none; color: var(--muted); }
 
 /* Currency picker */
 .picker-head { display: flex; padding: 12px 20px; border-bottom: 1px solid var(--line); }
-.picker-head .input { flex: 1; }
+.picker-head .input { flex: 1; background: var(--surface); }
 .picker-list { list-style: none; margin: 0; padding: 0 20px 16px; overflow-y: auto; overscroll-behavior: contain; }
 .picker-list .group { padding: 16px 0 6px; font-size: .8rem; font-weight: 600; color: var(--ink); }
 .picker-list li + li:not(.group) button { border-top: 1px solid var(--line); }
@@ -485,7 +474,6 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
 .legal a { padding: 12px 8px; font-size: .84rem; color: var(--muted); text-decoration: none; }
 .rate-credit { margin: -8px 0 0; text-align: center; font-size: .76rem; color: var(--muted); }
 .rate-credit a { color: inherit; text-decoration: none; }
-.split-row .part { margin-left: 8px; font-size: .82rem; color: var(--muted); }
 .by-line { font-size: .82rem; color: var(--muted); }
 .act-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; }
 .act-head .link { padding: 6px 0; }
@@ -636,19 +624,16 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   </div>
   <div class="sheet-body blocks">
     <div class="blk">
-      <input class="title-input" id="newName" placeholder="Name, like Japan trip or Flat" maxlength="60" autocomplete="off" enterkeyhint="done" data-done aria-label="Group name">
-      <div class="blk-head"><span class="field-label">Currency for balances</span><button class="cur-btn" type="button" id="newCur">EUR</button></div>
+      <div class="cell text"><input class="title-input" id="newName" placeholder="Name, like Japan trip or Flat" maxlength="60" autocomplete="off" enterkeyhint="done" data-done aria-label="Group name"></div>
+      <div class="cell"><span class="row-k">Currency</span><button class="cur-btn" type="button" id="newCur" aria-label="Currency">EUR</button></div>
     </div>
+    <span class="field-label sec">People</span>
     <div class="blk">
-      <div class="blk-head"><span class="field-label">People</span></div>
-      <div class="pick">
-        <label class="pick-row"><input class="inline-input" id="newMe" placeholder="Your name" maxlength="40" autocomplete="given-name" enterkeyhint="done" data-done aria-label="Your name"><span class="act">You</span></label>
-      </div>
-      <div class="pick" id="newOthers"></div>
-      <div class="add-row"><input class="input" id="newOther" aria-label="Add a person" placeholder="Add someone" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="newOtherAdd">Add</button></div>
+      <label class="cell"><input class="row-in" id="newMe" placeholder="Your name" maxlength="40" autocomplete="given-name" enterkeyhint="done" data-done aria-label="Your name"><span class="act">You</span></label>
+      <div class="cells" id="newOthers"></div>
+      <div class="cell"><input class="row-in" id="newOther" aria-label="Add someone" placeholder="Add someone" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="link add-go" type="button" id="newOtherAdd">Add</button></div>
     </div>
-    <span class="hint">Others can also join later from the link.</span>
-    <span class="hint">By making or joining a group, you agree to the <a href="https://teloone.au/apps/tally/terms/" rel="noreferrer">terms</a>, including to keep it legal and not post abuse, threats, hate or sexual content.</span>
+    <p class="terms">By making or joining a group you agree to the <a href="https://teloone.au/apps/tally/terms/" rel="noreferrer">terms</a>.</p>
   </div>
 </dialog>
 
@@ -660,16 +645,15 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   </div>
   <div class="sheet-body blocks">
     <div class="blk" id="joinLinkField">
-      <div class="blk-head"><label class="field-label" for="joinLink">Group link</label></div>
-      <div class="add-row"><input class="input" id="joinLink" placeholder="Paste the link" autocomplete="off" enterkeyhint="go"><button class="btn btn-primary" type="button" id="joinGo">Open</button></div>
-      <span class="hint" id="joinHint"></span>
+      <div class="cell"><input class="row-in" id="joinLink" placeholder="Paste the group link" aria-label="Group link" autocomplete="off" enterkeyhint="go"><button class="link" type="button" id="joinGo">Open</button></div>
     </div>
+    <span class="hint" id="joinHint" role="status"></span>
+    <span class="field-label sec" id="whoLabel" hidden>Which one is you?</span>
     <div class="blk" id="whoField" hidden>
-      <div class="blk-head"><span class="field-label">Which one is you?</span></div>
-      <div class="pick" id="whoChips"></div>
-      <div class="add-row"><input class="input" id="whoNew" aria-label="Your name" placeholder="Not listed? Add your name" maxlength="40" autocomplete="given-name" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="whoAdd">Add</button></div>
+      <div class="cells" id="whoChips"></div>
+      <div class="cell"><input class="row-in" id="whoNew" aria-label="Your name, if you're not listed" placeholder="Not listed? Add your name" maxlength="40" autocomplete="given-name" enterkeyhint="done"><button class="link add-go" type="button" id="whoAdd">Add</button></div>
     </div>
-    <span class="hint">By making or joining a group, you agree to the <a href="https://teloone.au/apps/tally/terms/" rel="noreferrer">terms</a>, including to keep it legal and not post abuse, threats, hate or sexual content.</span>
+    <p class="terms">By making or joining a group you agree to the <a href="https://teloone.au/apps/tally/terms/" rel="noreferrer">terms</a>.</p>
   </div>
 </dialog>
 
@@ -682,52 +666,42 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   </div>
   <div class="sheet-body blocks">
     <div class="blk">
-      <input class="title-input" id="expWhat" placeholder="What was it for?" maxlength="80" autocomplete="off" enterkeyhint="next" aria-label="Description">
-      <div class="amount-row">
+      <div class="cell text">
+        <input class="title-input" id="expWhat" placeholder="What was it for?" maxlength="80" autocomplete="off" enterkeyhint="next" aria-label="Description">
+        <input class="note-input" id="expNote" maxlength="200" autocomplete="off" enterkeyhint="done" data-done placeholder="Note" aria-label="Note">
+      </div>
+      <div class="cell amount-row">
         <button class="cur-btn" type="button" id="expCur" aria-label="Currency">EUR</button>
         <input class="big-amount" id="expAmount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done" data-done aria-label="Amount">
       </div>
-      <span class="hint" id="expConv" hidden></span>
-      <a class="hint credit" id="expCredit" href="https://www.exchangerate-api.com" rel="noreferrer" hidden>Rates By Exchange Rate API</a>
+      <div class="cell small" id="expConvRow" hidden>
+        <span class="hint" id="expConv"></span>
+        <a class="hint credit" id="expCredit" href="https://www.exchangerate-api.com" rel="noreferrer">Rates By Exchange Rate API</a>
+      </div>
     </div>
     <div class="blk">
-      <div class="blk-head"><span class="field-label">Paid by</span></div>
-      <div class="chips" id="expPaid" role="group" aria-label="Paid by"></div>
-      <div id="expPayers" class="field" hidden>
-        <div class="split" id="expPayerRows"></div>
+      <label class="cell"><span class="row-k">Paid by</span><span class="row-v chev" id="expPaidText" aria-hidden="true"></span><select class="over" id="expPaid" aria-label="Paid by"></select></label>
+      <div class="cells" id="expPayers" hidden>
+        <div class="cells" id="expPayerRows"></div>
         <div class="split-foot"><span id="expPayFoot"></span><span id="expPayFootRight"></span></div>
       </div>
+      <label class="cell"><span class="row-k">Date</span><span class="row-v chev" id="expDateText"></span><input class="date-native" type="date" id="expDate" aria-label="Date"></label>
+      <label class="cell" id="expRepeatField"><span class="row-k">Repeats</span><span class="row-v chev" id="expRepeatText" aria-hidden="true"></span>
+        <select class="over" id="expRepeat" aria-label="Repeats"><option value="">Never</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
     </div>
+    <span class="field-label sec">Split</span>
     <div class="blk">
-      <div class="blk-head"><span class="field-label">Split</span></div>
-      <div class="seg" id="expMode">
-        <button type="button" data-mode="equal">Equally</button>
-        <button type="button" data-mode="exact">Amounts</button>
-        <button type="button" data-mode="percent">%</button>
-        <button type="button" data-mode="shares">Shares</button>
-      </div>
-      <div class="split" id="expSplit"></div>
-      <div class="split-foot"><span id="expFoot"></span><span id="expFootRight"></span></div>
-      <button class="link foot-link" type="button" id="expMakeDefault" hidden>Use this split for new expenses</button>
-    </div>
-    <label class="blk tap">
-      <span class="blk-head"><span class="field-label">Date</span><span class="val"><span id="expDateText"></span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></span></span>
-      <input class="date-native" type="date" id="expDate" aria-label="Date">
-    </label>
-    <div class="blk" id="expRepeatField">
-      <div class="blk-head">
-        <span class="field-label">Repeats</span>
-        <div class="seg" id="expRepeat">
-          <button type="button" data-repeat="">Never</button>
-          <button type="button" data-repeat="weekly">Weekly</button>
-          <button type="button" data-repeat="monthly">Monthly</button>
+      <div class="cell seg-cell">
+        <div class="seg" id="expMode" role="group" aria-label="Split">
+          <button type="button" data-mode="equal">Equally</button>
+          <button type="button" data-mode="exact">Amounts</button>
+          <button type="button" data-mode="percent">%</button>
+          <button type="button" data-mode="shares">Shares</button>
         </div>
       </div>
-      <span class="hint" id="expRepeatHint" hidden></span>
-    </div>
-    <div class="blk">
-      <div class="blk-head"><span class="field-label">Note</span><button class="link" type="button" id="expNoteBtn">Add</button></div>
-      <div id="expNoteField" hidden><input class="input" id="expNote" maxlength="200" autocomplete="off" enterkeyhint="done" data-done placeholder="Anything worth remembering" aria-label="Note"></div>
+      <div class="cells" id="expSplit"></div>
+      <div class="split-foot"><span id="expFoot"></span><span id="expFootRight"></span></div>
+      <button class="cell go" type="button" id="expMakeDefault" hidden>Use this split for new expenses</button>
     </div>
     <div class="field"><span class="by-line" id="expBy" hidden></span><div><button class="link danger" type="button" id="expDelete" hidden>Delete expense</button></div></div>
   </div>
@@ -738,18 +712,18 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   <div class="sheet-head">
     <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
     <h2 id="payTitle">Settle up</h2>
+    <button class="btn btn-primary" type="button" id="payGo">Record</button>
   </div>
   <div class="sheet-body blocks">
+    <span class="field-label sec" id="paySuggestLabel">Suggested payments</span>
     <div class="blk" id="paySuggest">
-      <div class="blk-head"><span class="field-label">Suggested payments</span></div>
-      <div class="split" id="payList"></div>
+      <div class="cells" id="payList"></div>
     </div>
+    <span class="field-label sec" id="payFormLabel">Other payment</span>
     <div class="blk">
-      <div class="blk-head"><span class="field-label" id="payFormLabel">Record a payment</span></div>
-      <div class="who-line"><span class="hint">From</span><div class="chips" id="payFrom" role="group" aria-label="From"></div></div>
-      <div class="who-line"><span class="hint">To</span><div class="chips" id="payTo" role="group" aria-label="To"></div></div>
-      <div class="add-row"><input class="input" id="payAmount" aria-label="Amount" inputmode="decimal" placeholder="Amount" autocomplete="off" enterkeyhint="done" data-done><button class="btn btn-primary" type="button" id="payGo">Record</button></div>
-      <span class="hint" id="payHint"></span>
+      <label class="cell"><span class="row-k">From</span><span class="row-v chev" id="payFromText" aria-hidden="true"></span><select class="over" id="payFrom" aria-label="From"></select></label>
+      <label class="cell"><span class="row-k">To</span><span class="row-v chev" id="payToText" aria-hidden="true"></span><select class="over" id="payTo" aria-label="To"></select></label>
+      <label class="cell"><span class="row-k">Amount</span><input class="row-in num" id="payAmount" aria-label="Amount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done" data-done><span class="pay-code" id="payCode"></span></label>
     </div>
     <div class="field"><span class="by-line" id="payBy" hidden></span><div><button class="link danger" type="button" id="payDelete" hidden>Delete payment</button></div></div>
   </div>
@@ -764,38 +738,22 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   </div>
   <div class="sheet-body blocks">
     <div class="blk">
-      <input class="title-input" id="setName" maxlength="60" autocomplete="off" enterkeyhint="done" data-done aria-label="Group name">
-      <div class="blk-head"><span class="field-label">Currency for balances</span><button class="cur-btn" type="button" id="setCur">EUR</button></div>
-      <span class="hint" id="setCurHint"></span>
+      <div class="cell text"><input class="title-input" id="setName" maxlength="60" autocomplete="off" enterkeyhint="done" data-done aria-label="Group name"></div>
+      <div class="cell"><span class="row-k">Currency</span><button class="cur-btn" type="button" id="setCur" aria-label="Currency">EUR</button></div>
+      <div class="cell tall" id="setSplitField" hidden><span class="row-k"><b>New expenses</b><small id="setSplitText"></small></span><button class="link" type="button" id="setSplitReset">Split equally</button></div>
     </div>
-    <div class="blk" id="setSplitField" hidden>
-      <div class="blk-head"><span class="field-label">New expenses</span><button class="link" type="button" id="setSplitReset">Split equally</button></div>
-      <span class="hint" id="setSplitText"></span>
+    <span class="field-label sec">People</span>
+    <div class="blk">
+      <div class="cells" id="setMembers"></div>
+      <div class="cell"><input class="row-in" id="setNew" aria-label="Add someone" placeholder="Add someone" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="link add-go" type="button" id="setAdd">Add</button></div>
     </div>
     <div class="blk">
-      <div class="blk-head"><span class="field-label">People</span></div>
-      <div class="rows" id="setMembers"></div>
-      <div class="add-row"><input class="input" id="setNew" aria-label="Add a person" placeholder="Add someone" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="btn btn-secondary" type="button" id="setAdd">Add</button></div>
+      <button class="cell go" type="button" id="setExport">Export CSV</button>
+      <a class="cell go tall" href="mailto:googleplay@telo.au?subject=Report%20a%20Tally%20group&amp;body=Paste%20the%20group%E2%80%99s%20link%20here%2C%20and%20tell%20us%20what%E2%80%99s%20wrong%3A%0A%0A"><span class="row-k">Report a problem<small>Opens an email to googleplay@telo.au</small></span></a>
     </div>
     <div class="blk">
-      <div class="blk-head"><span class="field-label">Link</span><button class="link" type="button" id="setShare">Share</button></div>
-      <span class="hint">Anyone with the link can see, change and delete this group.</span>
-    </div>
-    <div class="blk">
-      <div class="blk-head"><span class="field-label">Spreadsheet</span><button class="link" type="button" id="setExport">Export CSV</button></div>
-      <span class="hint">Every expense and payment, with each person’s share.</span>
-    </div>
-    <div class="blk">
-      <div class="blk-head"><span class="field-label">Something wrong?</span><a class="link" href="mailto:googleplay@telo.au?subject=Report%20a%20Tally%20group&amp;body=Paste%20the%20group%E2%80%99s%20link%20here%2C%20and%20tell%20us%20what%E2%80%99s%20wrong%3A%0A%0A">Report</a></div>
-      <span class="hint">Opens an email to googleplay@telo.au. Paste the group’s link in so we can find it.</span>
-    </div>
-    <div class="blk">
-      <div class="blk-head"><span class="field-label">This device</span><button class="link danger" type="button" id="setForget">Remove group</button></div>
-      <span class="hint">The group stays for everyone else; open its link to get it back.</span>
-    </div>
-    <div class="blk" id="setDeleteBlk">
-      <div class="blk-head"><span class="field-label">Everyone</span><button class="link danger" type="button" id="setDelete">Delete for everyone</button></div>
-      <span class="hint">Deletes the group for all its people in 14 days, unless someone undoes it.</span>
+      <button class="cell bad" type="button" id="setForget">Remove from this device</button>
+      <button class="cell bad" type="button" id="setDelete">Delete for everyone</button>
     </div>
   </div>
 </dialog>
@@ -1292,10 +1250,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       row.querySelector('.row-title').textContent = g.group.name;
       const latest = entriesOf(g).reduce((a, e) => ((e.updatedAt || e.createdAt || 0) > ((a && (a.updatedAt || a.createdAt)) || 0) ? e : a), null);
       const who = `${people} ${people === 1 ? 'person' : 'people'}`;
-      const status = net > 0 ? 'You’re owed' : net < 0 ? 'You owe' : '';
+      // Owed or owe is the amount's colour; the row's label says it for screen readers.
       row.querySelector('.row-sub').textContent = g.gone ? 'No longer available'
         : g.deleting ? `Being deleted on ${dateOf(g.deleting)}`
-        : [status, who, latest ? `${latest.kind === 'payment' ? 'Payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt, true)}` : 'No expenses yet'].filter(Boolean).join(' · ');
+        : [who, latest ? `${latest.kind === 'payment' ? 'Payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt, true)}` : 'No expenses yet'].filter(Boolean).join(' · ');
       const amt = row.querySelector('.g-amt');
       amt.textContent = net ? b.amount : '';
       amt.classList.add(b.cls || 'muted');
@@ -1444,6 +1402,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   // The template a repeating copy came from, and how often it repeats.
   const repeatOf = (g, e) => e.repeat || ((e.of && (g.entries.find(x => x.id === e.of) || {}).repeat) || '');
 
+  const SHOWN_LABELS = new Set(['not involved', 'just you', 'even']);
   // An entry as seen by you: the two sides, the arrow's direction and tone,
   // and your bottom line. Used by the row and the detail sheet.
   function view(g, e) {
@@ -1506,11 +1465,13 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     // The original amount: in its own currency when that isn't the group's.
     const every = repeatOf(g, e);
     row.querySelector('.tail').textContent = '· ' + moneyMajor(e.amount, e.currency) + (every ? ` · ${every}` : '');
-    row.querySelector('.row-amt small').textContent = v.label;
+    // "you owe", "you lent", "paid you" only repeat the colour and the arrow, so
+    // they're left to the row's label; a grey amount still says why it's grey.
+    row.querySelector('.row-amt small').textContent = SHOWN_LABELS.has(v.label) ? v.label : '';
     const amt = row.querySelector('.row-amt span');
     amt.textContent = v.amount;
     amt.className = v.amtTone;
-    row.setAttribute('aria-label', `${title}. ${v.sentence}`);
+    row.setAttribute('aria-label', `${title}. ${v.sentence}${every ? `. Repeats ${every}` : ''}`);
     row.setAttribute('aria-expanded', String(e.id === expanded));
     return row;
   }
@@ -1549,9 +1510,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const box = document.createElement('div');
     box.className = 'det';
     const line = (text, cls) => { const p = document.createElement('p'); p.textContent = text; if (cls) p.className = cls; box.append(p); return p; };
+    // The date is the day heading above and the repeat is on the row itself,
+    // so only a screen reader hears them again here.
+    const unseen = (p, text) => { const s = document.createElement('span'); s.className = 'sr-only'; s.textContent = text; p.append(s); };
     const when = new Date(e.date + 'T00:00:00').toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
     if (e.kind === 'payment') {
-      line(`${v.sentence} · ${when}`);
+      unseen(line(v.sentence), ` · ${when}`);
     } else {
       const parts = e.split.parts;
       const ids = Object.keys(parts);
@@ -1563,7 +1527,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
         : ids.length === 2 && !how ? `Split between ${lower(ids[0])} and ${lower(ids[1])}`
         : `Split ${ids.length} ways${how}`;
       const every = repeatOf(g, e);
-      line(`${split} · ${when}${e.repeat ? ` · repeats ${every}` : e.of && every ? ` · from a ${every} repeat` : ''}`);
+      unseen(line(split), ` · ${when}${e.repeat ? ` · repeats ${every}` : e.of && every ? ` · from a ${every} repeat` : ''}`);
       const list = document.createElement('div');
       list.className = 'rows';
       // Everyone in it, and the payer even if they're not.
@@ -1714,14 +1678,18 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (res) res(code);
   });
 
-  function chip(label, pressed, data) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'chip';
-    b.textContent = label;
-    b.setAttribute('aria-pressed', String(!!pressed));
-    Object.assign(b.dataset, data || {});
-    return b;
+  // A <select> laid over a row: its options (rebuilt only when they change, so
+  // one that's open isn't pulled from under you), its value, and the row's text.
+  function fillSelect(sel, shown, opts, value) {
+    const key = JSON.stringify(opts);
+    if (sel.dataset.key !== key) {
+      sel.replaceChildren(...opts.map(([v, t, off]) => { const o = new Option(t, v); o.disabled = !!off; return o; }));
+      sel.dataset.key = key;
+    }
+    sel.value = value;
+    const o = sel.selectedOptions[0];
+    shown.textContent = o ? o.text : '';
+    shown.classList.toggle('unset', !value);
   }
 
   // ---- new group ----
@@ -1746,8 +1714,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   function renderNewOthers() {
     $('newOthers').replaceChildren(...newOthers.map((n, i) => {
       const row = document.createElement('div');
-      row.className = 'pick-row';
-      row.innerHTML = '<span></span><button class="act" type="button">Remove</button>';
+      row.className = 'cell';
+      row.innerHTML = '<span class="row-k"></span><button class="link act" type="button">Remove</button>';
       row.firstChild.textContent = n;
       row.lastChild.dataset.i = i;
       row.lastChild.setAttribute('aria-label', `Remove ${n}`);
@@ -1797,11 +1765,16 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   function openJoin(prefill) {
     $('joinLink').value = prefill || '';
     $('joinHint').textContent = '';
-    $('joinLinkField').hidden = false;
-    $('whoField').hidden = true;
+    showJoinStep(false);
     $('joinTitle').textContent = 'Join a group';
     openDlg($('joinDlg'));
     if (!prefill) offerFocus($('joinLink'));
+  }
+  // The link field, or (once the group is found) which one is you.
+  function showJoinStep(who) {
+    $('joinLinkField').hidden = who;
+    $('whoField').hidden = $('whoLabel').hidden = !who;
+    if (who) $('joinHint').textContent = '';
   }
   const idFromLink = s => { const m = String(s).match(/([A-Za-z0-9_-]{22})\s*$/); return m && L.isId(m[1]) ? m[1] : null; };
   async function joinById(id) {
@@ -1813,12 +1786,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       const state = await fetchGroup(id);
       joining = { id, state };
       $('joinTitle').textContent = state.group.name;
-      $('joinLinkField').hidden = true;
-      $('whoField').hidden = false;
+      showJoinStep(true);
+      $('whoNew').value = '';
       $('whoChips').replaceChildren(...state.members.filter(m => !m.removed).map(m => {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = 'pick-row';
+        b.className = 'cell';
         b.textContent = m.name;
         b.dataset.member = m.id;
         return b;
@@ -1827,7 +1800,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     } catch (e) {
       $('joinHint').textContent = e.status === 404 ? 'No group at that link.' : 'Couldn’t reach Tally. Check your connection.';
       $('joinHint').className = 'hint bad';
-      if (!$('joinDlg').open) { $('joinLinkField').hidden = false; $('whoField').hidden = true; openDlg($('joinDlg')); }
+      if (!$('joinDlg').open) { showJoinStep(false); openDlg($('joinDlg')); }
     } finally {
       $('joinGo').disabled = false;
     }
@@ -1902,8 +1875,6 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     $('expDate').value = e ? e.date : today();
     showDate();
     $('expNote').value = (e && e.note) || '';
-    $('expNoteField').hidden = !(e && e.note);
-    $('expNoteBtn').hidden = !!(e && e.note);
     $('expDelete').hidden = !e;
     $('expRepeatField').hidden = !!(e && e.of);
     $('expBy').textContent = byLine(g, e);
@@ -1914,8 +1885,6 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       $('expDate').value = today();
       showDate();
       $('expNote').value = '';
-      $('expNoteField').hidden = true;
-      $('expNoteBtn').hidden = false;
       $('expDelete').hidden = true;
       $('expRepeatField').hidden = false;
       $('expBy').hidden = true;
@@ -1985,7 +1954,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const amount = parse($('expAmount').value, draft.currency);
     // Conversion line for foreign currencies.
     const rate = currentRate(g);
-    $('expConv').hidden = $('expCredit').hidden = draft.currency === code;
+    $('expConvRow').hidden = draft.currency === code;
     if (draft.currency !== code) {
       // A saved expense keeps the rate it was added at, so only a new one is today's.
       const saved = draft.editing && draft.rate && draft.origCurrency === draft.currency;
@@ -1994,17 +1963,17 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
         : noRate(draft.currency, code);
     }
     // Paid by.
-    $('expPaid').replaceChildren(
-      ...splitMembers(g).filter(m => !m.removed || m.id === draft.paidBy).map(m => chip(m.id === g.me ? 'You' : m.name, !draft.several && m.id === draft.paidBy, { member: m.id })),
-      ...(live(g).length > 1 ? [chip('Several', draft.several, { several: '1' })] : []),
-    );
+    fillSelect($('expPaid'), $('expPaidText'), [
+      ...splitMembers(g).filter(m => !m.removed || m.id === draft.paidBy).map(m => [m.id, m.id === g.me ? 'You' : m.name]),
+      ...(live(g).length > 1 ? [['several', 'Several people']] : []),
+    ], draft.several ? 'several' : draft.paidBy);
     $('expPayers').hidden = !draft.several;
     if (draft.several) {
       $('expPayerRows').replaceChildren(...splitMembers(g).map(m => {
         const row = document.createElement('div');
         row.className = 'split-row';
-        row.innerHTML = '<span></span><span class="who"></span><input inputmode="decimal" autocomplete="off" enterkeyhint="done" data-done>';
-        row.querySelector('.who').textContent = m.id === g.me ? 'You' : m.name;
+        row.innerHTML = '<span class="who"><span class="nm"></span></span><input inputmode="decimal" autocomplete="off" enterkeyhint="done" data-done>';
+        row.querySelector('.nm').textContent = m.id === g.me ? 'You' : m.name;
         const input = row.querySelector('input');
         input.value = draft.paid[m.id] || '';
         input.placeholder = '0';
@@ -2014,7 +1983,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       }));
       renderPayFoot(amount);
     }
-    for (const b of $('expRepeat').children) b.setAttribute('aria-pressed', String(b.dataset.repeat === draft.repeat));
+    $('expRepeat').value = draft.repeat;
+    $('expRepeatText').textContent = $('expRepeat').selectedOptions[0].text;
     // Mode.
     for (const b of $('expMode').children) b.setAttribute('aria-pressed', String(b.dataset.mode === draft.mode));
     // Split rows.
@@ -2027,17 +1997,19 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       const name = m.id === g.me ? 'You' : m.name;
       if (draft.mode === 'equal') {
         const on = draft.included.has(m.id);
-        row.innerHTML = '<button class="tick" type="button" role="checkbox"></button><span class="who"></span><span class="val"></span>';
+        row.className = 'split-row tick-row';
+        row.innerHTML = '<button class="tick" type="button" role="checkbox"></button><span class="who"><span class="nm"></span></span><span class="val"></span>';
         const t = row.firstChild;
         t.setAttribute('aria-checked', String(on));
         t.setAttribute('aria-label', name);
         t.dataset.toggle = m.id;
-        row.querySelector('.who').textContent = name;
+        row.querySelector('.nm').textContent = name;
         row.querySelector('.val').textContent = on && owed[m.id] ? money(owed[m.id], code) : '';
         row.dataset.toggle = m.id;
       } else {
-        row.innerHTML = '<span></span><span class="who"><span></span><span class="part"></span></span><input inputmode="decimal" autocomplete="off" enterkeyhint="done" data-done>';
-        row.querySelector('.who').firstChild.textContent = name;
+        // What it comes to goes under the name, so a long name doesn't cut it off.
+        row.innerHTML = '<span class="who"><span class="nm"></span><span class="part"></span></span><input inputmode="decimal" autocomplete="off" enterkeyhint="done" data-done>';
+        row.querySelector('.nm').textContent = name;
         row.querySelector('.part').dataset.part = m.id;
         const input = row.querySelector('input');
         input.value = draft.values[m.id] || '';
@@ -2052,7 +2024,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     renderExpenseFoot(g, amount, parts, owed);
   }
   // What each person's %, shares or (foreign) amount comes to in the group's
-  // currency, next to their name; updated as they type without a re-render.
+  // currency, under their name; updated as they type without a re-render.
   function fillParts(g, amount, parts) {
     const code = g.group.currency, rate = currentRate(g);
     const show = draft.mode !== 'equal' && (draft.mode !== 'exact' || draft.currency !== code);
@@ -2097,7 +2069,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const problem = draftProblem(g, amount, parts);
     $('expSave').disabled = !!problem || bad;
     const sp = draftDefault(g, parts);
-    $('expMakeDefault').hidden = sp === undefined || bad || splitKey(sp) === splitKey(g.group.split);
+    // Offered while adding only: editing one expense isn't the moment to change the next ones.
+    $('expMakeDefault').hidden = draft.editing || sp === undefined || bad || splitKey(sp) === splitKey(g.group.split);
     // Once there's an amount, say what's stopping Save.
     const payIssue = draft.several && /paid/.test(problem); // shown under Paid by instead
     if (problem && amount > 0 && !bad && !payIssue) { $('expFootRight').textContent = problem; $('expFootRight').className = 'neg'; }
@@ -2110,15 +2083,9 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   }
   $('expDate').addEventListener('input', () => { showDate(); renderExpense(); });
   $('expDate').addEventListener('change', showDate);
-  $('expNoteBtn').addEventListener('click', () => {
-    $('expNoteBtn').hidden = true;
-    $('expNoteField').hidden = false;
-    $('expNote').focus();
-  });
-  $('expPaid').addEventListener('click', e => {
-    const c = e.target.closest('.chip');
-    if (!c) return;
-    if (c.dataset.several) {
+  $('expPaid').addEventListener('change', e => {
+    const v = e.target.value;
+    if (v === 'several') {
       if (!draft.several) {
         // Start with whoever was the payer covering it all.
         draft.several = true;
@@ -2127,7 +2094,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
       }
     } else {
       draft.several = false;
-      draft.paidBy = c.dataset.member;
+      draft.paidBy = v;
     }
     haptic('tick');
     renderExpense();
@@ -2149,10 +2116,8 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const parts = draftParts(g, amount);
     renderExpenseFoot(g, amount, parts, {});
   });
-  $('expRepeat').addEventListener('click', e => {
-    const b = e.target.closest('button[data-repeat]');
-    if (!b) return;
-    draft.repeat = b.dataset.repeat;
+  $('expRepeat').addEventListener('change', e => {
+    draft.repeat = e.target.value;
     haptic('tick');
     renderExpense();
   });
@@ -2307,9 +2272,10 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const all = L.settle(netOf(g));
     const mine = person ? all.filter(p => p.from === person || p.to === person) : [];
     const plan = mine.length ? mine : all;
-    $('paySuggest').hidden = !!entry || !plan.length;
+    $('paySuggest').hidden = $('paySuggestLabel').hidden = !!entry || !plan.length;
     $('payTitle').textContent = entry ? 'Payment' : mine.length ? `Settle with ${memberName(g, person)}` : 'Settle up';
-    $('payFormLabel').textContent = entry ? 'Edit payment' : (plan.length ? 'Other payment' : 'Record a payment');
+    // The form only needs a heading to tell it from the suggestions above it.
+    $('payFormLabel').hidden = $('paySuggest').hidden;
     $('payList').replaceChildren(...plan.map(p => {
       const row = document.createElement('div');
       row.className = 'pay-row';
@@ -2333,7 +2299,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     }));
     pay = entry ? { id: entry.id, from: entry.from, to: entry.to, date: entry.date, editing: true } : { id: L.newId(), from: g.me, to: null, editing: false };
     $('payAmount').value = entry ? plainNum(L.fromMinor(L.entryTotal(entry, code), code), code) : '';
-    $('payAmount').placeholder = `Amount in ${code}`;
+    $('payCode').textContent = code;
     $('payDelete').hidden = !entry;
     $('payGo').textContent = entry ? 'Save' : 'Record';
     $('payBy').textContent = byLine(g, entry);
@@ -2344,15 +2310,17 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   function renderPay() {
     const g = groups.get(current);
     const people = g.members.filter(m => !m.removed || m.id === pay.from || m.id === pay.to);
-    $('payFrom').replaceChildren(...people.map(m => chip(m.id === g.me ? 'You' : m.name, m.id === pay.from, { member: m.id })));
-    $('payTo').replaceChildren(...people.filter(m => m.id !== pay.from).map(m => chip(m.id === g.me ? 'You' : m.name, m.id === pay.to, { member: m.id })));
+    const opt = m => [m.id, m.id === g.me ? 'You' : m.name];
+    fillSelect($('payFrom'), $('payFromText'), people.map(opt), pay.from);
+    fillSelect($('payTo'), $('payToText'), [...(pay.to ? [] : [['', 'Choose', true]]), ...people.filter(m => m.id !== pay.from).map(opt)], pay.to || '');
     const amount = parse($('payAmount').value, groups.get(current).group.currency);
     $('payGo').disabled = !(pay.from && pay.to && pay.from !== pay.to && amount > 0 && amount < 1e10 && L.toMinor(amount, g.group.currency) >= 1);
-    $('payHint').textContent = '';
   }
-  $('payFrom').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; pay.from = c.dataset.member; if (pay.to === pay.from) pay.to = null; renderPay(); });
-  $('payTo').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; pay.to = c.dataset.member; renderPay(); });
+  $('payFrom').addEventListener('change', e => { pay.from = e.target.value; if (pay.to === pay.from) pay.to = null; haptic('tick'); renderPay(); });
+  $('payTo').addEventListener('change', e => { pay.to = e.target.value || null; haptic('tick'); renderPay(); });
   $('payAmount').addEventListener('input', renderPay);
+  // With a keyboard, Enter records; on a phone, Done only puts the keyboard away.
+  $('payAmount').addEventListener('keydown', e => { if (e.key === 'Enter' && fineMouse.matches && !$('payGo').disabled) $('payGo').click(); });
   function recordPayment(from, to, minor) {
     const g = groups.get(current);
     const code = g.group.currency;
@@ -2393,16 +2361,14 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   let setOpened = null; // the name and currency as the sheet opened
   function openSettings() {
     const g = groups.get(current);
-    renaming = null;
     setOpened = { name: g.group.name, currency: g.group.currency };
     $('setName').value = g.group.name;
     $('setCur').textContent = g.group.currency;
-    const hasEntries = g.entries.length > 0;
-    $('setCur').disabled = hasEntries;
-    $('setCurHint').textContent = hasEntries ? 'Fixed once there are expenses, so past amounts stay right.' : '';
+    // Fixed once there are expenses, so past amounts stay right.
+    $('setCur').disabled = g.entries.length > 0;
     renderSplitDefault(g);
     renderMembers();
-    $('setDeleteBlk').hidden = !!g.gone || !!g.deleting;
+    $('setDelete').hidden = !!g.gone || !!g.deleting;
     openDlg($('setDlg'));
   }
   function renderSplitDefault(g) {
@@ -2421,56 +2387,47 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     renderSplitDefault(g);
     toast('New expenses split equally again');
   });
-  let renaming = null;
+  // Each name is its field: changed in place, kept when you leave it or press Enter.
   function renderMembers() {
     const g = groups.get(current);
     $('setMembers').replaceChildren(...live(g).map(m => {
       const row = document.createElement('div');
-      row.className = 'row member-row';
-      if (m.id === renaming) {
-        // Renaming happens in place: the name becomes a field.
-        row.innerHTML = '<input class="input" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="link" type="button">Save</button>';
-        row.firstChild.value = m.name;
-        row.firstChild.setAttribute('aria-label', `New name for ${m.name}`);
-        row.firstChild.dataset.renameInput = m.id;
-        row.lastChild.dataset.renameSave = m.id;
-        return row;
-      }
-      row.innerHTML = '<span class="row-title"></span><span class="acts"><button class="link" type="button">Rename</button></span>';
-      row.firstChild.textContent = m.id === g.me ? `${m.name} (you)` : m.name;
-      row.querySelector('[type=button]').dataset.rename = m.id;
-      row.querySelector('[type=button]').setAttribute('aria-label', `Rename ${m.name}`);
-      if (m.id !== g.me) {
-        row.lastChild.insertAdjacentHTML('beforeend', '<button class="link" type="button">Remove</button>');
-        row.lastChild.lastChild.dataset.remove = m.id;
-        row.lastChild.lastChild.setAttribute('aria-label', `Remove ${m.name}`);
+      row.className = 'cell';
+      row.innerHTML = '<input class="row-in" maxlength="40" autocomplete="off" enterkeyhint="done" data-done>';
+      const input = row.firstChild;
+      input.value = input.dataset.was = m.name;
+      input.dataset.name = m.id;
+      input.setAttribute('aria-label', m.id === g.me ? 'Your name' : `${m.name}’s name`);
+      if (m.id === g.me) row.insertAdjacentHTML('beforeend', '<span class="act">You</span>');
+      else {
+        row.insertAdjacentHTML('beforeend', '<button class="link act" type="button">Remove</button>');
+        row.lastChild.dataset.remove = m.id;
+        row.lastChild.setAttribute('aria-label', `Remove ${m.name}`);
       }
       return row;
     }));
   }
-  function saveRename() {
+  // Saves any name typed over; an emptied one goes back to what it was. Only
+  // what was typed here counts, so a rename from someone else isn't undone.
+  function saveNames() {
     const g = groups.get(current);
-    const input = $('setMembers').querySelector('[data-rename-input]');
-    const m = input && g.members.find(x => x.id === input.dataset.renameInput);
-    renaming = null;
-    const name = input ? input.value.trim() : '';
-    if (m && name && name !== m.name) change(g, [{ type: 'member', id: m.id, name }]);
-    renderMembers();
+    if (!g) return;
+    const ops = [];
+    for (const input of $('setMembers').querySelectorAll('[data-name]')) {
+      const m = g.members.find(x => x.id === input.dataset.name);
+      if (!m) continue;
+      const name = input.value.trim();
+      if (name && name !== input.dataset.was) { ops.push({ type: 'member', id: m.id, name }); input.dataset.was = name; }
+      else if (document.activeElement !== input) input.value = input.dataset.was;
+    }
+    if (ops.length) change(g, ops);
   }
-  $('setMembers').addEventListener('keydown', e => {
-    if (e.target.dataset.renameInput && e.key === 'Enter') { e.preventDefault(); saveRename(); }
-  });
+  $('setMembers').addEventListener('focusout', saveNames);
   $('setMembers').addEventListener('click', e => {
     const g = groups.get(current);
-    const r = e.target.closest('[data-rename]'), d = e.target.closest('[data-remove]');
-    if (e.target.closest('[data-rename-save]')) return saveRename();
-    if (r) {
-      renaming = r.dataset.rename;
-      renderMembers();
-      const input = $('setMembers').querySelector('[data-rename-input]');
-      input.focus();
-      input.select();
-    } else if (d) {
+    const d = e.target.closest('[data-remove]');
+    if (d) {
+      saveNames(); // before the rows are drawn again
       const m = g.members.find(x => x.id === d.dataset.remove);
       if (netOf(g)[m.id]) return toast(`${m.name} still has a balance. Settle up first`);
       const repeating = entriesOf(g).find(e => e.repeat && (e.paidBy === m.id || (e.paid && e.paid[m.id]) || (e.split && e.split.parts[m.id])));
@@ -2487,6 +2444,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     const g = groups.get(current);
     const name = $('setNew').value.trim();
     if (!name) return $('setNew').focus();
+    saveNames();
     change(g, [{ type: 'member', id: L.newId(), name }]);
     $('setNew').value = '';
     renderMembers();
@@ -2496,7 +2454,7 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
   $('setCur').addEventListener('click', async () => { const c = await pickCurrency($('setCur').textContent); if (c) $('setCur').textContent = c; });
   // Name and currency are kept however the sheet closes (Done, ×, Back).
   $('setDlg').addEventListener('close', () => {
-    if (renaming) saveRename();
+    saveNames();
     const g = groups.get(current);
     if (!g) return;
     const typed = $('setName').value.trim(), picked = $('setCur').textContent;
@@ -2505,7 +2463,6 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     if (name !== g.group.name || currency !== g.group.currency) change(g, [{ type: 'group', name, currency }]);
   });
   $('setSave').addEventListener('click', () => $('setDlg').close());
-  $('setShare').addEventListener('click', () => share());
   // Expenses and payments as CSV: one column per person with their share,
   // in the group's currency (a payment counts as the payer covering the
   // receiver, which is how balances treat it).
@@ -2718,20 +2675,12 @@ button.pick-row:active { background: color-mix(in srgb, var(--ink) 5%, transpare
     addEventListener('pointerup', done, true);
     addEventListener('pointercancel', done, true);
   });
-  // A person's balance: settle with them, the suggested payment filled in.
+  // A person's balance: settle with them. Their suggested payments are listed
+  // with Mark paid, so the form under them stays empty for anything else.
   $('people').addEventListener('click', e => {
     const row = e.target.closest('[data-person]');
-    const g = groups.get(current);
-    if (!row || !g) return;
-    const id = row.dataset.person;
-    const plan = L.settle(netOf(g));
-    const p = plan.find(x => (x.from === id && x.to === g.me) || (x.from === g.me && x.to === id)) || plan.find(x => x.from === id || x.to === id);
-    openSettle(null, id);
-    if (p) {
-      Object.assign(pay, { from: p.from, to: p.to });
-      $('payAmount').value = plainNum(L.fromMinor(p.amount, g.group.currency), g.group.currency);
-      renderPay();
-    }
+    if (!row || !groups.get(current)) return;
+    openSettle(null, row.dataset.person);
   });
   $('settingsBtn').addEventListener('click', openSettings);
   $('shareBtn').addEventListener('click', share);

@@ -410,3 +410,15 @@ test('editing a payment keeps its date; only a new one is dated today', () => {
   assert.match(page, /pay = entry \? \{ id: entry\.id, from: entry\.from, to: entry\.to, date: entry\.date, editing: true \}/);
   assert.match(page, /const date = \(pay\.editing && pay\.date\) \|\| today\(\);\s+const data = \{ kind: 'payment', [^}]*\bdate, /);
 });
+
+test('sheet pickers are the real controls laid over their rows, and no sheet raises the keyboard', () => {
+  const page = read('index.html').toString();
+  const overs = [...page.matchAll(/<select class="over" id="(\w+)"/g)].map(m => m[1]);
+  assert.deepEqual(overs.sort(), ['expPaid', 'expRepeat', 'payFrom', 'payTo']);
+  // Each one sits inside its row's <label>, so a tap anywhere on the row opens it.
+  for (const name of overs) assert.match(page, new RegExp(`<label class="cell"[^>]*>(?:(?!</label>)[^])*id="${name}"`), name);
+  assert.match(page, /<label class="cell"><span class="row-k">Date<\/span>[^\n]*class="date-native" type="date"/);
+  // Opening a sheet on a touch screen holds focus on the sheet itself.
+  assert.doesNotMatch(page, /\sautofocus/);
+  assert.match(page, /d\.showModal\(\);\s+[^\n]*\n[^\n]*\n\s+if \(!fineMouse\.matches\) d\.focus\(\);/);
+});
