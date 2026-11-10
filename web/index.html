@@ -523,7 +523,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 }
 /* iPhones zoom the page into any field under 16px; only iOS matches this. */
 @supports (-webkit-touch-callout: none) {
-  input, select, textarea { font-size: 16px; }
+  input, select, textarea, .note-input { font-size: 16px; }
 }
 </style>
 </head>
@@ -802,7 +802,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 
 <div class="toast" id="toast" role="status" popover="manual"><span id="toastText"></span><button type="button" id="toastUndo" hidden>Undo</button></div>
 
-<script src="lib.js?v=3"></script>
+<script src="lib.js?v=4"></script>
 <script src="pwa.js?v=2"></script>
 <script>
 (() => {
@@ -810,7 +810,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   const L = TallyLib;
   // Just after a release a cache can hand over an old lib.js with this page:
   // reload once to get the matching one rather than run the two together.
-  const LIB_VERSION = 3; // the ?v= on lib.js above
+  const LIB_VERSION = 4; // the ?v= on lib.js above
   if (L.VERSION !== LIB_VERSION) {
     let tried = true;
     try { tried = sessionStorage.getItem('tally.libReload') === String(LIB_VERSION); sessionStorage.setItem('tally.libReload', LIB_VERSION); } catch {}
@@ -870,6 +870,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   }
   const moneyMajor = (amount, code) => money(L.toMinor(amount, code), code);
   const plainNum = (n, code) => nf({ minimumFractionDigits: 0, maximumFractionDigits: L.fractionDigits(code) }).format(n);
+  // The same for a field, with no thousands marks: "1,50,000" (India) wouldn't read back as a number.
+  const fieldNum = (n, code) => nf({ useGrouping: false, minimumFractionDigits: 0, maximumFractionDigits: L.fractionDigits(code) }).format(n);
   // This locale's thousands mark ("," "." "’" or a space).
   const groupMark = (nf({}).formatToParts(10000).find(p => p.type === 'group') || {}).value || ',';
   // "just now", "3 hours ago", "yesterday", "2 Nov".
@@ -943,17 +945,25 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   // Each group is kept whole on the device (so it opens instantly and works
   // offline) with `pending`: changes not yet accepted by the server, and
   // `me`: which member this device is. The queue has its own small key, so
-  // a change doesn't rewrite the whole group; it's replayed on load.
+  // a change doesn't rewrite the whole group; it's replayed on load. Other
+  // tabs save their queues under the same key, so saving adds to what's there
+  // (`owned`: every change this tab has had in its queue; see L.mergeQueue).
+  const owned = new Set();
   let groupIds = (store.get('groups') || []).filter(L.isId);
   const groups = new Map();
   for (const id of groupIds) {
     const g = store.get('g.' + id);
     if (!g || !g.group) continue;
     g.pending = store.get('p.' + id) || g.pending || [];
+    for (const op of g.pending) owned.add(L.opKey(op));
     groups.set(id, g);
   }
   groupIds = groupIds.filter(id => groups.has(id));
-  const savePending = g => { if (g.pending.length) store.set('p.' + g.group.id, g.pending); else store.del('p.' + g.group.id); tellAppUnsent(); };
+  const savePending = g => {
+    const all = L.mergeQueue(store.get('p.' + g.group.id), g.pending, owned);
+    if (all.length) store.set('p.' + g.group.id, all); else store.del('p.' + g.group.id);
+    tellAppUnsent();
+  };
   const saveGroup = g => { const { pending, rev, ...rest } = g; store.set('g.' + g.group.id, rest); savePending(g); };
   const saveIds = () => store.set('groups', groupIds);
 
@@ -993,7 +1003,14 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   }
   function change(g, ops) {
     if (g.deleted) return;
-    for (const op of ops) applyOp(g, op);
+    // Each gets a key of its own (see L.mergeQueue). A change to an entry
+    // that's already there also says which version of the group it was made
+    // on, so the server can tell if someone else got there first.
+    ops = ops.map(op => {
+      const based = op.type === 'entry' && Number.isInteger(g.group.version) && g.entries.some(e => e.id === op.id);
+      return based ? { ...op, k: L.newId(), base: g.group.version } : { ...op, k: L.newId() };
+    });
+    for (const op of ops) { owned.add(op.k); applyOp(g, op); }
     g.pending = [...(g.pending || []), ...ops];
     savePending(g);
     render();
@@ -1042,7 +1059,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       // With a version from the server, only newer entries come back.
       const since = g.etag && Number.isInteger(g.group.version) ? g.group.version : null;
       if (sending.length) {
-        res = await fetch(`${API}/api/g/${id}/ops`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(since === null ? { ops: sending } : { ops: sending, since }), signal: within(20_000) });
+        const ops = sending.map(({ k, ...op }) => op);
+        res = await fetch(`${API}/api/g/${id}/ops`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(since === null ? { ops } : { ops, since }), signal: within(20_000) });
       } else {
         res = await fetch(`${API}/api/g/${id}${since === null ? '' : '?since=' + since}`, { headers: g.etag ? { 'If-None-Match': g.etag } : {}, cache: 'no-store', signal: within(20_000) });
       }
@@ -1074,7 +1092,10 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       const state = await res.json();
       // The server's copy, with anything queued since this request replayed
       // on top. A delta carries only the entries that changed.
-      const rest = g.pending.slice(sending.length);
+      // Entries the server left alone, because someone else changed them
+      // after the copy our change was made on: theirs stands, ours is dropped.
+      const refused = Array.isArray(state.refused) ? state.refused : [];
+      const rest = L.requeue(g.pending.slice(sending.length), sending, refused, state.group.version);
       let entries = state.entries;
       if (state.delta) {
         const byId = new Map(g.entries.map(e => [e.id, e]));
@@ -1083,6 +1104,12 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       }
       Object.assign(g, { group: state.group, members: state.members, entries, etag: res.headers.get('ETag'), pending: rest, gone: false, deleting: state.deleting || null, rev: (g.rev || 0) + 1 });
       for (const op of rest) applyOp(g, op);
+      if (refused.length) {
+        // Reload the server's copy, so the screen shows what was kept.
+        g.etag = null;
+        if (!g.pending.length) setTimeout(() => sync(id), 0);
+        toast('One change couldn’t be saved and was undone');
+      }
       saveGroup(g);
       render();
       wake();
@@ -1927,11 +1954,11 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       }
     }
     const exactNum = v => nf({ maximumFractionDigits: 4, useGrouping: false }).format(v);
-    if (split && split.mode !== 'equal') for (const [k, v] of Object.entries(split.parts)) draft.values[k] = split.mode === 'exact' ? plainNum(v, e.currency) : exactNum(v);
-    if (e && e.paid) for (const [k, v] of Object.entries(e.paid)) draft.paid[k] = plainNum(v, e.currency);
+    if (split && split.mode !== 'equal') for (const [k, v] of Object.entries(split.parts)) draft.values[k] = split.mode === 'exact' ? fieldNum(v, e.currency) : exactNum(v);
+    if (e && e.paid) for (const [k, v] of Object.entries(e.paid)) draft.paid[k] = fieldNum(v, e.currency);
     $('expTitle').textContent = e ? 'Edit expense' : 'Add expense';
     $('expWhat').value = e ? e.title : '';
-    $('expAmount').value = e ? plainNum(e.amount, e.currency) : '';
+    $('expAmount').value = e ? fieldNum(e.amount, e.currency) : '';
     $('expDate').value = e ? e.date : today();
     showDate();
     $('expNote').value = (e && e.note) || '';
@@ -2176,7 +2203,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
         // Start with whoever was the payer covering it all.
         draft.several = true;
         const amount = parse($('expAmount').value, draft.currency);
-        draft.paid = amount > 0 ? { [draft.paidBy]: plainNum(amount, draft.currency) } : {};
+        draft.paid = amount > 0 ? { [draft.paidBy]: fieldNum(amount, draft.currency) } : {};
       }
     } else {
       draft.several = false;
@@ -2236,8 +2263,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       const evenPct = evenly(10000), evenAmt = amount > 0 ? evenly(L.toMinor(amount, draft.currency)) : {};
       for (const m of inc) {
         if (draft.mode === 'shares') draft.values[m.id] = '1';
-        else if (draft.mode === 'percent') draft.values[m.id] = plainNum(evenPct[m.id] / 100, 'USD');
-        else if (amount > 0) draft.values[m.id] = plainNum(L.fromMinor(evenAmt[m.id], draft.currency), draft.currency);
+        else if (draft.mode === 'percent') draft.values[m.id] = fieldNum(evenPct[m.id] / 100, 'USD');
+        else if (amount > 0) draft.values[m.id] = fieldNum(L.fromMinor(evenAmt[m.id], draft.currency), draft.currency);
       }
     }
     haptic('tick');
@@ -2371,7 +2398,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       $('payList').replaceChildren();
       $('payTitle').textContent = 'Payment';
     } else renderSuggest(g, true);
-    $('payAmount').value = entry ? plainNum(L.fromMinor(L.entryTotal(entry, code), code), code) : '';
+    $('payAmount').value = entry ? fieldNum(L.fromMinor(L.entryTotal(entry, code), code), code) : '';
     $('payCode').textContent = code;
     $('payDelete').hidden = !entry;
     $('payGo').textContent = entry ? 'Save' : 'Record';

@@ -214,3 +214,44 @@ test('a half-typed new expense is kept for the rest of its day, without people w
   assert.deepEqual(left.included, ids);
   assert.equal(left.mode, 'equal');
 });
+
+test('saving the queue keeps another tab\'s unsent changes, and drops only what this tab has finished with', () => {
+  const op = k => ({ type: 'entry', id: k.repeat(22), k });
+  const [a, b, c] = ['a', 'b', 'c'].map(op);
+  const keys = (...ops) => new Set(ops.map(L.opKey));
+  // Another tab queued a; this one adds b: both are kept, in the order they were saved.
+  assert.deepEqual(L.mergeQueue([a], [b], keys(b)), [a, b]);
+  // This tab's b was accepted: it goes, a stays for its own tab (or the next launch).
+  assert.deepEqual(L.mergeQueue([a, b], [], keys(b)), [a]);
+  // The other tab then sends a and saves: nothing of ours comes back.
+  assert.deepEqual(L.mergeQueue([a], [], keys(a)), []);
+  // A tab that loaded a at launch and sent it doesn't put it back when it adds c.
+  assert.deepEqual(L.mergeQueue([b], [c], keys(a, c)), [b, c]);
+  // One tab alone: what's saved is its queue, as before.
+  assert.deepEqual(L.mergeQueue([a, b], [b, c], keys(a, b, c)), [b, c]);
+  assert.deepEqual(L.mergeQueue(null, [a], keys(a)), [a]);
+  assert.deepEqual(L.mergeQueue('junk', [], keys()), []);
+  // A queued change that was given a new base is saved as it is now, in its place.
+  const b2 = { ...b, base: 7 };
+  assert.deepEqual(L.mergeQueue([a, b], [b2], keys(b)), [a, b2]);
+  // Changes queued before they had keys go by their contents.
+  const old = { type: 'member', id: 'm'.repeat(22), name: 'Me' };
+  assert.deepEqual(L.mergeQueue([old, a], [{ ...old }], keys(old)), [old, a]);
+  assert.deepEqual(L.mergeQueue([old, a], [], keys(old)), [a]);
+});
+
+test('after a batch, queued changes to the entries it wrote move to the new version; refused ones go', () => {
+  const X = 'x'.repeat(22), Y = 'y'.repeat(22), Z = 'z'.repeat(22);
+  const op = (id, base, k) => ({ type: 'entry', id, k, ...(base === undefined ? {} : { base }) });
+  const member = { type: 'member', id: Z, name: 'Zed', k: 'm' };
+  const sent = [op(X, 3, '1'), op(Y, 3, '2')];
+  const rest = [op(X, 3, '3'), op(Y, 3, '4'), op(Z, 3, '5'), op(Z, undefined, '6'), member];
+  // Both written: later changes to them are based on the new version; others keep theirs.
+  assert.deepEqual(L.requeue(rest, sent, [], 9), [op(X, 9, '3'), op(Y, 9, '4'), op(Z, 3, '5'), op(Z, undefined, '6'), member]);
+  // Y was refused: what's queued on top of it goes with it, and X still moves on.
+  assert.deepEqual(L.requeue(rest, sent, [Y], 9), [op(X, 9, '3'), op(Z, 3, '5'), op(Z, undefined, '6'), member]);
+  // A server that says nothing of versions leaves the queue as it is.
+  assert.deepEqual(L.requeue(rest, sent, [], undefined), rest);
+  // A change with no base stays without one.
+  assert.deepEqual(L.requeue([op(X, undefined, '7')], sent, [], 9), [op(X, undefined, '7')]);
+});

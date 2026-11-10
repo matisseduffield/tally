@@ -435,3 +435,121 @@ test('live groups work as before', async t => {
   const removed = await post([{ ...expense(E2), deleted: true }]);
   assert.equal(removed.body.entries.find(e => e.id === E2).deleted, true);
 });
+
+// ---- changes made on an old copy
+
+const edit = (title, base, more = {}) => ({ ...expense(), data: { ...expense().data, title }, ...(base === undefined ? {} : { base }), ...more });
+const titleOf = (row, id = E1) => JSON.parse(row('SELECT data FROM entries WHERE id = ?', id).data).title;
+
+test('an app that names no base writes over a newer change, as it always did', async t => {
+  const { post, row } = await setup(t);
+  const theirs = await post([edit('Theirs')]);
+  const mine = await post([edit('Mine')], 2);
+  assert.equal(mine.status, 200);
+  assert.equal('refused' in mine.body, false);
+  assert.equal(titleOf(row), 'Mine');
+  assert.equal(mine.body.group.version, theirs.body.group.version + 1);
+});
+
+test('a change made on an old copy leaves the other phone\'s newer change alone', async t => {
+  const { post, row } = await setup(t);
+  // Both phones hold version 2. One changes the amount; the other, still on 2, the title.
+  const theirs = await post([{ ...edit('Dinner', 2), data: { ...expense().data, amount: 12 } }], 2);
+  assert.equal(theirs.status, 200);
+  assert.equal('refused' in theirs.body, false);
+  const mine = await post([edit('Supper', 2)], 2);
+  assert.equal(mine.status, 200);
+  assert.deepEqual(mine.body.refused, [E1]);
+  const kept = JSON.parse(row('SELECT data FROM entries WHERE id = ?', E1).data);
+  assert.deepEqual([kept.title, kept.amount], ['Dinner', 12]);
+  assert.equal(row('SELECT v FROM entries WHERE id = ?', E1).v, 3);
+  // The rest of the batch still goes in, and a stale delete is held back the same way.
+  const mixed = await post([edit('Supper', 2, { deleted: true }), expense(E2)], 2);
+  assert.deepEqual(mixed.body.refused, [E1]);
+  assert.equal(row('SELECT deleted FROM entries WHERE id = ?', E1).deleted, 0);
+  assert.equal(row('SELECT COUNT(*) AS n FROM entries').n, 2);
+  // Once it has their change, it can make its own.
+  const again = await post([edit('Supper', mixed.body.group.version)], mixed.body.group.version);
+  assert.equal('refused' in again.body, false);
+  assert.equal(titleOf(row), 'Supper');
+});
+
+test('one phone\'s own changes in a row never refuse each other', async t => {
+  const { post, row } = await setup(t);
+  // Made offline on the same copy and sent together.
+  const both = await post([edit('One', 2), edit('Two', 2)], 2);
+  assert.equal('refused' in both.body, false);
+  assert.equal(titleOf(row), 'Two');
+  // Sent apart: the first answer gives the version the second is then based on.
+  const first = await post([edit('Three', both.body.group.version)], both.body.group.version);
+  const second = await post([edit('Four', first.body.group.version)], first.body.group.version);
+  assert.equal('refused' in second.body, false);
+  assert.equal(titleOf(row), 'Four');
+  // A new entry and a change to it, queued before the group had ever synced.
+  const fresh = await post([expense(E2), { ...edit('Late', 0), id: E2 }], second.body.group.version);
+  assert.equal('refused' in fresh.body, false);
+  assert.equal(titleOf(row, E2), 'Late');
+});
+
+test('sending a batch again after its answer was lost changes nothing and refuses nothing', async t => {
+  const { post, row } = await setup(t);
+  const batch = [edit('One', 2), edit('Two', 2)];
+  await post(batch, 2);
+  const again = await post(batch, 2);
+  assert.equal(again.status, 200);
+  assert.equal('refused' in again.body, false);
+  assert.equal(titleOf(row), 'Two');
+  // With one more change queued behind it meanwhile.
+  const more = await post([...batch, edit('Three', 2)], 2);
+  assert.equal('refused' in more.body, false);
+  assert.equal(titleOf(row), 'Three');
+  // But not once someone else has changed it since.
+  await post([edit('Theirs')]);
+  const late = await post(batch, 2);
+  assert.deepEqual(late.body.refused, [E1]);
+  assert.equal(titleOf(row), 'Theirs');
+});
+
+test('a base that isn\'t a version counts as none', async t => {
+  const { post, row } = await setup(t);
+  await post([edit('Theirs')]);
+  for (const base of [-1, 1.5, 'x', null, {}]) {
+    const res = await post([edit('Mine', base)]);
+    assert.equal(res.status, 200, String(base));
+    assert.equal('refused' in res.body, false);
+  }
+  assert.equal(titleOf(row), 'Mine');
+});
+
+// ---- limits
+
+test('an expense can be split among everyone in a full group', async t => {
+  const { post } = await setup(t);
+  const ids = Array.from({ length: 98 }, (_, i) => 'p' + String(i).padStart(21, '0'));
+  const parts = Object.fromEntries([ME, YOU, ...ids].map(id => [id, 1]));
+  const res = await post([...ids.map(id => ({ type: 'member', id, name: 'P' })), { ...expense(E2), data: { ...expense().data, split: { mode: 'equal', parts } } }]);
+  assert.equal(res.status, 200);
+  assert.equal(Object.keys(res.body.entries.find(e => e.id === E2).split.parts).length, 100);
+  assert.equal((await post([{ type: 'group', name: 'Trip', currency: 'EUR', split: { mode: 'shares', parts } }])).status, 200);
+});
+
+test('an amount too big to add up exactly in the group\'s currency is refused', async t => {
+  const { post } = await setup(t);
+  const sized = (amount, rate) => post([{ ...expense(E2), data: { ...expense().data, amount, rate } }]);
+  assert.equal((await sized(9999999999, 9999999999)).status, 400);
+  assert.equal((await sized(1e6, 1e6)).status, 400);
+  assert.equal((await sized(9999999999, 1)).status, 200);
+  assert.equal((await sized(1e6, 999999)).status, 200);
+});
+
+test('a body that says it is too big is turned away unread, and one that doesn\'t say is still measured', async t => {
+  const { call, row } = await setup(t);
+  const version = row('SELECT version FROM groups').version;
+  const said = await call('POST', `/api/g/${ID}/ops`, { body: { ops: [expense(E2)] }, headers: { 'Content-Length': String(256 * 1024 + 1) } });
+  assert.equal(said.status, 413);
+  const long = await call('POST', `/api/g/${ID}/ops`, { body: { ops: [expense(E2)], pad: 'x'.repeat(256 * 1024) } });
+  assert.equal(long.status, 413);
+  assert.equal(row('SELECT version FROM groups').version, version);
+  const fine = await call('POST', `/api/g/${ID}/ops`, { body: { ops: [expense(E2)] }, headers: { 'Content-Length': '300' } });
+  assert.equal(fine.status, 200);
+});

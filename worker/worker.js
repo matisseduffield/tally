@@ -5,7 +5,8 @@
 //   GET  /api/g/:id?since=N   the group and members, and only the entries
 //                         changed after version N ({ ..., delta: true })
 //   POST /api/g/:id/ops   apply changes { ops: [...], since? }, answer with
-//                         the group (only what changed after `since`, if given)
+//                         the group (only what changed after `since`, if given),
+//                         plus refused: the entries it left as they were
 //   DELETE /api/g/:id     start the 14-day countdown to deleting the group
 //   POST /api/g/:id/keep  undo that, any time before it runs out
 //   GET  /, /g/:id, ...   the web app, served from the public tally-releases
@@ -168,6 +169,8 @@ async function getGroup(env, id, request) {
 const notModified = etag => new Response(null, { status: 304, headers: { ETag: etag, ...CORS, ...PRIVATE } });
 
 async function applyOps(env, id, request) {
+  // Turned away before it's read, when it says how big it is.
+  if (Number(request.headers.get('Content-Length')) > MAX_BODY) return fail(413, 'Too much at once');
   const text = await request.text();
   if (text.length > MAX_BODY) return fail(413, 'Too much at once');
   let body;
@@ -191,6 +194,8 @@ async function applyOps(env, id, request) {
   if (people.size > MAX_MEMBERS) return fail(422, 'Too many people');
   if (exists && exists.n + ops.length > MAX_ENTRIES && ops.some(op => op && op.type === 'entry')) return fail(422, 'This group is full');
   const stmts = [];
+  // Entries whose ops say which version of the group they were made on.
+  const based = new Set();
   for (const op of ops) {
     if (!op || typeof op !== 'object') return fail(400, 'Bad request');
     if (op.type === 'group') {
@@ -218,13 +223,23 @@ async function applyOps(env, id, request) {
       if (!ID.test(op.id || '')) return fail(400, 'Bad entry');
       const data = cleanEntry(op.data, people);
       if (!data) return fail(400, 'Bad entry');
+      // base: the group version the phone had when it made this change (older
+      // apps don't say, and write as they always did). An entry someone
+      // else has written since is left alone, so a change made on an old copy
+      // can't undo theirs. Three writes still go through: the same data again
+      // (a retry whose answer was lost), one after another write in this same
+      // batch (a phone's own edits in a row), and one with no base.
+      const base = sinceOf(op.base);
+      if (base !== null) based.add(op.id);
       // v: the group version this write becomes part of (bumped at the end).
       stmts.push(env.DB.prepare(
         `INSERT INTO entries (id, group_id, data, deleted, created_at, updated_at, v)
            VALUES (?1, ?2, ?3, ?4, ?5, ?5, (SELECT version + 1 FROM groups WHERE id = ?2))
          ON CONFLICT(id) DO UPDATE SET data = ?3, deleted = COALESCE(?6, entries.deleted), updated_at = ?5,
-           v = (SELECT version + 1 FROM groups WHERE id = ?2) WHERE entries.group_id = ?2`,
-      ).bind(op.id, id, JSON.stringify(data), op.deleted ? 1 : 0, now, flag(op.deleted)));
+           v = (SELECT version + 1 FROM groups WHERE id = ?2)
+         WHERE entries.group_id = ?2
+           AND (?7 IS NULL OR entries.v <= ?7 OR entries.data = ?3 OR entries.v = (SELECT version + 1 FROM groups WHERE id = ?2))`,
+      ).bind(op.id, id, JSON.stringify(data), op.deleted ? 1 : 0, now, flag(op.deleted), base));
     } else {
       return fail(400, 'Bad request');
     }
@@ -235,11 +250,18 @@ async function applyOps(env, id, request) {
   for (const table of ['members', 'entries']) {
     stmts.push(env.DB.prepare(`DELETE FROM ${table} WHERE group_id = ?1 AND EXISTS (SELECT 1 FROM groups WHERE id = ?1 AND currency = '')`).bind(id));
   }
+  // Which entries this batch wrote, to tell the phone the ones it didn't.
+  if (based.size) stmts.push(env.DB.prepare('SELECT id FROM entries WHERE group_id = ?1 AND v = (SELECT version FROM groups WHERE id = ?1)').bind(id));
   // Writes and the read-back in one batch: one transaction, one round trip.
   const fresh = since !== null && exists && since <= exists.version ? since : null;
   const results = await env.DB.batch([...stmts, ...readStatements(env, id, fresh)]);
   const state = groupFrom(results.slice(-3), fresh, now);
   if (!state) return deleted(422);
+  if (based.size) {
+    const written = new Set(results[results.length - 4].results.map(e => e.id));
+    const refused = [...based].filter(entry => !written.has(entry));
+    if (refused.length) state.refused = refused;
+  }
   return json(state, 200, { ETag: `"${state.group.version}"` });
 }
 
@@ -307,6 +329,8 @@ function cleanEntry(d, people) {
   if (!d || typeof d !== 'object') return null;
   const amount = num(d.amount), rate = num(d.rate);
   if (!(amount > 0 && amount < 1e10) || !(rate > 0 && rate < 1e10)) return null;
+  // In the group's currency it must stay a sum that adds up exactly.
+  if (!(amount * rate < 1e12)) return null;
   if (!CODE.test(d.currency || '') || !DATE.test(d.date || '')) return null;
   const base = { kind: d.kind, amount, currency: d.currency, rate, date: d.date, by: people.has(d.by) ? d.by : undefined, note: cleanText(d.note, 200) || undefined };
   if (d.kind === 'payment') {
@@ -335,11 +359,11 @@ function cleanEntry(d, people) {
   return out;
 }
 
-// member id -> positive number, 1 to 50 of them.
+// member id -> positive number, one for each person at most.
 function cleanParts(p) {
   if (!p || typeof p !== 'object') return null;
   const keys = Object.keys(p);
-  if (!keys.length || keys.length > 50) return null;
+  if (!keys.length || keys.length > MAX_MEMBERS) return null;
   const out = {};
   for (const k of keys) {
     const v = num(p[k]);

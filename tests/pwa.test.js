@@ -145,7 +145,7 @@ const hang = () => new Promise(() => {});
 const PAGE = 'https://tally.teloone.au/';
 const LIB = 'https://tally.teloone.au/lib.js?v=2';
 const INDEX_URL = 'https://tally.teloone.au/index.html';
-const LIB_PINNED = '3:2628b5cd8580b719';
+const LIB_PINNED = '4:ed41996d9879055a';
 
 test('a page that opened from the kept copy gets its files from there too', async t => {
   const kept = { 'index.html': 'old page', 'lib.js?v=2': 'old lib' };
@@ -425,4 +425,42 @@ test('sheet pickers are the real controls laid over their rows, and no sheet rai
 
 test('group settings warn that the link gives full access', () => {
   assert.match(read('index.html').toString(), /Anyone with the link can see, change and delete this group\./);
+});
+
+test('amounts are put into fields without thousands marks, so every locale reads them back', () => {
+  const page = read('index.html').toString();
+  const L = require('../web/lib.js');
+  assert.match(page, /const fieldNum = \(n, code\) => nf\(\{ useGrouping: false, minimumFractionDigits: 0, maximumFractionDigits: L\.fractionDigits\(code\) \}\)\.format\(n\);/);
+  // Search still matches the grouped form; nothing else uses it.
+  const grouped = page.split('\n').filter(line => /plainNum\(/.test(line) && !/const plainNum/.test(line));
+  assert.equal(grouped.length, 2);
+  for (const line of grouped) assert.match(line, /moneyMajor\(e\.amount, e\.currency\), plainNum\(e\.amount, e\.currency\)/);
+  assert.equal(page.match(/fieldNum\(/g).length, 7);
+  for (const locale of ['en-IN', 'hi-IN-u-nu-latn', 'en-US', 'de-DE', 'fr-FR', 'de-CH']) {
+    const mark = new Intl.NumberFormat(locale).formatToParts(12345.6).find(p => p.type === 'group').value;
+    for (const n of [150000, 1234567, 2500000.5, 999.99, 12]) {
+      const text = new Intl.NumberFormat(locale, { useGrouping: false, minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n);
+      assert.equal(L.evaluate(text, mark, false), n, `${locale} ${text}`);
+    }
+  }
+  // What went wrong: India groups "1,50,000", which doesn't read back.
+  assert.ok(Number.isNaN(L.evaluate(new Intl.NumberFormat('en-IN').format(150000), ',', false)));
+});
+
+test('on an iPhone the note field is 16px like the rest, so tapping it doesn\'t zoom the page', () => {
+  const page = read('index.html').toString();
+  assert.match(page, /@supports \(-webkit-touch-callout: none\) \{\s+input, select, textarea, \.note-input \{ font-size: 16px; \}/);
+  // It has to come after the field's own, smaller size to win over it.
+  assert.ok(page.indexOf('@supports (-webkit-touch-callout: none)') > page.indexOf('.note-input { display: block;'));
+});
+
+test('the queue is saved by adding to what other tabs saved, and its keys stay on the device', () => {
+  const page = read('index.html').toString();
+  assert.match(page, /const all = L\.mergeQueue\(store\.get\('p\.' \+ g\.group\.id\), g\.pending, owned\);/);
+  assert.doesNotMatch(page, /store\.set\('p\.' \+ g\.group\.id, g\.pending\)/);
+  assert.match(page, /for \(const op of g\.pending\) owned\.add\(L\.opKey\(op\)\);/);
+  assert.match(page, /const ops = sending\.map\(\(\{ k, \.\.\.op \}\) => op\);/);
+  // An entry that's already there is sent with the version it was changed on; a new one isn't.
+  assert.match(page, /const based = op\.type === 'entry' && Number\.isInteger\(g\.group\.version\) && g\.entries\.some\(e => e\.id === op\.id\);/);
+  assert.match(page, /L\.requeue\(g\.pending\.slice\(sending\.length\), sending, refused, state\.group\.version\)/);
 });

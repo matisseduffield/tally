@@ -288,11 +288,36 @@
     };
   }
 
+  // The queue of unsent changes is saved under one key that every tab of the
+  // browser shares, so a tab saves it by adding to what's there. `owned` holds
+  // the key of every change this tab has had in its own queue: of those, only
+  // the ones still in `pending` stay. Anything else there is another tab's, not
+  // sent yet, and is kept in its place. Changes from before they had keys go
+  // by their contents.
+  const opKey = op => op.k || JSON.stringify(op);
+  function mergeQueue(stored, pending, owned) {
+    const mine = new Map(pending.map(op => [opKey(op), op]));
+    const kept = (Array.isArray(stored) ? stored : []).filter(op => op && typeof op === 'object' && (mine.has(opKey(op)) || !owned.has(opKey(op))));
+    const have = new Set(kept.map(opKey));
+    return [...kept.map(op => mine.get(opKey(op)) || op), ...pending.filter(op => !have.has(opKey(op)))];
+  }
+
+  // The queue after the server took a batch (`sent`). It left `refused` (entry
+  // ids) alone, because someone else had changed them since: what's queued on
+  // top of those goes too. The entries it did write are now at `version`, so a
+  // later change to one, made before the answer came, is based on that.
+  function requeue(rest, sent, refused, version) {
+    const no = new Set(refused);
+    const wrote = new Set(sent.filter(op => op.type === 'entry' && !no.has(op.id)).map(op => op.id));
+    return rest.filter(op => !(op.type === 'entry' && no.has(op.id)))
+      .map(op => (op.type === 'entry' && 'base' in op && wrote.has(op.id) && Number.isInteger(version) ? { ...op, base: version } : op));
+  }
+
   // Matches the ?v= the page loads this file with; the page checks it, so a page
   // and a lib.js from different releases never run together. Bump both together.
-  const VERSION = 3;
+  const VERSION = 4;
 
-  const lib = { VERSION, keptDraft, parseRates, parseLiveRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, overview, newId, isId };
+  const lib = { VERSION, keptDraft, opKey, mergeQueue, requeue, parseRates, parseLiveRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, overview, newId, isId };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.TallyLib = lib;
 })(this);
