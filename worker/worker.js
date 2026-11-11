@@ -62,6 +62,11 @@ const ASSET_LINKS = [{
   },
 }];
 
+// The iPhone app, so links to groups open in it. Apple reads this once per install.
+const APPLE_LINKS = {
+  applinks: { details: [{ appIDs: ['4CN49LRZ9H.com.matisseduffield.tally'], components: [{ '/': '/g/*' }] }] },
+};
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
@@ -95,6 +100,7 @@ export default {
         return fail(405, 'Method not allowed');
       }
       if (url.pathname === '/app') return new Response(null, { status: 302, headers: { Location: APK, 'Cache-Control': 'no-store', ...PRIVATE } });
+      if (url.pathname === '/.well-known/apple-app-site-association') return json(APPLE_LINKS, 200, { 'Cache-Control': 'public, max-age=3600' });
       if (url.pathname === '/.well-known/assetlinks.json') return json(ASSET_LINKS, 200, { 'Cache-Control': 'public, max-age=3600' });
       if (request.method === 'GET') return serveWeb(url.pathname, url.search);
       return fail(404, 'Not found');

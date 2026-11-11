@@ -38,6 +38,13 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: com.matisseduffield.tally
             CFBundleURLSchemes: [tally]
+    # Web links opening the app: tally.teloone.au names this app in
+    # /.well-known/apple-app-site-association (see worker/worker.js).
+    entitlements:
+      path: App/App.entitlements
+      properties:
+        com.apple.developer.associated-domains:
+          - applinks:tally.teloone.au
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.matisseduffield.tally
