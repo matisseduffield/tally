@@ -209,9 +209,9 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
    and the small print, sit at the foot. */
 body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 #home.first { min-height: calc(100dvh - 112px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); grid-template-rows: 1fr; grid-auto-rows: auto; }
-#home.first .rate-credit, #home.stepping > :not(.onb) { display: none; }
+#home.first .rate-credit, #home.stepping > :not(.onb):not(.legal) { display: none; }
 .onb { display: flex; flex-direction: column; gap: 24px; padding-top: 4px; }
-.onb .lead { margin: 0; max-width: 13ch; font-size: 1.9rem; font-weight: 600; line-height: 1.15; letter-spacing: -.02em; }
+.onb .lead { margin: 0 auto; text-align: center; max-width: 13ch; font-size: 1.9rem; font-weight: 600; line-height: 1.15; letter-spacing: -.02em; }
 .onb .ask { margin: 0; font-size: 1.55rem; font-weight: 600; line-height: 1.2; letter-spacing: -.015em; }
 .onb form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .onb .big { width: 100%; min-height: 54px; padding: 0 14px; font-size: 18px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 6px; }
@@ -220,6 +220,13 @@ body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 .onb .end { margin-top: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .onb .end p { margin: 6px 0 -14px; text-align: center; font-size: .8rem; color: var(--muted); }
 .onb .bad { margin: 0; font-size: .86rem; color: var(--neg); }
+/* A step sits in the middle, a little high so the keyboard clears it. */
+.onb.mid { text-align: center; }
+.onb.mid::before { content: ''; flex: 1; }
+.onb.mid::after { content: ''; flex: 2.5; }
+.onb.mid.even::after { flex: 1; }
+.onb.mid .big { text-align: center; }
+.onb.mid .blk { text-align: left; }
 /* A join code: four letters, typed into one field drawn as four boxes. */
 .code-in { position: relative; display: block; }
 .code-in input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 18px; }
@@ -241,15 +248,16 @@ body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 @media (prefers-reduced-motion: reduce) { .pic-row, .pic-say { animation: none; } }
 
 /* Two tall tiles share the screen, so the choice is the page. */
-.pick { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(150px, 250px); align-content: start; gap: 12px; }
-.pick button { appearance: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 1fr; gap: 0 14px; padding: 20px 18px; text-align: left; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px; }
+.pick { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.pick button { appearance: none; display: grid; justify-items: center; gap: 4px; padding: 28px 18px 26px; text-align: center; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px; }
 .pick button:active { background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
-.pick .ic { grid-area: 1 / 1; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: var(--ink); color: var(--on-ink); }
+.pick .ic { display: grid; place-items: center; width: 54px; height: 54px; margin-bottom: 12px; border-radius: 50%; background: var(--ink); color: var(--on-ink); }
 .pick .ic svg { width: 24px; height: 24px; }
-.pick .ic + span { grid-area: 2 / 1 / 3 / -1; align-self: end; }
+/* Join shows what a code looks like. */
+.pick .eg { display: flex; align-items: center; gap: 6px; height: 54px; margin-bottom: 12px; }
+.pick .eg i { display: grid; place-items: center; width: 36px; height: 44px; font-style: normal; font-size: 1.1rem; font-weight: 600; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 5px; background: color-mix(in srgb, var(--ink) 4%, var(--surface)); }
 .pick strong { display: block; font-size: 1.4rem; font-weight: 600; line-height: 1.2; letter-spacing: -.015em; }
-.pick small { display: block; margin-top: 4px; font-size: .95rem; color: var(--muted); }
-.pick > button > svg { grid-area: 1 / 2; align-self: center; color: var(--muted); }
+.pick small { display: block; font-size: .95rem; color: var(--muted); }
 /* Home: name and your balance on the first line, details across the whole
    second line (so nothing is cut short by the amount column). */
 .group-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 3px; min-height: 64px; padding: 12px 2px; }
@@ -1910,15 +1918,15 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     const el = $('intro').querySelector('input');
     if (el) el.focus();
   }
-  const CHEV = '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5"/></svg>';
   const PLUS = '<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>';
-  const LINKIC = '<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 11.5a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-.9.9M11.5 8.5a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l.9-.9"/></svg>';
   function renderOnb() {
     const step = groupIds.length ? null : obStep();
     const key = step + '|' + obBad;
     if (key === obKey) return;
     obKey = key;
     const el = $('intro');
+    el.classList.toggle('mid', !!step);
+    el.classList.toggle('even', step === 'choose');
     if (step === null) return el.replaceChildren();
     const cur = store.get('lastCurrency') || homeCurrency;
     const m = n => money(L.toMinor(n, cur), cur);
@@ -1927,8 +1935,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
         <button class="btn btn-primary">Continue</button></form>`
       : step === 'choose' ? `<h2 class="ask">Start a group, or join one?</h2>
         <div class="pick">
-          <button type="button" data-step="create"><span class="ic">${PLUS}</span><span><strong>Start a group</strong><small>For a trip, a flat, a night out.</small></span>${CHEV}</button>
-          <button type="button" data-step="link"><span class="ic">${LINKIC}</span><span><strong>Join a group</strong><small>With a code from a friend.</small></span>${CHEV}</button>
+          <button type="button" data-step="create"><span class="ic">${PLUS}</span><strong>Start a group</strong><small>For a trip, a flat, a night out.</small></button>
+          <button type="button" data-step="link"><span class="eg" aria-hidden="true"><i>W</i><i>X</i><i>Y</i><i>Z</i></span><strong>Join a group</strong><small>With a code from a friend.</small></button>
         </div>`
       : step === 'create' ? `<h2 class="ask">Name your group</h2>
         <form data-ob="create" autocomplete="off"><input class="big" name="group" maxlength="60" aria-label="Group name" placeholder="Japan trip" autocapitalize="sentences" enterkeyhint="go" required>
