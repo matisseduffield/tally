@@ -1,0 +1,59 @@
+# Builds the iPhone app for the simulator on a GitHub Mac, opens it and keeps
+# screenshots. Run by hand: Mac minutes are scarce on a private repo.
+name: iOS
+on:
+  workflow_dispatch:
+env:
+  APP: Tally
+  BUNDLE: com.matisseduffield.tally
+jobs:
+  simulator:
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make the Xcode project
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+      - name: Build
+        run: |
+          cd ios
+          set -o pipefail
+          xcodebuild -project "$APP.xcodeproj" -scheme "$APP" -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { grep -E "error:|BUILD" build.log | sort -u | tail -60; exit 1; }
+          grep -E "warning: " build.log | sort -u | tail -30 || true
+      - name: Open it and take screenshots
+        run: |
+          cd ios
+          cat > pick.py <<'PY'
+          import json, sys
+          d = json.load(sys.stdin)['devices']
+          rt = sorted(k for k in d if 'iOS' in k and d[k])[-1]
+          ph = [x for x in d[rt] if x['name'].startswith('iPhone')]
+          best = [x for x in ph if 'Pro Max' in x['name']] or ph
+          print(best[-1]['udid'])
+          PY
+          ID=$(xcrun simctl list devices available -j | python3 pick.py)
+          xcrun simctl boot "$ID"
+          xcrun simctl bootstatus "$ID" -b
+          xcrun simctl status_bar "$ID" override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
+          xcrun simctl install "$ID" "build/Build/Products/Debug-iphonesimulator/$APP.app"
+          mkdir shots
+          xcrun simctl launch "$ID" "$BUNDLE"
+          sleep 8
+          xcrun simctl io "$ID" screenshot shots/light.png
+          if [ -f shots.sh ]; then ID="$ID" bash shots.sh; fi
+          xcrun simctl ui "$ID" appearance dark
+          sleep 3
+          xcrun simctl io "$ID" screenshot shots/dark.png
+          xcrun simctl spawn "$ID" log show --last 3m --predicate "process == \"$APP\"" --style compact | tail -80 > shots/log.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios
+          path: |
+            ios/shots
+            ios/build.log
+          retention-days: 7
