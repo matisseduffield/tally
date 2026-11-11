@@ -42,3 +42,16 @@ CREATE TABLE IF NOT EXISTS pending_deletes (
   purge_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS pending_deletes_purge ON pending_deletes (purge_at);
+-- A join code: four capital letters that lead to a group until they expire.
+CREATE TABLE IF NOT EXISTS codes (
+  code TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL,
+  expires INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS codes_group ON codes (group_id);
+-- Wrong guesses at a code in the last hour, by a stub of the asker's hashed address.
+CREATE TABLE IF NOT EXISTS guesses (
+  who TEXT PRIMARY KEY,
+  n INTEGER NOT NULL,
+  since INTEGER NOT NULL
+);

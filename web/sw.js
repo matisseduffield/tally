@@ -57,7 +57,7 @@ addEventListener('fetch', e => {
   if (request.method !== 'GET' || url.origin !== location.origin) return;
   // Every page is the one app page, kept under its own name: a group's link, which
   // is its secret, never goes into the cache.
-  const page = request.mode === 'navigate' && /^\/(g\/[^/]+)?$/.test(url.pathname);
+  const page = request.mode === 'navigate' && /^\/([gj]\/[^/]+)?$/.test(url.pathname);
   const key = page ? INDEX : url.href;
   if (!FILES.includes(page ? INDEX : url.origin + url.pathname)) return;
   const kept = () => caches.match(key).catch(() => undefined);

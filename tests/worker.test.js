@@ -281,7 +281,7 @@ test('the cron leaves running countdowns and other groups alone', async t => {
   assert.equal(row('SELECT COUNT(*) AS n FROM groups').n, 3);
 });
 
-test('with nothing due the cron does one read and no writes', async t => {
+test('with nothing due the cron does one read, and only clears old join codes', async t => {
   const { env, start, cron } = await setup(t);
   await start();
   const seen = [];
@@ -291,9 +291,11 @@ test('with nothing due the cron does one read and no writes', async t => {
   let batches = 0;
   env.DB.batch = stmts => { batches++; return batch(stmts); };
   await cron();
-  assert.equal(seen.length, 1);
+  assert.equal(seen.length, 3);
   assert.match(seen[0], /^SELECT 1 FROM pending_deletes/);
-  assert.equal(batches, 0);
+  assert.match(seen[1], /^DELETE FROM codes WHERE expires/);
+  assert.match(seen[2], /^DELETE FROM guesses WHERE since/);
+  assert.equal(batches, 1);
 });
 
 test('the cron works through more than one batch, up to its limit', async t => {
@@ -552,4 +554,76 @@ test('a body that says it is too big is turned away unread, and one that doesn\'
   assert.equal(row('SELECT version FROM groups').version, version);
   const fine = await call('POST', `/api/g/${ID}/ops`, { body: { ops: [expense(E2)] }, headers: { 'Content-Length': '300' } });
   assert.equal(fine.status, 200);
+});
+
+// ---- join codes
+
+test('a group gets a four-letter code that leads back to it, and keeps it', async t => {
+  const { call } = await setup(t);
+  const made = await call('POST', `/api/g/${ID}/code`);
+  assert.equal(made.status, 200);
+  assert.match(made.body.code, /^[BCDFGHJKLMNPQRSTVWXZ]{4}$/);
+  assert.ok(made.body.until > Date.now() + 6 * DAY);
+  assert.equal((await call('POST', `/api/g/${ID}/code`)).body.code, made.body.code);
+  assert.deepEqual((await call('GET', `/api/code/${made.body.code}`)).body, { id: ID });
+  assert.deepEqual((await call('GET', `/api/code/${made.body.code.toLowerCase()}`)).body, { id: ID });
+});
+
+test('no code for a group that does not exist', async t => {
+  const { call } = await setup(t);
+  assert.equal((await call('POST', `/api/g/${'z'.repeat(22)}/code`)).status, 404);
+});
+
+test('a code that has run out leads nowhere, and the group gets a new one', async t => {
+  const { call, env } = await setup(t);
+  const { code } = (await call('POST', `/api/g/${ID}/code`)).body;
+  env.DB.raw.prepare('UPDATE codes SET expires = ?').run(Date.now() - 1);
+  assert.equal((await call('GET', `/api/code/${code}`)).status, 404);
+  assert.equal((await call('POST', `/api/g/${ID}/code`)).status, 200);
+  assert.equal(env.DB.raw.prepare('SELECT COUNT(*) AS n FROM codes WHERE expires > ?').get(Date.now()).n, 1);
+});
+
+test('wrong guesses are cut off, and start again after an hour', async t => {
+  const { call, env } = await setup(t);
+  const { code } = (await call('POST', `/api/g/${ID}/code`)).body;
+  const wrong = code === 'BBBB' ? 'CCCC' : 'BBBB';
+  for (let k = 0; k < 10; k++) assert.equal((await call('GET', `/api/code/${wrong}`)).status, 404);
+  assert.equal((await call('GET', `/api/code/${wrong}`)).status, 429);
+  assert.equal((await call('GET', `/api/code/${code}`)).status, 429);
+  // Someone else is not held up.
+  assert.equal((await call('GET', `/api/code/${code}`, { headers: { 'CF-Connecting-IP': '203.0.113.9' } })).status, 200);
+  env.DB.raw.prepare('UPDATE guesses SET since = ?').run(Date.now() - 61 * 60 * 1000);
+  assert.equal((await call('GET', `/api/code/${code}`)).status, 200);
+  assert.equal((await call('GET', `/api/code/${wrong}`)).status, 404);
+  assert.equal(env.DB.raw.prepare('SELECT n FROM guesses').get().n, 1);
+});
+
+test('rubbish in place of a code is a miss, not an error', async t => {
+  const { call } = await setup(t);
+  for (const bad of ['AEIO', 'BCD', 'BCDFG', '%27--', 'B1CD']) assert.equal((await call('GET', `/api/code/${bad}`)).status, 404);
+});
+
+test('a deleted group has no code, and its old one leads nowhere', async t => {
+  const { call, start, cron, advance, count } = await setup(t);
+  const { code } = (await call('POST', `/api/g/${ID}/code`)).body;
+  await start();
+  // Still there while the countdown runs.
+  assert.deepEqual((await call('GET', `/api/code/${code}`)).body, { id: ID });
+  advance(14 * DAY + 1000);
+  assert.equal((await call('GET', `/api/code/${code}`, { headers: { 'CF-Connecting-IP': '203.0.113.9' } })).status, 404);
+  assert.equal((await call('POST', `/api/g/${ID}/code`)).status, 404);
+  await cron();
+  assert.equal(count('codes'), 0);
+  assert.equal((await call('POST', `/api/g/${ID}/code`)).status, 404);
+});
+
+test('the daily clean-up drops codes and guesses that have run out', async t => {
+  const { call, env, cron, count } = await setup(t);
+  await call('POST', `/api/g/${ID}/code`);
+  await call('GET', '/api/code/BBBB');
+  env.DB.raw.prepare('UPDATE codes SET expires = 1').run();
+  env.DB.raw.prepare('UPDATE guesses SET since = 1').run();
+  await cron();
+  assert.equal(count('codes'), 0);
+  assert.equal(count('guesses'), 0);
 });

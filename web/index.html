@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<!-- A group link is /g/<id>, but the files sit at the top: without this, lib.js and the fonts would be looked for under /g/. -->
-<script>if (location.pathname.startsWith('/g/')) document.write('<base href="/">');</script>
+<!-- A group link is /g/<id> and a join code's is /j/<code>, but the files sit at the top: without this, lib.js and the fonts would be looked for under /g/. -->
+<script>if (/^\/[gj]\//.test(location.pathname)) document.write('<base href="/">');</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex">
@@ -220,6 +220,13 @@ body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 .onb .end { margin-top: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .onb .end p { margin: 6px 0 -14px; text-align: center; font-size: .8rem; color: var(--muted); }
 .onb .bad { margin: 0; font-size: .86rem; color: var(--neg); }
+/* A join code: four letters, typed into one field drawn as four boxes. */
+.code-in { position: relative; display: block; }
+.code-in input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 18px; }
+.code-cells { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.code-cells i { display: grid; place-items: center; height: 72px; font-style: normal; font-size: 2rem; font-weight: 600; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 6px; }
+.code-in:focus-within .code-cells i.at { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+#invDlg .link { justify-self: center; }
 
 /* A trip in miniature: who paid for what, and the one payment that squares it. */
 .pic { display: grid; padding: 4px 16px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
@@ -287,7 +294,7 @@ body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 .dock-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 600px; margin: 0 auto; }
 .dock-pair .btn { width: 100%; }
 .dock-pair.solo { grid-template-columns: 1fr; }
-/* Keeps "Join with a link" on one line on a 320px screen */
+/* Keeps both buttons on one line on a 320px screen */
 @media (max-width: 360px) { .dock .btn { padding: 0 12px; } }
 
 /* Sheets (full screen on phones, centred panels on wide screens) */
@@ -569,7 +576,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       <h1 class="mark" id="title">Tally</h1>
     </div>
     <div class="top-right">
-      <button class="icon-btn" id="shareBtn" type="button" aria-label="Share group link" hidden>
+      <button class="icon-btn" id="shareBtn" type="button" aria-label="Invite to group" hidden>
         <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V3M6.5 6.5 10 3l3.5 3.5M4 11v5h12v-5"/></svg>
       </button>
       <button class="icon-btn" id="settingsBtn" type="button" aria-label="Group settings" hidden>
@@ -642,7 +649,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 
 <div class="dock" id="homeDock" hidden>
   <div class="dock-pair">
-    <button class="btn btn-secondary" type="button" data-action="join">Join with a link</button>
+    <button class="btn btn-secondary" type="button" data-action="join">Join a group</button>
     <button class="btn btn-primary" type="button" data-action="newGroup">New group</button>
   </div>
 </div>
@@ -675,7 +682,21 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   </div>
 </dialog>
 
-<!-- Join with a link / who are you -->
+<!-- Invite: the group's code -->
+<dialog id="invDlg" tabindex="-1" aria-labelledby="invTitle">
+  <div class="sheet-head">
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <h2 id="invTitle">Invite</h2>
+  </div>
+  <div class="sheet-body">
+    <div id="invCode"></div>
+    <span class="hint" id="invHint" role="status"></span>
+    <button class="btn btn-primary" type="button" id="invShare">Share code</button>
+    <button class="link" type="button" id="invLink">Share the link instead</button>
+  </div>
+</dialog>
+
+<!-- Join with a code or a link / who are you -->
 <dialog id="joinDlg" tabindex="-1" aria-labelledby="joinTitle">
   <div class="sheet-head">
     <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
@@ -683,7 +704,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   </div>
   <div class="sheet-body blocks">
     <div class="blk" id="joinLinkField">
-      <div class="cell"><input class="row-in" id="joinLink" placeholder="Paste the group link" aria-label="Group link" autocomplete="off" enterkeyhint="go"><button class="link" type="button" id="joinGo">Open</button></div>
+      <div class="cell"><input class="row-in" id="joinLink" placeholder="Code or link" aria-label="Group code or link" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go"><button class="link" type="button" id="joinGo">Open</button></div>
     </div>
     <span class="hint" id="joinHint" role="status"></span>
     <span class="field-label sec" id="whoLabel" hidden>Which one is you?</span>
@@ -785,7 +806,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       <div class="cells" id="setMembers"></div>
       <div class="cell"><input class="row-in" id="setNew" aria-label="Add someone" placeholder="Add someone" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="link add-go" type="button" id="setAdd">Add</button></div>
     </div>
-    <span class="hint">Tap a name to change it. Anyone with the link can see, change and delete this group.</span>
+    <span class="hint">Tap a name to change it. Anyone with the link or the code can see, change and delete this group.</span>
     <div class="blk">
       <button class="cell go" type="button" id="setExport">Export CSV</button>
       <a class="cell go tall" id="setReport" href="mailto:support@teloone.au?subject=Report%20a%20Tally%20group&amp;body=Paste%20the%20group%E2%80%99s%20link%20here%2C%20and%20tell%20us%20what%E2%80%99s%20wrong%3A%0A%0A"><span class="row-k">Report a problem<small id="setReportTo">Opens an email to support@teloone.au</small></span></a>
@@ -1468,10 +1489,10 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       const alone = live(g).length < 2;
       box.innerHTML = '<p></p>';
       box.firstChild.textContent = q ? 'Nothing matches.'
-        : alone ? 'Just you so far. Send the link to the others, or add them yourself.'
-        : 'No expenses yet. Add the first one, or send the link so everyone can add theirs.';
+        : alone ? 'Just you so far. Invite the others, or add them yourself.'
+        : 'No expenses yet. Add the first one, or invite the others to add theirs.';
       if (!q) {
-        box.insertAdjacentHTML('beforeend', '<div class="acts"><button class="link" type="button" data-empty="share">Share link</button></div>');
+        box.insertAdjacentHTML('beforeend', '<div class="acts"><button class="link" type="button" data-empty="share">Invite</button></div>');
         if (alone) box.lastChild.insertAdjacentHTML('beforeend', '<button class="link" type="button" data-empty="people">Add people</button>');
       }
       out.push(box);
@@ -1672,7 +1693,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   }
   $('activity').addEventListener('click', ev => {
     const first = ev.target.closest('[data-empty]');
-    if (first) return first.dataset.empty === 'share' ? share() : openSettings();
+    if (first) return first.dataset.empty === 'share' ? openInvite() : openSettings();
     const g = groups.get(current);
     const again = ev.target.closest('[data-again]');
     if (again) { const src = g && g.entries.find(x => x.id === again.dataset.again); if (src) openExpense(src, true); return; }
@@ -1879,10 +1900,11 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   // Home asks one thing a screen until there's a group. Each step is an entry in
   // the phone's history, so Back, and a swipe from the edge, go to the step before.
   const obStep = () => (!current && !groupIds.length && history.state && history.state.step) || '';
-  let obBad = '', obKey = null;
+  let obBad = '', obKey = null, obCode = '', obBusy = false;
+  const codeCells = (v, at) => `<span class="code-cells" aria-hidden="true">${[0, 1, 2, 3].map(k => `<i${at && k === v.length ? ' class="at"' : ''}>${v[k] || ''}</i>`).join('')}</span>`;
   function toStep(step) {
     history.pushState({ step }, '');
-    obBad = '';
+    obBad = ''; obCode = '';
     render();
     scrollTo(0, 0);
     const el = $('intro').querySelector('input');
@@ -1906,14 +1928,14 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       : step === 'choose' ? `<h2 class="ask">Start a group, or join one?</h2>
         <div class="pick">
           <button type="button" data-step="create"><span class="ic">${PLUS}</span><span><strong>Start a group</strong><small>For a trip, a flat, a night out.</small></span>${CHEV}</button>
-          <button type="button" data-step="link"><span class="ic">${LINKIC}</span><span><strong>Join a group</strong><small>With a link a friend sent you.</small></span>${CHEV}</button>
+          <button type="button" data-step="link"><span class="ic">${LINKIC}</span><span><strong>Join a group</strong><small>With a code from a friend.</small></span>${CHEV}</button>
         </div>`
       : step === 'create' ? `<h2 class="ask">Name your group</h2>
         <form data-ob="create" autocomplete="off"><input class="big" name="group" maxlength="60" aria-label="Group name" placeholder="Japan trip" autocapitalize="sentences" enterkeyhint="go" required>
         <div class="blk"><div class="cell"><span class="row-k">Currency</span><button class="cur-btn" type="button" id="obCur"></button></div></div>
         <button class="btn btn-primary">Start group</button></form>`
-      : step === 'link' ? `<h2 class="ask">Paste the group’s link</h2>
-        <form data-ob="link" autocomplete="off"><input class="big" name="link" aria-label="Group link" placeholder="tally.teloone.au/g/..." autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="url" enterkeyhint="go" required>
+      : step === 'link' ? `<h2 class="ask">Enter the group’s code</h2>
+        <form data-ob="link" autocomplete="off"><label class="code-in"><input name="link" aria-label="Group code, four letters" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go">${codeCells(obCode, true)}</label>
         ${obBad ? '<p class="bad" role="alert"></p>' : ''}
         <button class="btn btn-primary">Join</button></form>`
       : `<p class="lead">Split costs with anyone.</p>
@@ -1926,6 +1948,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
         <div class="end"><button class="btn btn-primary" type="button" data-step="name">Get started</button><p>By continuing you agree to the terms.</p></div>`;
     const me = el.querySelector('[name=me]'); if (me) me.value = store.get('myName') || '';
     const bad = el.querySelector('.bad'); if (bad) bad.textContent = obBad;
+    const code = el.querySelector('.code-in input'); if (code) code.value = obCode;
     if ($('obCur')) showCur($('obCur'), cur);
   }
   $('intro').addEventListener('click', async e => {
@@ -1947,12 +1970,35 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       if (!me) return toStep('name');
       createGroup(name, me, $('obCur').textContent, []);
     } else if (kind === 'link') {
-      const id = idFromLink(f.link.value);
-      if (!id) { obBad = 'That doesn’t look like a Tally link. Paste the whole link.'; const v = f.link.value; render(); const i = $('intro').querySelector('[name=link]'); i.value = v; i.focus(); return; }
-      $('joinLink').value = f.link.value.trim();
-      joinById(id);
+      joinCode(obCode);
     }
   });
+  // The code field takes letters only, in capitals, and joins on the fourth. A pasted group link still works.
+  $('intro').addEventListener('input', e => {
+    const el = e.target;
+    if (!el.matches('.code-in input')) return;
+    const id = /\/g\//.test(el.value) ? idFromLink(el.value) : null;
+    const j = el.value.match(/\/j\/([A-Za-z]{4})/);
+    obCode = el.value = id ? '' : (j ? j[1] : el.value.replace(/[^A-Za-z]/g, '')).toUpperCase().slice(0, 4);
+    el.parentNode.querySelector('.code-cells').outerHTML = codeCells(obCode, true);
+    const bad = $('intro').querySelector('.bad'); if (bad) bad.remove();
+    obBad = ''; obKey = 'link|';
+    if (id) { $('joinLink').value = ''; return joinById(id); }
+    if (obCode.length === 4) joinCode(obCode);
+  });
+  async function joinCode(code) {
+    const field = () => $('intro').querySelector('.code-in input');
+    if (code.length < 4) { const i = field(); if (i) i.focus(); return; }
+    if (obBusy) return;
+    obBusy = true;
+    const r = await findCode(code);
+    obBusy = false;
+    if (obStep() !== 'link' || obCode !== code) return;
+    if (r.id) { $('joinLink').value = code; return joinById(r.id); }
+    obBad = r.err;
+    render();
+    const i = field(); if (i) i.focus();
+  }
 
   // ---- join ----
   let joining = null; // { id, state }
@@ -1971,6 +2017,37 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     if (who) $('joinHint').textContent = '';
   }
   const idFromLink = s => { const m = String(s).match(/([A-Za-z0-9_-]{22})\s*$/); return m && L.isId(m[1]) ? m[1] : null; };
+  // A join code: four letters that lead to a group for a week. On its own, or at the end of its short link.
+  const codeFrom = s => { const m = String(s).trim().match(/(?:^|\/j\/)([A-Za-z]{4})\/?$/); return m ? m[1].toUpperCase() : null; };
+  async function findCode(code) {
+    try {
+      const res = await fetch(`${API}/api/code/${code}`, { cache: 'no-store', signal: within(20_000) });
+      const id = res.ok ? (await res.json()).id : null;
+      if (L.isId(id)) return { id };
+      return { err: res.status === 404 ? 'No group has that code. Codes last a week.' : res.status === 429 ? 'Too many tries. Wait an hour, or open the group’s link.' : 'Couldn’t reach Tally. Check your connection.' };
+    } catch { return { err: 'Couldn’t reach Tally. Check your connection.' }; }
+  }
+  // What was typed or pasted into the sheet: a group's code, or its link.
+  async function joinWith(text) {
+    const id = idFromLink(text);
+    if (id) return joinById(id);
+    const code = codeFrom(text);
+    const say = bad => { $('joinHint').textContent = bad; $('joinHint').className = 'hint bad'; };
+    if (!code) return say('Enter the four-letter code, or paste the group’s link.');
+    $('joinHint').textContent = 'Opening…';
+    $('joinHint').className = 'hint';
+    $('joinGo').disabled = true;
+    const r = await findCode(code);
+    $('joinGo').disabled = false;
+    if (r.id) return joinById(r.id);
+    say(r.err);
+  }
+  // A code's short link was opened: the join sheet, already looking.
+  function openCode(code) {
+    if ($('joinDlg').open) { $('joinLink').value = code.toUpperCase(); showJoinStep(false); $('joinTitle').textContent = 'Join a group'; }
+    else openJoin(code.toUpperCase());
+    joinWith(code);
+  }
   async function joinById(id) {
     if (groups.has(id) && groups.get(id).me) { $('joinDlg').close(); return openGroup(id); }
     $('joinHint').textContent = 'Opening…';
@@ -1999,13 +2076,9 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       $('joinGo').disabled = false;
     }
   }
-  $('joinGo').addEventListener('click', () => {
-    const id = idFromLink($('joinLink').value);
-    if (!id) { $('joinHint').textContent = 'That doesn’t look like a Tally link.'; $('joinHint').className = 'hint bad'; return; }
-    joinById(id);
-  });
+  $('joinGo').addEventListener('click', () => joinWith($('joinLink').value));
   $('joinLink').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('joinGo').click(); } });
-  $('joinLink').addEventListener('paste', () => setTimeout(() => { if (idFromLink($('joinLink').value) && !$('joinGo').disabled) $('joinGo').click(); }, 0));
+  $('joinLink').addEventListener('paste', () => setTimeout(() => { const v = $('joinLink').value; if ((idFromLink(v) || codeFrom(v)) && !$('joinGo').disabled) $('joinGo').click(); }, 0));
   $('whoChips').addEventListener('click', e => {
     const c = e.target.closest('[data-member]');
     if (!c || !joining) return;
@@ -2912,6 +2985,37 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     if (navigator.share) { try { await navigator.share({ title, text }); return; } catch (e) { if (e.name === 'AbortError') return; } }
     try { await navigator.clipboard.writeText(text); toast('Copied'); } catch {}
   }
+  // The group's code, large enough to read out across a room. Asking gives it
+  // another week, so it's asked for each time the sheet opens.
+  const invites = new Map();
+  let inviting = null;
+  function showInvite(id, failed) {
+    const code = invites.get(id) || '';
+    $('invCode').innerHTML = codeCells(code, false);
+    if (code) { $('invCode').setAttribute('role', 'img'); $('invCode').setAttribute('aria-label', 'Join code ' + code.split('').join(' ')); }
+    else { $('invCode').removeAttribute('role'); $('invCode').removeAttribute('aria-label'); }
+    $('invCode').hidden = failed && !code;
+    $('invShare').hidden = failed && !code;
+    $('invShare').disabled = !code;
+    $('invHint').textContent = failed && !code ? 'Can’t get a code right now. Send the link instead.' : 'Friends tap Join a group and enter this code. It works for a week.';
+    $('invLink').textContent = failed && !code ? 'Share link' : 'Share the link instead';
+  }
+  function openInvite() {
+    const g = groups.get(current);
+    if (!g) return;
+    const id = inviting = g.group.id;
+    showInvite(id, false);
+    openDlg($('invDlg'));
+    fetch(`${API}/api/g/${id}/code`, { method: 'POST', signal: within(20_000) }).then(res => (res.ok ? res.json() : null)).catch(() => null).then(got => {
+      if (got && /^[A-Z]{4}$/.test(got.code)) invites.set(id, got.code);
+      if (inviting === id && $('invDlg').open) showInvite(id, !invites.has(id));
+    });
+  }
+  $('invShare').addEventListener('click', () => {
+    const g = groups.get(inviting), code = invites.get(inviting);
+    if (g && code) shareText(g.group.name, `Join “${g.group.name}” on Tally with the code ${code}: ${SITE}/j/${code}`);
+  });
+  $('invLink').addEventListener('click', share);
   async function share() {
     const g = groups.get(current);
     if (!g) return;
@@ -2975,7 +3079,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     openSettle(null, row.dataset.person);
   });
   $('settingsBtn').addEventListener('click', openSettings);
-  $('shareBtn').addEventListener('click', share);
+  $('shareBtn').addEventListener('click', openInvite);
   // The bottom bar grows with larger text (its buttons wrap); the end of the
   // list and the toast stay clear of it at whatever height it is.
   if (typeof ResizeObserver === 'function') {
@@ -3057,8 +3161,9 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
         if (m.state === 'available') { updateReady = true; showVersion('Update available', 'available'); }
         showUpdate(m);
       } else if (m.type === 'openLink') {
-        const id = idFromLink(m.url || '');
+        const id = idFromLink(m.url || ''), code = id ? null : codeFrom(m.url || '');
         if (id) openFromLink(id);
+        else if (code) openCode(code);
       }
     };
     $('updateGo').addEventListener('click', () => { showUpdate({ state: 'downloading', progress: 0 }); toApp({ type: 'installUpdate' }); });
@@ -3113,12 +3218,16 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   const ios = !!app && app.ios === true;
   const under = ios && !!pathId && !!history.state && history.state.own === true && history.state.g === pathId;
   const overHome = ios && !!pathId && !under;
-  if (overHome) history.replaceState({}, '', '#');
+  // A join code's short link, /j/<code> (#j=<code> in the app): the address goes back to Home's, and the join sheet opens on it.
+  const pathCode = pathId ? null : (location.pathname.match(/^\/j\/([A-Za-z]{4})\/?$/) || location.hash.match(/j=([A-Za-z]{4})$/) || [])[1];
+  if (pathCode || location.pathname.startsWith('/j/')) history.replaceState({}, '', location.pathname.startsWith('/j/') ? '/' : '#');
+  else if (overHome) history.replaceState({}, '', '#');
   else if (!under) history.replaceState(pathId ? { g: pathId } : {}, '');
   // Only in Android browsers: never inside the app, even on a WebView too old for the bridge.
   $('getApp').hidden = !!app || !onSite || !/Android/.test(navigator.userAgent);
   render();
   if (pathId) openFromLink(pathId, overHome);
+  if (pathCode) openCode(pathCode);
   if (!pathId || !groups.has(pathId)) for (const id of groupIds) sync(id);
   if (groupIds.length) freshenRates();
   toApp({ type: 'hello' });

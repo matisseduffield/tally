@@ -9,7 +9,9 @@
 //                         plus refused: the entries it left as they were
 //   DELETE /api/g/:id     start the 14-day countdown to deleting the group
 //   POST /api/g/:id/keep  undo that, any time before it runs out
-//   GET  /, /g/:id, ...   the web app, served from the public tally-releases
+//   POST /api/g/:id/code  the group's join code: { code, until }
+//   GET  /api/code/:code  the group a join code leads to: { id }
+//   GET  /, /g/:id, /j/:code, ...   the web app, served from the public tally-releases
 //                         repo, where every release publishes it
 //   GET  /app             the latest Android app (a redirect to the APK)
 //   scheduled             the daily Cron Trigger: purge what has run out
@@ -24,6 +26,11 @@
 // group's version and changes nothing else in it, so phones get a new ETag
 // rather than a 304, and see `deleting` appear or go. Apps that don't know the
 // field ignore it.
+//
+// A join code is four capital letters that lead to a group for a week, so a
+// group can be read out or typed. One group has one live code; asking again
+// returns it and gives it another week. Codes are short, so wrong guesses are
+// counted per network address (kept only as a scrambled stub) and cut off.
 //
 // Once the time is up the group reads as gone at once, and the daily cron
 // removes its people and entries and blanks its row, leaving only the random
@@ -51,6 +58,12 @@ const GRACE_MS = 14 * 24 * 60 * 60 * 1000;
 // Each cron round is one transaction over at most this many groups.
 const PURGE_BATCH = 25;
 const PURGE_ROUNDS = 4;
+// Join codes: no vowels, so they never spell anything.
+const LETTERS = 'BCDFGHJKLMNPQRSTVWXZ';
+const JOIN = /^[BCDFGHJKLMNPQRSTVWXZ]{4}$/;
+const JOIN_MS = 7 * 24 * 60 * 60 * 1000;
+const GUESSES = 10;
+const HOUR = 60 * 60 * 1000;
 
 // The Android app's signing certificate, so links to groups open in the app.
 const ASSET_LINKS = [{
@@ -64,7 +77,7 @@ const ASSET_LINKS = [{
 
 // The iPhone app, so links to groups open in it. Apple reads this once per install.
 const APPLE_LINKS = {
-  applinks: { details: [{ appIDs: ['4CN49LRZ9H.com.matisseduffield.tally'], components: [{ '/': '/g/*' }] }] },
+  applinks: { details: [{ appIDs: ['4CN49LRZ9H.com.matisseduffield.tally'], components: [{ '/': '/g/*' }, { '/': '/j/*' }] }] },
 };
 
 const CORS = {
@@ -89,16 +102,19 @@ export default {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     try {
-      const api = url.pathname.match(/^\/api\/g\/([^/]+)(\/ops|\/keep)?$/);
+      const api = url.pathname.match(/^\/api\/g\/([^/]+)(\/ops|\/keep|\/code)?$/);
       if (api) {
         const id = api[1];
         if (!ID.test(id)) return fail(404, 'No such group');
         if (request.method === 'GET' && !api[2]) return getGroup(env, id, request);
         if (request.method === 'POST' && api[2] === '/ops') return applyOps(env, id, request);
         if (request.method === 'POST' && api[2] === '/keep') return keepGroup(env, id);
+        if (request.method === 'POST' && api[2] === '/code') return groupCode(env, id);
         if (request.method === 'DELETE' && !api[2]) return deleteGroup(env, id);
         return fail(405, 'Method not allowed');
       }
+      const code = url.pathname.match(/^\/api\/code\/([^/]+)$/);
+      if (code) return request.method === 'GET' ? findCode(env, code[1], request) : fail(405, 'Method not allowed');
       if (url.pathname === '/app') return new Response(null, { status: 302, headers: { Location: APK, 'Cache-Control': 'no-store', ...PRIVATE } });
       if (url.pathname === '/.well-known/apple-app-site-association') return json(APPLE_LINKS, 200, { 'Cache-Control': 'public, max-age=3600' });
       if (url.pathname === '/.well-known/assetlinks.json') return json(ASSET_LINKS, 200, { 'Cache-Control': 'public, max-age=3600' });
@@ -109,7 +125,12 @@ export default {
     }
   },
   async scheduled(event, env) {
-    await purgeExpired(env, Date.now());
+    const now = Date.now();
+    await purgeExpired(env, now);
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM codes WHERE expires <= ?').bind(now),
+      env.DB.prepare('DELETE FROM guesses WHERE since <= ?').bind(now - HOUR),
+    ]);
   },
 };
 
@@ -316,10 +337,72 @@ async function purgeExpired(env, now) {
     await env.DB.batch([
       env.DB.prepare(`DELETE FROM entries WHERE group_id IN (${due})`).bind(now),
       env.DB.prepare(`DELETE FROM members WHERE group_id IN (${due})`).bind(now),
+      env.DB.prepare(`DELETE FROM codes WHERE group_id IN (${due})`).bind(now),
       env.DB.prepare(`UPDATE groups SET name = '', currency = '', split = NULL, version = 0, created_at = ?1, updated_at = ?1 WHERE id IN (${due})`).bind(now),
       env.DB.prepare(`DELETE FROM pending_deletes WHERE group_id IN (${due})`).bind(now),
     ]);
   }
+}
+
+function randomCode() {
+  let code = '';
+  while (code.length < 4) {
+    // Bytes past 239 are thrown back, so every letter is as likely as the next.
+    for (const b of crypto.getRandomValues(new Uint8Array(8))) if (b < 240 && code.length < 4) code += LETTERS[b % 20];
+  }
+  return code;
+}
+
+// The group's code: the one it has, with another week on it, or a new one.
+async function groupCode(env, id) {
+  const db = env.DB, now = Date.now(), until = now + JOIN_MS;
+  const g = await standing(env, id).first();
+  if (!g) return fail(404, 'No such group');
+  if (!g.currency || expired(g.purge_at, now)) return deleted(404);
+  const have = await db.prepare('SELECT code FROM codes WHERE group_id = ? AND expires > ? ORDER BY expires DESC').bind(id, now).first();
+  if (have) {
+    await db.batch([db.prepare('UPDATE codes SET expires = ? WHERE code = ?').bind(until, have.code)]);
+    return json({ code: have.code, until });
+  }
+  for (let k = 0; k < 8; k++) {
+    const code = randomCode();
+    // A code another group still holds is left alone; one that has run out is taken over.
+    const [made] = await db.batch([db.prepare(
+      'INSERT INTO codes (code, group_id, expires) VALUES (?, ?, ?) ' +
+      'ON CONFLICT(code) DO UPDATE SET group_id = excluded.group_id, expires = excluded.expires WHERE codes.expires <= ?'
+    ).bind(code, id, until, now)]);
+    if (made.meta && made.meta.changes) return json({ code, until });
+  }
+  return fail(503, 'Try again');
+}
+
+// Who is asking, without keeping their address: a stub of its hash. An IPv6
+// address counts by its network, since one phone can hold a great many.
+async function asker(request) {
+  let ip = request.headers.get('CF-Connecting-IP') || 'local';
+  if (ip.includes(':')) ip = ip.split(':').slice(0, 4).join(':');
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('tally ' + ip));
+  return [...new Uint8Array(hash)].slice(0, 8).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function findCode(env, raw, request) {
+  const db = env.DB, now = Date.now();
+  const who = await asker(request);
+  const tries = await db.prepare('SELECT n FROM guesses WHERE who = ? AND since > ?').bind(who, now - HOUR).first();
+  if (tries && tries.n >= GUESSES) return fail(429, 'Too many tries');
+  const code = String(raw).toUpperCase();
+  // A code for a group that has since been deleted leads nowhere.
+  const hit = JOIN.test(code) ? await db.prepare(
+    'SELECT c.group_id FROM codes c JOIN groups ON id = c.group_id LEFT JOIN pending_deletes p ON p.group_id = c.group_id ' +
+    `WHERE c.code = ?1 AND c.expires > ?2 AND ${LIVE} AND (p.purge_at IS NULL OR p.purge_at > ?2)`
+  ).bind(code, now).first() : null;
+  if (hit) return json({ id: hit.group_id });
+  // A miss counts; the count starts again an hour after its first.
+  await db.batch([db.prepare(
+    'INSERT INTO guesses (who, n, since) VALUES (?, 1, ?) ON CONFLICT(who) DO UPDATE SET ' +
+    'n = CASE WHEN guesses.since <= ? THEN 1 ELSE guesses.n + 1 END, since = CASE WHEN guesses.since <= ? THEN excluded.since ELSE guesses.since END'
+  ).bind(who, now, now - HOUR, now - HOUR)]);
+  return fail(404, 'No such code');
 }
 
 // An op's removed/deleted: 1 or 0 when it says, null (keep what's there) when it doesn't.
@@ -391,7 +474,7 @@ function cleanSplit(sp, modes) {
 const TYPES = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', json: 'application/json', woff2: 'font/woff2', svg: 'image/svg+xml', png: 'image/png' };
 async function serveWeb(path, search = '') {
   let file = path.replace(/^\/+/, '');
-  if (!file || /^g\/[^/]+$/.test(file)) file = 'index.html';
+  if (!file || /^[gj]\/[^/]+$/.test(file)) file = 'index.html';
   if (!/^[a-z0-9-]+(\/[a-z0-9-]+)*\.(html|js|json|woff2|svg|png)$/.test(file)) return fail(404, 'Not found');
   const version = /^\?v=\d+$/.test(search) ? search : '';
   const res = await fetch(WEB + file + version, { cf: { cacheTtl: 300, cacheEverything: true } });

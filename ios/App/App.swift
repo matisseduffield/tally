@@ -68,17 +68,21 @@ enum App {
     }
 
     /// A group's link: https://tally.teloone.au/g/<id>, or tally://g/<id>.
+    /// A join code's link: https://tally.teloone.au/j/<code>.
     static func opened(link: URL) {
         let path = link.scheme == "tally" ? "/" + (link.host ?? "") + link.path : link.path
-        guard path.range(of: "^/g/[A-Za-z0-9_-]{22}/?$", options: .regularExpression) != nil else { return }
-        let id = String(path.dropFirst(3).prefix(22))
+        let isCode = path.range(of: "^/j/[A-Za-z]{4}/?$", options: .regularExpression) != nil
+        guard isCode || path.range(of: "^/g/[A-Za-z0-9_-]{22}/?$", options: .regularExpression) != nil else { return }
+        let id = String(path.dropFirst(3).prefix(isCode ? 4 : 22))
+        // What the page is told: a group's id, or a code as its short path.
+        let told = isCode ? "/j/" + id : id
         if ready {
-            Shell.current?.send(["type": "openLink", "url": id])
+            Shell.current?.send(["type": "openLink", "url": told])
         } else if started {
             // The page is on its way back and would miss a change of address: it gets the link when it says hello.
-            waiting = id
+            waiting = told
         } else {
-            Shell.current?.show(config.start + "#g=" + id)
+            Shell.current?.show(config.start + (isCode ? "#j=" : "#g=") + id)
         }
     }
 
