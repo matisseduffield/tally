@@ -205,13 +205,44 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 .empty .link { padding: 6px 0; font-size: .9rem; }
 
 /* Home, before any group: what Tally does, in three ruled steps */
-.intro { display: grid; gap: 22px; padding-top: 4px; }
-.intro .lead { margin: 0; max-width: 21ch; font-size: 1.55rem; font-weight: 500; line-height: 1.25; letter-spacing: -.01em; }
-.steps { list-style: none; margin: 0; padding: 0; border-bottom: 1px solid var(--line); }
-.steps li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 2px; padding: 14px 0; border-top: 1px solid var(--line); }
-.steps .n { grid-row: 1 / span 2; font-size: .84rem; color: var(--faint); font-variant-numeric: tabular-nums; line-height: 22.5px; } /* the title's line, so the two share a baseline */
-.steps b { font-weight: 500; }
-.steps small { font-size: .84rem; color: var(--muted); }
+/* First run: one question a screen. The screen fills the phone so the way on,
+   and the small print, sit at the foot. */
+body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+#home.first { min-height: calc(100dvh - 112px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); grid-template-rows: 1fr; grid-auto-rows: auto; }
+#home.first .rate-credit, #home.stepping > :not(.onb) { display: none; }
+.onb { display: flex; flex-direction: column; gap: 24px; padding-top: 4px; }
+.onb .lead { margin: 0; max-width: 13ch; font-size: 1.9rem; font-weight: 600; line-height: 1.15; letter-spacing: -.02em; }
+.onb .ask { margin: 0; font-size: 1.55rem; font-weight: 600; line-height: 1.2; letter-spacing: -.015em; }
+.onb form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.onb .big { width: 100%; min-height: 54px; padding: 0 14px; font-size: 18px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 6px; }
+.onb .big::placeholder { color: var(--faint); }
+.onb .btn { width: 100%; min-height: 52px; font-size: 1rem; }
+.onb .end { margin-top: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.onb .end p { margin: 6px 0 -14px; text-align: center; font-size: .8rem; color: var(--muted); }
+.onb .bad { margin: 0; font-size: .86rem; color: var(--neg); }
+
+/* A trip in miniature: who paid for what, and the one payment that squares it. */
+.pic { display: grid; padding: 4px 16px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.pic-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); animation: pic-in .45s both; animation-delay: calc(var(--r) * 90ms + 120ms); }
+.pic-row b { display: block; font-weight: 500; }
+.pic-row small { display: block; font-size: .82rem; color: var(--muted); }
+.pic-row .amt { font-weight: 500; white-space: nowrap; }
+.pic-say { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; font-size: .95rem; font-weight: 600; animation: pic-in .45s both; animation-delay: 520ms; }
+.pic-say::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--pos); }
+.pic-say span { margin-left: auto; color: var(--pos); }
+@keyframes pic-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .pic-row, .pic-say { animation: none; } }
+
+/* Two tall tiles share the screen, so the choice is the page. */
+.pick { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(150px, 250px); align-content: start; gap: 12px; }
+.pick button { appearance: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 1fr; gap: 0 14px; padding: 20px 18px; text-align: left; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px; }
+.pick button:active { background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
+.pick .ic { grid-area: 1 / 1; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: var(--ink); color: var(--on-ink); }
+.pick .ic svg { width: 24px; height: 24px; }
+.pick .ic + span { grid-area: 2 / 1 / 3 / -1; align-self: end; }
+.pick strong { display: block; font-size: 1.4rem; font-weight: 600; line-height: 1.2; letter-spacing: -.015em; }
+.pick small { display: block; margin-top: 4px; font-size: .95rem; color: var(--muted); }
+.pick > button > svg { grid-area: 1 / 2; align-self: center; color: var(--muted); }
 /* Home: name and your balance on the first line, details across the whole
    second line (so nothing is cut short by the amount column). */
 .group-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 3px; min-height: 64px; padding: 12px 2px; }
@@ -573,14 +604,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 
   <!-- Home: your groups -->
   <div id="home" class="wrap" style="gap: 24px">
-    <section class="intro" id="intro" hidden>
-      <p class="lead">Split costs with anyone, no sign-up needed.</p>
-      <ol class="steps">
-        <li><span class="n">1</span><b>Make a group</b><small>For a trip, a flat, a night out.</small></li>
-        <li><span class="n">2</span><b>Share its link</b><small>Anyone with it can see, change and delete the group.</small></li>
-        <li><span class="n">3</span><b>Add what you pay</b><small>Tally keeps the balances and the simplest way to settle up.</small></li>
-      </ol>
-    </section>
+    <section class="onb" id="intro" hidden></section>
     <section class="totals" id="overview" aria-label="Across your groups" hidden>
       <div><span class="lbl">You’re owed</span><span class="val" id="ovOwed"></span><span class="also" id="ovOwedAlso" hidden></span></div>
       <div><span class="lbl">You owe</span><span class="val" id="ovOwe"></span><span class="also" id="ovOweAlso" hidden></span></div>
@@ -1264,13 +1288,15 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     const g = current && groups.get(current);
     $('home').hidden = !!g;
     $('groupView').hidden = !g;
-    $('back').hidden = !g;
+    $('back').hidden = !g && !obStep();
+    $('back').setAttribute('aria-label', g ? 'All groups' : 'Back');
     $('shareBtn').hidden = !g;
     $('settingsBtn').hidden = !g;
     $('dock').hidden = !g || !!g.deleted || live(g).length < 2;
     $('delBanner').hidden = !g || !g.deleting;
     if (g && g.deleting) $('delBannerText').textContent = `This group will be deleted for everyone on ${dateOf(g.deleting)}.`;
-    $('homeDock').hidden = !!g;
+    $('homeDock').hidden = !!g || !groupIds.length;
+    document.body.classList.toggle('first', !g && !groupIds.length);
     $('version').hidden = !!g || !appVersion;
     $('title').textContent = g ? g.group.name : 'Tally';
     document.title = g ? `${g.group.name} · Tally` : 'Tally';
@@ -1293,6 +1319,9 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 
   function renderHome() {
     $('intro').hidden = groupIds.length > 0;
+    $('home').classList.toggle('first', !groupIds.length);
+    $('home').classList.toggle('stepping', !!obStep());
+    renderOnb();
     $('groupsSection').hidden = $('overview').hidden = groupIds.length === 0;
     renderOverview();
     // A group made or joined here counts as active from then, so it doesn't start at the bottom.
@@ -1823,19 +1852,101 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     if (!name) return $('newName').focus();
     if (!me) return $('newMe').focus();
     if ($('newOther').value.trim()) addOther();
-    const id = L.newId(), meId = L.newId(), currency = $('newCur').textContent;
+    $('newDlg').close();
+    createGroup(name, me, $('newCur').textContent, newOthers);
+  });
+  function createGroup(name, me, currency, others) {
+    const id = L.newId(), meId = L.newId();
     store.set('myName', me);
     store.set('lastCurrency', currency);
     const g = { group: { id, name, currency, version: 0 }, members: [], entries: [], pending: [], me: meId, added: Date.now() };
     groups.set(id, g);
     groupIds.unshift(id);
     saveIds();
-    const ops = [{ type: 'group', name, currency }, { type: 'member', id: meId, name: me }, ...newOthers.map(n => ({ type: 'member', id: L.newId(), name: n }))];
-    $('newDlg').close();
+    const ops = [{ type: 'group', name, currency }, { type: 'member', id: meId, name: me }, ...others.map(n => ({ type: 'member', id: L.newId(), name: n }))];
     haptic();
     change(g, ops);
     openGroup(id);
     setTimeout(() => toast('Group created'), 300);
+  }
+
+  // ---- first run ----
+  // Home asks one thing a screen until there's a group. Each step is an entry in
+  // the phone's history, so Back, and a swipe from the edge, go to the step before.
+  const obStep = () => (!current && !groupIds.length && history.state && history.state.step) || '';
+  let obBad = '', obKey = null;
+  function toStep(step) {
+    history.pushState({ step }, '');
+    obBad = '';
+    render();
+    scrollTo(0, 0);
+    const el = $('intro').querySelector('input');
+    if (el) el.focus();
+  }
+  const CHEV = '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5"/></svg>';
+  const PLUS = '<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>';
+  const LINKIC = '<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 11.5a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-.9.9M11.5 8.5a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l.9-.9"/></svg>';
+  function renderOnb() {
+    const step = groupIds.length ? null : obStep();
+    const key = step + '|' + obBad;
+    if (key === obKey) return;
+    obKey = key;
+    const el = $('intro');
+    if (step === null) return el.replaceChildren();
+    const cur = store.get('lastCurrency') || homeCurrency;
+    const m = n => money(L.toMinor(n, cur), cur);
+    el.innerHTML = step === 'name' ? `<h2 class="ask">What’s your name?</h2>
+        <form data-ob="name" autocomplete="off"><input class="big" name="me" maxlength="40" aria-label="Your name" autocapitalize="words" enterkeyhint="next" required>
+        <button class="btn btn-primary">Continue</button></form>`
+      : step === 'choose' ? `<h2 class="ask">Start a group, or join one?</h2>
+        <div class="pick">
+          <button type="button" data-step="create"><span class="ic">${PLUS}</span><span><strong>Start a group</strong><small>For a trip, a flat, a night out.</small></span>${CHEV}</button>
+          <button type="button" data-step="link"><span class="ic">${LINKIC}</span><span><strong>Join a group</strong><small>With a link a friend sent you.</small></span>${CHEV}</button>
+        </div>`
+      : step === 'create' ? `<h2 class="ask">Name your group</h2>
+        <form data-ob="create" autocomplete="off"><input class="big" name="group" maxlength="60" aria-label="Group name" placeholder="Japan trip" autocapitalize="sentences" enterkeyhint="go" required>
+        <div class="blk"><div class="cell"><span class="row-k">Currency</span><button class="cur-btn" type="button" id="obCur"></button></div></div>
+        <button class="btn btn-primary">Start group</button></form>`
+      : step === 'link' ? `<h2 class="ask">Paste the group’s link</h2>
+        <form data-ob="link" autocomplete="off"><input class="big" name="link" aria-label="Group link" placeholder="tally.teloone.au/g/..." autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="url" enterkeyhint="go" required>
+        ${obBad ? '<p class="bad" role="alert"></p>' : ''}
+        <button class="btn btn-primary">Join</button></form>`
+      : `<p class="lead">Split costs with anyone.</p>
+        <div class="pic" role="img" aria-label="Alex paid for dinner and groceries, Sam paid for a taxi. One payment from Sam to Alex settles it.">
+          <div class="pic-row" style="--r:0" aria-hidden="true"><span><b>Dinner</b><small>Alex paid</small></span><span class="amt">${m(126)}</span></div>
+          <div class="pic-row" style="--r:1" aria-hidden="true"><span><b>Taxi</b><small>Sam paid</small></span><span class="amt">${m(38)}</span></div>
+          <div class="pic-row" style="--r:2" aria-hidden="true"><span><b>Groceries</b><small>Alex paid</small></span><span class="amt">${m(52)}</span></div>
+          <p class="pic-say" aria-hidden="true">Sam pays Alex<span>${m(70)}</span></p>
+        </div>
+        <div class="end"><button class="btn btn-primary" type="button" data-step="name">Get started</button><p>By continuing you agree to the terms.</p></div>`;
+    const me = el.querySelector('[name=me]'); if (me) me.value = store.get('myName') || '';
+    const bad = el.querySelector('.bad'); if (bad) bad.textContent = obBad;
+    if ($('obCur')) showCur($('obCur'), cur);
+  }
+  $('intro').addEventListener('click', async e => {
+    const to = e.target.closest('[data-step]');
+    if (to) return toStep(to.dataset.step);
+    if (e.target.closest('#obCur')) { const c = await pickCurrency($('obCur').textContent); if (c && $('obCur')) showCur($('obCur'), c); }
+  });
+  $('intro').addEventListener('submit', e => {
+    e.preventDefault();
+    const f = e.target, kind = f.dataset.ob;
+    if (kind === 'name') {
+      const me = f.me.value.trim();
+      if (!me) return f.me.focus();
+      store.set('myName', me);
+      toStep('choose');
+    } else if (kind === 'create') {
+      const name = f.group.value.trim(), me = store.get('myName');
+      if (!name) return f.group.focus();
+      if (!me) return toStep('name');
+      createGroup(name, me, $('obCur').textContent, []);
+    } else if (kind === 'link') {
+      const id = idFromLink(f.link.value);
+      if (!id) { obBad = 'That doesn’t look like a Tally link. Paste the whole link.'; const v = f.link.value; render(); const i = $('intro').querySelector('[name=link]'); i.value = v; i.focus(); return; }
+      $('joinLink').value = f.link.value.trim();
+      joinById(id);
+    }
   });
 
   // ---- join ----
@@ -1865,7 +1976,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       joining = { id, state };
       $('joinTitle').textContent = state.group.name;
       showJoinStep(true);
-      $('whoNew').value = '';
+      $('whoNew').value = store.get('myName') || '';
       $('whoChips').replaceChildren(...state.members.filter(m => !m.removed).map(m => {
         const b = document.createElement('button');
         b.type = 'button';
@@ -2818,7 +2929,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       if (entry) { toggleRow(g, entry, ent); haptic('tick'); syncBack(); }
     }
   });
-  $('back').addEventListener('click', () => (history.state && history.state.own ? history.back() : goHome()));
+  $('back').addEventListener('click', () => (history.state && (history.state.own || history.state.step) ? history.back() : goHome()));
   $('addBtn').addEventListener('click', () => openExpense(null));
   $('settleBtn').addEventListener('click', () => openSettle(null));
   // Search: a tap shows the field (and only then the keyboard); Back or
