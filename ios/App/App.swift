@@ -13,6 +13,10 @@ enum App {
     )
 
     private static var ready = false
+    /// A page has been ready at some point since the app started.
+    private static var started = false
+    /// A group link that came while the page was starting again.
+    private static var waiting: String?
     private static var unsent = false
     private static var holding = UIBackgroundTaskIdentifier.invalid
 
@@ -26,7 +30,14 @@ enum App {
     static func setUp(_ shell: Shell) {
         // The page reads this before it draws.
         shell.scripts = ["window.tallyApp.ios = true;"]
-        shell.onReady = { ready = true }
+        shell.onReady = {
+            ready = true
+            started = true
+            if let id = waiting {
+                waiting = nil
+                Shell.current?.send(["type": "openLink", "url": id])
+            }
+        }
         // The page is starting again: a link waits for it rather than going to a page that isn't there.
         shell.onRestart = { ready = false }
         shell.onMessage = { type, msg in
@@ -63,6 +74,9 @@ enum App {
         let id = String(path.dropFirst(3).prefix(22))
         if ready {
             Shell.current?.send(["type": "openLink", "url": id])
+        } else if started {
+            // The page is on its way back and would miss a change of address: it gets the link when it says hello.
+            waiting = id
         } else {
             Shell.current?.show(config.start + "#g=" + id)
         }

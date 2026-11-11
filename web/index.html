@@ -334,7 +334,7 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .hint { font-size: .82rem; color: var(--muted); }
 .hint.bad { color: var(--neg); }
 .hint a { color: var(--accent); }
-a.credit { color: var(--muted); }
+a.credit { margin: -10px 0 -8px; padding: 13px 0; color: var(--muted); }
 a.credit[hidden] { display: none; }
 a.link { text-decoration: none; }
 .del-name { margin: 0; font-size: 1.1rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
@@ -505,20 +505,20 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   position: fixed; inset: auto auto calc(var(--dock) + 17px) 50%; z-index: 20;
   transform: translateX(-50%); margin: 0; border: 0; overflow: visible;
   display: flex; align-items: center; gap: 16px; max-width: calc(100vw - 32px); width: max-content;
-  padding: 0 6px 0 16px; min-height: 42px; border-radius: 6px; background: var(--ink); color: var(--on-ink);
+  padding: 0 6px 0 16px; min-height: 44px; border-radius: 6px; background: var(--ink); color: var(--on-ink);
   font-size: .88rem; box-shadow: 0 8px 24px var(--shadow);
 }
 .toast:not(:has(button:not([hidden]))) { padding-right: 16px; }
 .toast[popover]:not(:popover-open) { display: none; }
-.toast button { min-height: 42px; padding: 0 10px; border: 0; background: none; color: var(--on-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.toast button { min-height: 44px; padding: 0 10px; border: 0; background: none; color: var(--on-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .install-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; font-size: .84rem; line-height: 1.35; color: var(--muted); }
 .install-hint button { flex: none; width: 44px; height: 44px; margin: -10px -12px -10px 0; padding: 0; background: none; border: 0; font-size: 1.2rem; color: var(--muted); }
 .get-app { justify-self: start; margin: 0; font-size: .84rem; color: var(--muted); }
 .get-app a { color: inherit; }
 .legal { display: flex; justify-content: center; gap: 48px; }
 .legal a { padding: 12px 8px; font-size: .84rem; color: var(--muted); text-decoration: none; }
-.rate-credit { margin: -8px 0 0; text-align: center; font-size: .76rem; color: var(--muted); }
-.rate-credit a { color: inherit; text-decoration: none; }
+.rate-credit { margin: -22px 0 -14px; text-align: center; font-size: .76rem; color: var(--muted); }
+.rate-credit a { display: inline-block; padding: 14px 8px; color: inherit; text-decoration: none; }
 .by-line { font-size: .82rem; color: var(--muted); }
 .act-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; }
 .act-head .link { padding: 6px 0; }
@@ -845,7 +845,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   // Served from the site itself the API is same-origin; in the app (bundled
   // page) or a local preview it's the site's.
   const onSite = location.protocol === 'https:' && location.hostname !== 'appassets.androidplatform.net';
-  const API = onSite ? '' : 'https://tally.matisseduffield.workers.dev';
+  // The iPhone app uses the site's address; the Android app stays on the old one, which runs the same server.
+  const API = onSite ? '' : window.tallyApp && window.tallyApp.ios ? SITE : 'https://tally.matisseduffield.workers.dev';
   const POLL_MS = 15_000;
   // Live rates from Coinbase, or daily ones from ExchangeRate-API if that fails.
   // ExchangeRate-API's terms ask for the credit link in the page.
@@ -1071,11 +1072,12 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 
   // ---- sync ----
   const syncing = new Set();
-  let offline = false;
+  let offline = false, faulty = false; // faulty: the server answered, but with an error
   async function sync(id) {
     const g = groups.get(id);
     if (!g || g.deleted || syncing.has(id)) return;
     syncing.add(id);
+    let answered = false;
     try {
       let res;
       const sending = g.pending.slice(0, g.oneByOne ? 1 : 200);
@@ -1088,7 +1090,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       } else {
         res = await fetch(`${API}/api/g/${id}${since === null ? '' : '?since=' + since}`, { headers: g.etag ? { 'If-None-Match': g.etag } : {}, cache: 'no-store', signal: within(20_000) });
       }
-      offline = false;
+      answered = true;
+      offline = faulty = false;
       retries.delete(id);
       if (!groups.has(id)) return; // removed from this device meanwhile
       if (res.status === 304) { if (!g.pending.length) fillRepeats(id); return; }
@@ -1140,6 +1143,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       if (!g.pending.length) fillRepeats(id);
     } catch {
       offline = true;
+      faulty = answered;
       renderStatus();
       // Try again in 5 s, 10 s, 20 s … up to 2 minutes.
       const n = (retries.get(id) || 0) + 1;
@@ -1684,6 +1688,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     let text = '';
     if (g && g.deleted) text = 'Deleted for everyone. This device keeps its copy until you remove it.';
     else if (g && g.gone) text = 'This group was deleted or the link is wrong.';
+    else if (faulty) text = 'Can’t reach Tally right now · your changes are kept';
     else if (offline && g && g.pending && g.pending.length) text = 'Offline · your changes will sync when you’re back online';
     else if (offline) text = 'Offline · showing what was saved on this device';
     $('status').textContent = text;
@@ -2653,6 +2658,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     renderSplitDefault(g);
     renderMembers();
     $('setDelete').hidden = !!g.gone || !!g.deleting;
+    $('setReport').href = 'mailto:support@teloone.au?subject=Report%20a%20Tally%20group&body=' + encodeURIComponent(`Group link: ${linkOf(g.group.id)}\n\nTell us what’s wrong:\n\n`);
     openDlg($('setDlg'));
   }
   function renderSplitDefault(g) {
@@ -3102,11 +3108,17 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     }
   } catch {}
   const pathId = (location.pathname.match(/^\/g\/([A-Za-z0-9_-]{22})$/) || [])[1] || (location.hash.match(/g=([A-Za-z0-9_-]{22})/) || [])[1];
-  history.replaceState(pathId ? { g: pathId } : {}, '');
+  // On iPhone a group opened from its link goes on top of Home, so Back, and a swipe from the edge, have Home to go to.
+  // A page iOS started again inside a group may already have Home under it: then it stays as it is.
+  const ios = !!app && app.ios === true;
+  const under = ios && !!pathId && !!history.state && history.state.own === true && history.state.g === pathId;
+  const overHome = ios && !!pathId && !under;
+  if (overHome) history.replaceState({}, '', '#');
+  else if (!under) history.replaceState(pathId ? { g: pathId } : {}, '');
   // Only in Android browsers: never inside the app, even on a WebView too old for the bridge.
   $('getApp').hidden = !!app || !onSite || !/Android/.test(navigator.userAgent);
   render();
-  if (pathId) openFromLink(pathId, false);
+  if (pathId) openFromLink(pathId, overHome);
   if (!pathId || !groups.has(pathId)) for (const id of groupIds) sync(id);
   if (groupIds.length) freshenRates();
   toApp({ type: 'hello' });
