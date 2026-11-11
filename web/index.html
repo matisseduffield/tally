@@ -764,7 +764,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     <span class="hint">Tap a name to change it. Anyone with the link can see, change and delete this group.</span>
     <div class="blk">
       <button class="cell go" type="button" id="setExport">Export CSV</button>
-      <a class="cell go tall" id="setReport" href="mailto:googleplay@telo.au?subject=Report%20a%20Tally%20group&amp;body=Paste%20the%20group%E2%80%99s%20link%20here%2C%20and%20tell%20us%20what%E2%80%99s%20wrong%3A%0A%0A"><span class="row-k">Report a problem<small id="setReportTo">Opens an email to googleplay@telo.au</small></span></a>
+      <a class="cell go tall" id="setReport" href="mailto:support@teloone.au?subject=Report%20a%20Tally%20group&amp;body=Paste%20the%20group%E2%80%99s%20link%20here%2C%20and%20tell%20us%20what%E2%80%99s%20wrong%3A%0A%0A"><span class="row-k">Report a problem<small id="setReportTo">Opens an email to support@teloone.au</small></span></a>
     </div>
     <div class="blk">
       <button class="cell bad" type="button" id="setForget">Remove from this device</button>
@@ -2972,12 +2972,6 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     if (!app) return;
     const on = [...groups.values()].some(g => g.pending.length && !g.gone && !g.deleted);
     if (on !== lastUnsent) { lastUnsent = on; toApp({ type: 'unsent', on }); }
-  }
-
-  // The iPhone app has its own address for reports.
-  if (app && app.ios) {
-    $('setReport').href = $('setReport').href.replace('googleplay@telo.au', 'hello@telo.au');
-    $('setReportTo').textContent = 'Opens an email to hello@telo.au';
   }
 
   // ---- boot ----
