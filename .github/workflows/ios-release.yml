@@ -1,10 +1,9 @@
 # Signs the iPhone app and sends it to TestFlight. Run by hand.
-# Needs four repository secrets, set once the Apple developer account exists:
+# Needs four repository secrets:
 #   APPLE_TEAM_ID   the ten-character team ID
 #   ASC_KEY_ID      App Store Connect API key ID
 #   ASC_ISSUER_ID   the issuer ID shown above the keys
 #   ASC_KEY_P8      the whole contents of the .p8 file
-# Not yet run: there is no account to run it against.
 name: iOS release
 on:
   workflow_dispatch:
@@ -23,20 +22,26 @@ jobs:
       - name: Put the key where Xcode can read it
         env:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          KEY_ID: ${{ secrets.ASC_KEY_ID }}
         run: |
           test -n "$ASC_KEY_P8" || { echo "The secrets are not set."; exit 1; }
           mkdir -p "$RUNNER_TEMP/keys"
-          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/key.p8"
+          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8"
+      # Signed to run nowhere: a development profile would need a registered
+      # iPhone, and the team has none. The real signature goes on at export.
       - name: Archive
         env:
           TEAM: ${{ secrets.APPLE_TEAM_ID }}
-          KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ISSUER: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           cd ios
           set -o pipefail
-          xcodebuild -project "$APP.xcodeproj" -scheme "$APP" -configuration Release             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/app.xcarchive"             DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic             CURRENT_PROJECT_VERSION="${{ github.run_number }}"             -allowProvisioningUpdates             -authenticationKeyPath "$RUNNER_TEMP/keys/key.p8"             -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER"             archive > archive.log 2>&1 || { grep -E "error:|ARCHIVE" archive.log | sort -u | tail -60; exit 1; }
-      - name: Upload to App Store Connect
+          xcodebuild -project "$APP.xcodeproj" -scheme "$APP" -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/app.xcarchive" \
+            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES PROVISIONING_PROFILE_SPECIFIER= \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            archive > archive.log 2>&1 || { grep -E "error:|ARCHIVE" archive.log | sort -u | tail -60; exit 1; }
+      - name: Sign for the App Store
         env:
           TEAM: ${{ secrets.APPLE_TEAM_ID }}
           KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -47,13 +52,38 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
             <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
+            <key>destination</key><string>export</string>
             <key>teamID</key><string>$TEAM</string>
             <key>signingStyle</key><string>automatic</string>
           </dict></plist>
           PLIST
           set -o pipefail
-          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/app.xcarchive"             -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/out"             -allowProvisioningUpdates             -authenticationKeyPath "$RUNNER_TEMP/keys/key.p8"             -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER"             > export.log 2>&1 || { grep -E "error|EXPORT" export.log | sort -u | tail -60; exit 1; }
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/app.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/out" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8" \
+            -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER" \
+            > export.log 2>&1 || { grep -E "error|EXPORT" export.log | sort -u | tail -60; exit 1; }
+      # What the project asks for has to be in the signed app, or links and the like fail silently.
+      - name: Check what the app is allowed
+        run: |
+          cd "$RUNNER_TEMP/out"
+          unzip -q ./*.ipa -d ipa
+          codesign -d --entitlements - --xml ipa/Payload/*.app 2>/dev/null | plutil -convert json -o signed.json -
+          plutil -p signed.json | grep -v -i "team\|application-identifier\|keychain"
+          wanted="$GITHUB_WORKSPACE/ios/App/App.entitlements"
+          if [ -f "$wanted" ]; then
+            for key in $(plutil -convert json -o - "$wanted" | python3 -c 'import json,sys; print(" ".join(json.load(sys.stdin)))'); do
+              grep -q "\"$key\"" signed.json || { echo "Missing from the signed app: $key"; exit 1; }
+            done
+          fi
+      - name: Upload to App Store Connect
+        env:
+          KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ISSUER: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          export API_PRIVATE_KEYS_DIR="$RUNNER_TEMP/keys"
+          xcrun altool --upload-app -t ios -f "$RUNNER_TEMP"/out/*.ipa --apiKey "$KEY_ID" --apiIssuer "$ISSUER"
       - name: Remove the key
         if: always()
-        run: rm -f "$RUNNER_TEMP/keys/key.p8"
+        run: rm -rf "$RUNNER_TEMP/keys"

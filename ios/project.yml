@@ -48,3 +48,5 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.matisseduffield.tally
+        # iPhone only. XcodeGen adds iPad to each target unless told here.
+        TARGETED_DEVICE_FAMILY: "1"
