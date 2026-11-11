@@ -255,3 +255,10 @@ test('after a batch, queued changes to the entries it wrote move to the new vers
   // A change with no base stays without one.
   assert.deepEqual(L.requeue([op(X, undefined, '7')], sent, [], 9), [op(X, undefined, '7')]);
 });
+
+test('amounts typed in Arabic, Persian or Hindi digits are read', () => {
+  assert.equal(L.parseNumber('١٢٫٥', ','), 12.5);
+  assert.equal(L.parseNumber('۱۲۳۴', ','), 1234);
+  assert.equal(L.parseNumber('१५०', ','), 150);
+  assert.equal(L.evaluate('١٢*٢', ','), 24);
+});

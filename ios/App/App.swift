@@ -18,7 +18,8 @@ enum App {
 
     static func launched() {
         NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
-            Task { @MainActor in hold() }
+            // Straight away: the time iOS allows has to be asked for before this returns.
+            MainActor.assumeIsolated { hold() }
         }
     }
 
@@ -26,6 +27,8 @@ enum App {
         // The page reads this before it draws.
         shell.scripts = ["window.tallyApp.ios = true;"]
         shell.onReady = { ready = true }
+        // The page is starting again: a link waits for it rather than going to a page that isn't there.
+        shell.onRestart = { ready = false }
         shell.onMessage = { type, msg in
             switch type {
             case "unsent":

@@ -21,8 +21,13 @@
   // appear the last one is; a lone separator is grouping only when it's the
   // locale's group mark followed by exactly three digits ("1.500" in Germany), or the
   // currency has no cents ("150.000" on a rupiah receipt is 150,000 anywhere).
+  // Keyboards set to Arabic, Persian or Hindi type their own digits.
+  const DIGITS = /[\u0660-\u0669\u06F0-\u06F9\u0966-\u096F]/g;
+  const western = s => String(s).replace(DIGITS, d => d.charCodeAt(0) - (d < '\u06F0' ? 0x660 : d < '\u0900' ? 0x6F0 : 0x966))
+    .replace(/\u066B/g, '.').replace(/\u066C/g, ',');
+
   function parseNumber(s, group, whole = false) {
-    s = String(s).replace(/['’\s  ]/g, '');
+    s = western(s).replace(/['’\s  ]/g, '');
     if (!s) return NaN;
     const hasDot = s.includes('.'), hasComma = s.includes(',');
     if (hasDot && hasComma) {
@@ -43,7 +48,7 @@
 
   // Amount fields accept simple sums such as 12*3.5 or (40+25)/2. Hand-parsed; nothing is eval'd.
   function evaluate(text, group, whole = false) {
-    const src = String(text).replace(/[\s  ]/g, '').replace(/[×xX]/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-');
+    const src = western(text).replace(/[\s  ]/g, '').replace(/[×xX]/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-');
     if (!src) return NaN;
     const tokens = src.match(/[0-9.,'’]+|[-+*/()]/g);
     if (!tokens || tokens.join('') !== src) return NaN;
@@ -315,7 +320,7 @@
 
   // Matches the ?v= the page loads this file with; the page checks it, so a page
   // and a lib.js from different releases never run together. Bump both together.
-  const VERSION = 4;
+  const VERSION = 5;
 
   const lib = { VERSION, keptDraft, opKey, mergeQueue, requeue, parseRates, parseLiveRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, overview, newId, isId };
   if (typeof module === 'object' && module.exports) module.exports = lib;

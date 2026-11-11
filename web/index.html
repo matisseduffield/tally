@@ -802,7 +802,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 
 <div class="toast" id="toast" role="status" popover="manual"><span id="toastText"></span><button type="button" id="toastUndo" hidden>Undo</button></div>
 
-<script src="lib.js?v=4"></script>
+<script src="lib.js?v=5"></script>
 <script src="pwa.js?v=2"></script>
 <script>
 (() => {
@@ -810,7 +810,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   const L = TallyLib;
   // Just after a release a cache can hand over an old lib.js with this page:
   // reload once to get the matching one rather than run the two together.
-  const LIB_VERSION = 4; // the ?v= on lib.js above
+  const LIB_VERSION = 5; // the ?v= on lib.js above
   if (L.VERSION !== LIB_VERSION) {
     let tried = true;
     try { tried = sessionStorage.getItem('tally.libReload') === String(LIB_VERSION); sessionStorage.setItem('tally.libReload', LIB_VERSION); } catch {}
@@ -1247,6 +1247,14 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     for (const id of groupIds) sync(id);
   }
   addEventListener('popstate', e => {
+    // On iPhone a swipe from the left edge is Back. With a sheet open it closes the
+    // sheet and stays in the group, as the Back key does on Android.
+    const sheets = [...document.querySelectorAll('dialog[open]')];
+    if (sheets.length && current && window.tallyApp && window.tallyApp.ios && !(e.state && e.state.g === current)) {
+      sheets.pop().close();
+      history.pushState({ g: current, own: true }, '', onSite ? `/g/${current}` : `#g=${current}`);
+      return;
+    }
     for (const d of document.querySelectorAll('dialog[open]')) d.close();
     const id = e.state && e.state.g;
     if (id && groups.has(id)) openGroup(id, false); else goHome(false);

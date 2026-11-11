@@ -33,6 +33,8 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
     var onReady: () -> Void = {}
     /// The app is in front again.
     var onActive: () -> Void = {}
+    /// iOS ended the page's process and the page is starting again: it can't take messages until it says hello.
+    var onRestart: () -> Void = {}
     /// Scripts to run before each page's own.
     var scripts: [String] = []
     /// Answers a page needs before it can carry on: `prompt('shell:<what>')`.
@@ -76,7 +78,7 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
           window.\(config.bridge) = { postMessage: s => out.postMessage(String(s)), onmessage: null };
         })();
         """
-        for source in [Shell.restoreScript(), bridge] + scripts where !source.isEmpty {
+        for source in [Shell.restoreScript(), bridge, Shell.feel] + scripts where !source.isEmpty {
             content.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         }
 
@@ -101,6 +103,27 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
         center.addObserver(self, selector: #selector(resigned), name: UIApplication.willResignActiveNotification, object: nil)
         center.addObserver(self, selector: #selector(active), name: UIApplication.didBecomeActiveNotification, object: nil)
     }
+
+    /// What makes the pages sit like an app: no pinch or double-tap zoom, no
+    /// long-press menus or text selection outside fields, and nothing showing
+    /// through behind the clock when a page scrolls.
+    private static let feel = #"""
+    (() => {
+      const style = document.createElement('style');
+      style.textContent =
+        '*{-webkit-touch-callout:none}' +
+        'body{-webkit-user-select:none;user-select:none}' +
+        'input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}' +
+        'a,img{-webkit-user-drag:none}' +
+        'body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:inherit;z-index:9;pointer-events:none}';
+      document.documentElement.appendChild(style);
+      const fix = () => {
+        const meta = document.querySelector('meta[name="viewport"]');
+        if (meta && !/user-scalable/.test(meta.content)) meta.content += ',maximum-scale=1,user-scalable=no';
+      };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fix); else fix();
+    })();
+    """#
 
     @objc private func active() { onActive() }
     @objc private func resigned() { keepStorage() }
@@ -150,7 +173,7 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
             if let title = msg["title"] as? String { sheet.setValue(title, forKey: "subject") }
             sheet.popoverPresentationController?.sourceView = view
             sheet.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 80, width: 1, height: 1)
-            present(sheet, animated: true)
+            if presentedViewController == nil { present(sheet, animated: true) }
         case "haptic":
             if msg["kind"] as? String == "tick" { tick.selectionChanged() } else { tap.impactOccurred() }
         case "askNotifications":
@@ -170,31 +193,49 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
         guard let url = navigationAction.request.url else { return decisionHandler(.cancel) }
         if url.scheme == Shell.scheme || url.scheme == "about" || url.scheme == "blob" { return decisionHandler(.allow) }
         if let frame = navigationAction.targetFrame, !frame.isMainFrame { return decisionHandler(.allow) }
-        UIApplication.shared.open(url)
+        leave(to: url)
         decisionHandler(.cancel)
+    }
+
+    /// Opens a link outside the app. With no mail app set up, an email link
+    /// would do nothing, so the address is shown instead.
+    private func leave(to url: URL) {
+        UIApplication.shared.open(url) { [weak self] opened in
+            guard !opened, url.scheme == "mailto", let self, self.presentedViewController == nil else { return }
+            let address = URLComponents(url: url, resolvingAgainstBaseURL: false)?.path ?? ""
+            guard !address.isEmpty else { return }
+            let alert = UIAlertController(title: "No mail app is set up", message: "Email \(address) from any device.", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "Copy address", style: .default) { _ in UIPasteboard.general.string = address })
+            alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+            self.present(alert, animated: true)
+        }
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         if let url = navigationAction.request.url {
-            if url.scheme == Shell.scheme { webView.load(navigationAction.request) } else { UIApplication.shared.open(url) }
+            if url.scheme == Shell.scheme { webView.load(navigationAction.request) } else { leave(to: url) }
         }
         return nil
     }
 
     /// iOS ended the page's process to free memory: start the page again.
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        onRestart()
         if webView.url == nil { webView.load(URLRequest(url: url(config.start))) } else { webView.reload() }
     }
 
     // MARK: Page dialogs
 
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        // WebKit must get its answer even when nothing can be shown.
+        guard viewIfLoaded?.window != nil, presentedViewController == nil else { return completionHandler() }
         let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
         present(alert, animated: true)
     }
 
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+        guard viewIfLoaded?.window != nil, presentedViewController == nil else { return completionHandler(false) }
         let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(false) })
         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) })
