@@ -358,6 +358,11 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         self.window = window
         let web = connectionOptions.userActivities.first { $0.activityType == NSUserActivityTypeBrowsingWeb }?.webpageURL
         if let link = web ?? connectionOptions.urlContexts.first?.url { App.opened(link: link) }
+        #if DEBUG
+        // For checks in the simulator: `simctl launch <device> <bundle> -link <url>`.
+        let args = ProcessInfo.processInfo.arguments
+        if let at = args.firstIndex(of: "-link"), at + 1 < args.count, let link = URL(string: args[at + 1]) { App.opened(link: link) }
+        #endif
     }
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
