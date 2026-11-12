@@ -2839,6 +2839,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   function byLine(g, e) {
     if (!e || !e.by) return '';
     const who = e.by === g.me ? 'you' : memberName(g, e.by);
+    // A repeat's copy is made the day the app is next opened: that day says nothing about it.
+    if (e.of && !(e.updatedAt && e.createdAt && e.updatedAt - e.createdAt > 1000)) return `Added by ${who}`;
     const when = e.updatedAt ? new Date(e.updatedAt).toLocaleDateString(locale, { day: 'numeric', month: 'short' }) : '';
     const verb = e.updatedAt && e.createdAt && e.updatedAt - e.createdAt > 1000 ? 'Last changed by' : 'Added by';
     return `${verb} ${who}${when ? ' · ' + when : ''}`;
