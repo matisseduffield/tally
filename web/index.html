@@ -198,7 +198,8 @@ button.row:active { background: color-mix(in srgb, var(--ink) 5%, transparent); 
 .det-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 12px; }
 .det-foot .acts { display: flex; gap: 18px; flex: none; margin-left: auto; white-space: nowrap; }
 button.row[aria-expanded="true"] .row-title { font-weight: 600; }
-.day { padding: 14px 2px 4px; font-size: .8rem; font-weight: 500; color: var(--muted); }
+.day { display: flex; justify-content: space-between; gap: 12px; padding: 14px 2px 4px; font-size: .8rem; font-weight: 500; color: var(--muted); }
+.day-sum { font-weight: 400; white-space: nowrap; }
 .empty { padding: 18px 0; font-size: .9rem; color: var(--muted); }
 .empty p { margin: 0; max-width: 34ch; }
 .empty .acts { display: flex; gap: 20px; margin-top: 10px; }
@@ -272,20 +273,45 @@ body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 
 /* Home totals: a ledger strip, owed | owe, between hairlines */
 .totals { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.totals > div { display: grid; gap: 2px; padding: 14px 0 16px; min-width: 0; }
+.totals > div { display: grid; align-content: start; gap: 2px; padding: 14px 0 16px; min-width: 0; }
 .totals > div:first-child { padding-right: 12px; }
 .totals > div + div { border-left: 1px solid var(--line); padding-left: 16px; }
 .totals .lbl { font-size: .8rem; color: var(--muted); }
 .totals .val { font-size: 1.55rem; font-weight: 500; letter-spacing: -.01em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .totals .val.zero { color: var(--faint); }
 .totals .also { font-size: .78rem; line-height: 1.35; color: var(--muted); }
+/* The strip's lower rule becomes the two totals set against each other */
+.totals .split { grid-column: 1 / -1; display: flex; gap: 3px; height: 4px; margin-bottom: -1px; }
+.totals:has(.split:not([hidden])) { border-bottom-color: transparent; }
+.split i { flex: 0 0 0; min-width: 0; border-radius: 2px; transition: flex-grow .5s cubic-bezier(.2, .9, .3, 1); }
+.split .s-pos { background: var(--pos); transform-origin: left; }
+.split .s-neg { background: var(--neg); transform-origin: right; }
+/* Your part of what the group has spent */
+.totals .share { display: block; height: 4px; margin: 5px 0 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.share i { display: block; width: 0; height: 100%; border-radius: 2px; background: var(--ink); transform-origin: left; transition: width .5s cubic-bezier(.2, .9, .3, 1); }
+/* How many are in a group, kept the way a tally is kept */
+.marks { flex: none; margin-right: 5px; vertical-align: -2px; color: var(--muted); }
 
 
 /* Everyone else's balance: a plain ruled list, like Bureau's quick amounts */
 .bal-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; padding: 6px 2px; border-top: 1px solid var(--line); font-size: .92rem; }
 .bal-row:last-child { border-bottom: 1px solid var(--line); }
-#people .bal-row { width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; color: inherit; font: inherit; font-size: .92rem; text-align: left; cursor: pointer; }
-#people .bal-row:last-child { border-bottom: 0; }
+/* In the group they are drawn either side of a centre mark: owed to the
+   right, owing to the left, each to the scale of the largest. The line the
+   bar sits on is the row's rule. */
+#people { padding-bottom: 16px; }
+#people .bal-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 7px 12px; width: 100%; min-height: 50px; padding: 12px 2px 0; background: none; border: 0; color: inherit; font: inherit; font-size: .92rem; text-align: left; cursor: pointer; }
+#people .bal-amt { white-space: nowrap; font-weight: 500; }
+.bal-bar, #people .bal-bar { grid-column: 1 / -1; position: relative; display: block; height: 6px; margin: 0; }
+/* Home draws each group the same way: what's outstanding for you, as a part of what the group has spent */
+#groupList { padding-bottom: 16px; }
+.group-row { border-top: 0; padding: 13px 2px 0; }
+.group-row .bal-bar { grid-row: 3; margin-top: 9px; }
+.bal-bar::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line); }
+.bal-bar::after { content: ""; position: absolute; left: calc(50% - .5px); bottom: 0; width: 1px; height: 6px; background: var(--line-strong); }
+.bal-bar i { position: absolute; bottom: 0; height: 6px; width: max(3px, calc(var(--w) * 50%)); }
+.bal-bar i.pos { left: 50%; background: var(--pos); border-radius: 0 2px 0 0; transform-origin: left; }
+.bal-bar i.neg { right: 50%; background: var(--neg); border-radius: 2px 0 0 0; transform-origin: right; }
 #people .bal-row:active { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 /* Short of room (a long name, larger text) the amount goes under the name rather than cutting it short */
 .bal-row > span:first-child { min-width: 0; overflow-wrap: break-word; }
@@ -493,7 +519,14 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 
 /* Settle up suggestions */
 .pay-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; padding: 12px 16px 4px; background: var(--surface); }
-.pay-row .who { min-width: 0; overflow-wrap: anywhere; }
+.pay-row .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pay-row .who b { flex: 0 1 auto; min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
+/* The payment drawn as a line from one name to the other */
+.pay-line { flex: 1; min-width: 26px; position: relative; height: 1.5px; border-radius: 1px; background: currentColor; color: var(--muted); transform-origin: left; animation: line-in .5s cubic-bezier(.2, .9, .3, 1) both; }
+.pay-line::after { content: ""; position: absolute; right: 1px; top: 50%; width: 7px; height: 7px; border-top: 1.5px solid; border-right: 1.5px solid; transform: translateY(-50%) rotate(45deg); }
+.pay-line.pos { color: var(--pos); }
+.pay-line.neg { color: var(--neg); }
+@keyframes line-in { from { transform: scaleX(0); opacity: 0; } }
 .pay-row .amt { font-weight: 500; white-space: nowrap; }
 .pay-row .acts { grid-column: 1 / -1; display: flex; gap: 20px; }
 .pay-row .link { padding: 8px 0; font-size: .86rem; }
@@ -564,7 +597,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   .sheet-body, .picker-list { flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  dialog, dialog::backdrop, .update-track span { transition: none; }
+  dialog, dialog::backdrop, .update-track span, .split i, .share i { transition: none; }
+  .pay-line { animation: none; }
   dialog { transform: none; }
 }
 /* iPhones zoom the page into any field under 16px; only iOS matches this. */
@@ -621,8 +655,9 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   <div id="home" class="wrap" style="gap: 24px">
     <section class="onb" id="intro" hidden></section>
     <section class="totals" id="overview" aria-label="Across your groups" hidden>
-      <div><span class="lbl">You’re owed</span><span class="val" id="ovOwed"></span><span class="also" id="ovOwedAlso" hidden></span></div>
-      <div><span class="lbl">You owe</span><span class="val" id="ovOwe"></span><span class="also" id="ovOweAlso" hidden></span></div>
+      <div><span class="lbl">You’re owed</span><span class="val" id="ovOwed" data-k="ovOwed" data-fx="tick"></span><span class="also" id="ovOwedAlso" hidden></span></div>
+      <div><span class="lbl">You owe</span><span class="val" id="ovOwe" data-k="ovOwe" data-fx="tick"></span><span class="also" id="ovOweAlso" hidden></span></div>
+      <span class="split" id="ovSplit" aria-hidden="true" hidden><i class="s-pos"></i><i class="s-neg"></i></span>
     </section>
     <section class="section" id="groupsSection" hidden>
       <h2>Groups</h2>
@@ -640,8 +675,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       <button class="link" type="button" id="delUndo">Undo</button>
     </section>
     <section class="totals" id="groupTotals" aria-label="This group">
-      <div><span class="lbl" id="sumLabel">Your balance</span><span class="val" id="sumAmt"></span></div>
-      <div><span class="lbl">Spent in total</span><span class="val" id="sumSpent"></span><span class="also" id="sumMeta"></span></div>
+      <div><span class="lbl" id="sumLabel">Your balance</span><span class="val" id="sumAmt" data-k="sumAmt" data-fx="tick"></span></div>
+      <div><span class="lbl">Spent in total</span><span class="val" id="sumSpent" data-k="sumSpent" data-fx="tick"></span><span class="share" id="sumShare" aria-hidden="true"><i></i></span><span class="also" id="sumMeta"></span></div>
     </section>
     <section class="section" id="balSection">
       <h2>Balances</h2>
@@ -1317,7 +1352,79 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     if (id && groups.has(id)) openGroup(id, false); else goHome(false);
   });
 
+  // ---- movement ----
+  // The lists are drawn afresh each time, so what moves is worked out from
+  // where each named piece (data-k) sat before and sits now: one that changed
+  // place slides there, a new one arrives, a bar grows to its new length and
+  // a changed amount ticks over. A new screen comes in a piece at a time.
+  const calm = matchMedia('(prefers-reduced-motion: reduce)');
+  const EASE = 'cubic-bezier(.2, .9, .3, 1)';
+  const still = () => calm.matches || !document.body.animate;
+  let stage = '';
+  const stageBox = () => $(stage === 'home' ? 'home' : 'groupView');
+  const sigOf = el => (el.dataset.fx === 'tick' ? el.textContent : '');
+  function snap() {
+    const m = new Map();
+    if (still() || !stage) return m;
+    for (const el of stageBox().querySelectorAll('[data-k]')) m.set(el.dataset.k, { r: el.getBoundingClientRect(), sig: sigOf(el) });
+    return m;
+  }
+  function move(old, fresh) {
+    if (still()) return;
+    const box = stageBox();
+    if (fresh) {
+      [...box.children].filter(el => !el.hidden).forEach((el, n) => el.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 320, delay: Math.min(n, 6) * 45, easing: EASE, fill: 'backwards' }));
+      box.querySelectorAll('[data-fx="bar"], .split i, .share i').forEach((el, n) => el.animate([{ transform: 'scaleX(0)' }, { transform: 'none' }], { duration: 480, delay: 180 + Math.min(n, 12) * 35, easing: EASE, fill: 'backwards' }));
+      return;
+    }
+    const els = [...box.querySelectorAll('[data-k]')], by = new Map();
+    for (const el of els) {
+      const o = old.get(el.dataset.k); if (!o) continue;
+      const r = el.getBoundingClientRect();
+      by.set(el, { x: o.r.left - r.left, y: o.r.top - r.top, o, r });
+    }
+    let born = 0;
+    for (const el of els) {
+      const d = by.get(el), fx = el.dataset.fx;
+      if (!d) {
+        if (fx === 'bar') el.animate([{ transform: 'scaleX(0)' }, { transform: 'none' }], { duration: 420, easing: EASE });
+        else if (!fx) el.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, delay: Math.min(born++, 12) * 18, easing: EASE, fill: 'backwards' });
+        continue;
+      }
+      if (fx === 'bar') {
+        if (d.r.width && Math.abs(d.o.r.width - d.r.width) > .5) el.animate([{ transform: `scaleX(${d.o.r.width / d.r.width})` }, { transform: 'none' }], { duration: 420, easing: EASE });
+        continue;
+      }
+      if (fx === 'tick') {
+        if (d.o.sig !== sigOf(el)) el.animate([{ opacity: 0, transform: 'translateY(60%)' }, { opacity: 1, transform: 'none' }], { duration: 280, easing: EASE });
+        continue;
+      }
+      // Inside something that itself moved, only the difference is this piece's own.
+      const up = el.parentElement.closest('[data-k]'), u = up && by.get(up);
+      const x = d.x - (u ? u.x : 0), y = d.y - (u ? u.y : 0);
+      if (Math.abs(x) > .5 || Math.abs(y) > .5) el.animate([{ transform: `translate(${x}px, ${y}px)` }, { transform: 'none' }], { duration: 360, easing: EASE });
+    }
+  }
   function render() {
+    const next = current && groups.get(current) ? current : 'home';
+    const old = next === stage ? snap() : null;
+    draw();
+    const fresh = next !== stage;
+    stage = next;
+    move(old, fresh);
+  }
+
+  // A group's head count, as a tally: four strokes and a fifth across them.
+  function marks(n) {
+    let x = 3, d = '';
+    for (let k = 1; k <= n; k++) {
+      if (k % 5) { d += `M${x} 1.5v10`; x += 4; }
+      else { d += `M${x - 18} 10.5 ${x - 2} 2.5`; x += 5; }
+    }
+    return `<svg class="marks" width="${x}" height="13" viewBox="0 0 ${x} 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="${d}"/></svg>`;
+  }
+
+  function draw() {
     const g = current && groups.get(current);
     $('home').hidden = !!g;
     $('groupView').hidden = !g;
@@ -1368,21 +1475,38 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       row.type = 'button';
       row.className = 'row group-row' + (g.gone ? ' gone' : '');
       row.dataset.open = id;
+      row.dataset.k = 'g:' + id;
       const people = live(g).length;
-      row.innerHTML = `<span class="row-title"></span><span class="g-amt"></span><span class="row-sub"></span><span class="g-lbl" aria-hidden="true"></span>`;
+      row.innerHTML = `<span class="row-title"></span><span class="g-amt"></span><span class="row-sub"></span><span class="g-lbl" aria-hidden="true"></span><span class="bal-bar" aria-hidden="true"></span>`;
       row.querySelector('.row-title').textContent = g.group.name;
       const latest = entriesOf(g).reduce((a, e) => ((e.updatedAt || e.createdAt || 0) > ((a && (a.updatedAt || a.createdAt)) || 0) ? e : a), null);
       const who = `${people} ${people === 1 ? 'person' : 'people'}`;
       // Owed or owe is the amount's colour; the row's label says it for screen readers.
-      row.querySelector('.row-sub').textContent = g.gone ? 'No longer available'
-        : g.deleting ? `Being deleted on ${dateOf(g.deleting)}`
-        : [who, latest ? `${latest.kind === 'payment' ? 'Payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt, true)}` : 'No expenses yet'].filter(Boolean).join(' · ');
+      const sub = row.querySelector('.row-sub');
+      const drawn = people > 0 && people <= 10;
+      if (g.gone) sub.textContent = 'No longer available';
+      else if (g.deleting) sub.textContent = `Being deleted on ${dateOf(g.deleting)}`;
+      else {
+        if (drawn) sub.innerHTML = marks(people);
+        sub.append((drawn ? '' : who + ' · ') + (latest ? `${latest.kind === 'payment' ? 'Payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt, true)}` : 'No expenses yet'));
+      }
       const amt = row.querySelector('.g-amt');
+      amt.dataset.k = 'ga:' + id;
+      amt.dataset.fx = 'tick';
       amt.textContent = net ? b.amount : '';
       amt.classList.add(b.cls || 'muted');
       // Red and green alone don't tell everyone which way it goes.
       row.querySelector('.g-lbl').textContent = net > 0 ? 'you’re owed' : net < 0 ? 'you owe' : '';
-      row.setAttribute('aria-label', `${g.group.name}. ${net ? `${b.label} ${b.amount}` : 'Settled up'}`);
+      const spent = entriesOf(g).filter(e => e.kind === 'expense').reduce((t, e) => t + L.entryTotal(e, g.group.currency), 0);
+      if (net && !g.gone) {
+        const bar = document.createElement('i');
+        bar.className = net > 0 ? 'pos' : 'neg';
+        bar.style.setProperty('--w', Math.min(1, spent ? Math.abs(net) / spent : 1).toFixed(4));
+        bar.dataset.k = 'gb:' + id;
+        bar.dataset.fx = 'bar';
+        row.lastChild.append(bar);
+      }
+      row.setAttribute('aria-label', `${g.group.name}. ${who}. ${net ? `${b.label} ${b.amount}` : 'Settled up'}`);
       return row;
     }));
   }
@@ -1404,6 +1528,12 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     };
     fill(sides.owed, true, 'ovOwed', 'ovOwedAlso');
     fill(sides.owe, false, 'ovOwe', 'ovOweAlso');
+    // The two set against each other, when they are in the same money.
+    const a = sides.owed.amount, b = sides.owe.amount;
+    const like = (!a || !b || sides.owed.lead === sides.owe.lead) && !sides.owed.also.length && !sides.owe.also.length;
+    $('ovSplit').hidden = !like || (!a && !b);
+    $('ovSplit').firstChild.style.flexGrow = a;
+    $('ovSplit').lastChild.style.flexGrow = b;
   }
   // A total too wide for its half of the strip steps down in size rather
   // than being cut short (a long amount in rupiah on a small phone).
@@ -1440,23 +1570,37 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     $('sumSpent').className = 'val' + (spent ? '' : ' zero');
     $('sumMeta').textContent = spent ? `your share ${money(myShare, code)}` : '';
     $('sumMeta').hidden = !spent;
+    $('sumShare').hidden = !spent || !g.me;
+    $('sumShare').firstChild.style.width = (spent ? Math.max(0, Math.min(1, myShare / spent)) * 100 : 0) + '%';
     $('groupTotals').hidden = !entriesOf(g).length;
     if (!$('groupTotals').hidden) { fitVal($('sumAmt')); fitVal($('sumSpent')); }
     // Everyone else's balance.
     const others = g.members.filter(m => m.id !== g.me && (!m.removed || net[m.id]));
     $('balSection').hidden = !others.length || !entriesOf(g).length;
+    const most = Math.max(1, ...others.map(m => Math.abs(net[m.id] || 0)));
     keepFocus($('people'), () => $('people').replaceChildren(...others.map(m => {
       const row = document.createElement('button');
       row.type = 'button';
       row.className = 'bal-row';
-      row.innerHTML = '<span></span><span><small></small><span></span></span>';
+      row.innerHTML = '<span></span><span class="bal-amt"><small></small><span></span></span><span class="bal-bar" aria-hidden="true"></span>';
       row.dataset.person = m.id;
+      row.dataset.k = 'm:' + m.id;
       const v = net[m.id] || 0;
       row.firstChild.textContent = m.name;
       row.querySelector('small').textContent = v > 0 ? 'is owed' : v < 0 ? 'owes' : 'settled';
-      const amt = row.lastChild.lastChild;
+      const amt = row.querySelector('.bal-amt').lastChild;
       amt.textContent = v ? money(v, code) : '';
       amt.className = v > 0 ? 'pos' : v < 0 ? 'neg' : '';
+      amt.dataset.k = 'ma:' + m.id;
+      amt.dataset.fx = 'tick';
+      if (v) {
+        const bar = document.createElement('i');
+        bar.className = v > 0 ? 'pos' : 'neg';
+        bar.style.setProperty('--w', (Math.abs(v) / most).toFixed(4));
+        bar.dataset.k = 'mb:' + m.id;
+        bar.dataset.fx = 'bar';
+        row.lastChild.append(bar);
+      }
       row.setAttribute('aria-label', `${m.name} ${v > 0 ? 'is owed' : v < 0 ? 'owes' : 'is settled'} ${v ? money(v, code) : ''}. Settle up`.trim());
       return row;
     })));
@@ -1477,6 +1621,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     const list = entriesOf(g).filter(matches).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
     const out = [];
     let day = '';
+    const daySpend = new Map();
+    for (const e of list) if (e.kind === 'expense') daySpend.set(e.date, (daySpend.get(e.date) || 0) + L.entryTotal(e, code));
     // The newest entries only, with "Show more" for the rest: a long trip
     // stays quick to draw. Search looks through everything.
     const shown = list.slice(0, shownCount);
@@ -1485,7 +1631,11 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
         day = e.date;
         const h = document.createElement('div');
         h.className = 'day';
-        h.textContent = dayLabel(day);
+        h.dataset.k = 'd:' + day;
+        h.innerHTML = '<span></span><span class="day-sum"></span>';
+        h.firstChild.textContent = dayLabel(day);
+        // What the group spent that day.
+        if (daySpend.get(day)) h.lastChild.textContent = money(daySpend.get(day), code); else h.lastChild.remove();
         out.push(h);
       }
       out.push(entryRow(g, e));
@@ -1589,6 +1739,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     row.type = 'button';
     row.className = 'row';
     row.dataset.entry = e.id;
+    row.dataset.k = 'e:' + e.id;
     row.innerHTML = '<span class="row-title"></span><span class="flow"><span class="who-a"></span><span class="arrow"></span><span class="who-b"></span><span class="tail"></span></span><span class="row-amt"><small></small><span></span></span>';
     const v = view(g, e);
     const title = e.kind === 'payment' ? 'Payment' : e.title;
@@ -1622,7 +1773,13 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     expanded = expanded === entry.id ? null : entry.id;
     if (expanded) {
       row.setAttribute('aria-expanded', 'true');
-      row.after(detailPanel(g, entry));
+      const det = detailPanel(g, entry);
+      row.after(det);
+      if (!still()) {
+        det.style.overflow = 'hidden';
+        const a = det.animate([{ height: 0, paddingBottom: 0, opacity: 0 }, { height: getComputedStyle(det).height, opacity: 1 }], { duration: 260, easing: EASE });
+        a.onfinish = a.oncancel = () => { det.style.overflow = ''; };
+      }
     }
   }
   const PAGE = 100;
@@ -2637,11 +2794,15 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     $('payList').replaceChildren(...plan.map(p => {
       const row = document.createElement('div');
       row.className = 'pay-row';
-      row.innerHTML = '<span class="who"></span><span class="amt"></span><span class="acts"></span>';
+      row.innerHTML = '<span class="who"><span class="sr-only"></span><b aria-hidden="true"></b><i class="pay-line" aria-hidden="true"></i><b aria-hidden="true"></b></span><span class="amt"></span><span class="acts"></span>';
       const to = memberName(g, p.to);
       const who = p.from === g.me ? `You pay ${to}` : `${memberName(g, p.from)} pays ${to === 'You' ? 'you' : to}`;
       const amount = money(p.amount, code);
-      row.firstChild.textContent = who;
+      const [said, a, line, b] = row.firstChild.children;
+      said.textContent = who;
+      a.textContent = memberName(g, p.from);
+      b.textContent = to;
+      if (p.from === g.me) line.classList.add('neg'); else if (p.to === g.me) line.classList.add('pos');
       row.children[1].textContent = amount;
       row.children[1].className = 'amt' + (p.from === g.me ? ' neg' : p.to === g.me ? ' pos' : '');
       // Money owed to you: a nudge to send them, then mark it paid.
