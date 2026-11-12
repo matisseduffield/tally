@@ -381,6 +381,26 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
 .hint.bad { color: var(--neg); }
 .hint a { color: var(--accent); }
 a.credit { margin: -10px 0 -8px; padding: 13px 0; color: var(--muted); }
+/* About: who made this and which build it is, then the ways out. */
+.about-id { display: grid; justify-items: center; gap: 4px; padding: 14px 0 12px; text-align: center; }
+.about-id img { margin-bottom: 10px; border-radius: 15px; }
+.about-id p, .about-foot { margin: 0; }
+/* About's links: plain centred text, no rows */
+.about-links { display: grid; justify-items: center; text-align: center; }
+.about-links a, .about-links button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 10px; background: none; border: 0; font-size: .95rem; color: var(--ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 30%, transparent); text-underline-offset: 4px; }
+.about-links [hidden] { display: none; }
+.about-links .about-mail { font-weight: 600; }
+.about-legal { display: flex; align-items: center; justify-content: center; }
+.about-legal i { flex: none; width: 3px; height: 3px; border-radius: 50%; background: var(--muted); }
+.about-links .about-upd { min-height: 40px; margin-bottom: 10px; padding: 0 18px; border: 1px solid color-mix(in srgb, currentColor 30%, transparent); border-radius: 99px; text-decoration: none; }
+.about-upd span { color: var(--muted); }
+.about-upd span:empty { display: none; }
+.about-name { font-size: 1.4rem; font-weight: 600; letter-spacing: -.02em; }
+.about-tag { color: var(--muted); }
+.about-ver { margin-top: 8px !important; padding: 4px 12px; border: 1px solid var(--line); border-radius: 99px; font-size: .82rem; font-variant-numeric: tabular-nums; color: var(--muted); }
+.sheet-body.about { flex: 1; display: flex; flex-direction: column; }
+.about-foot { margin-top: auto !important; padding: 18px 0 0; text-align: center; font-size: .8rem; line-height: 1.7; color: var(--muted); }
+.about-foot a { color: inherit; }
 a.credit[hidden] { display: none; }
 a.link { text-decoration: none; }
 .del-name { margin: 0; font-size: 1.1rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
@@ -830,21 +850,23 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 <!-- About: the version, and the way to the policy, the terms and us -->
 <dialog id="aboutDlg" tabindex="-1" aria-labelledby="aboutTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
-    <h2 id="aboutTitle">Tally</h2>
+    <button class="icon-btn" type="button" data-close aria-label="Back"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2 2 8l6 6"/></svg></button>
+    <h2 id="aboutTitle">About</h2>
   </div>
-  <div class="sheet-body blocks">
-    <div class="blk" id="aboutApp" hidden>
-      <div class="cell"><span class="row-k">Version</span><span class="row-v" id="aboutVer"></span></div>
-      <button class="cell" type="button" id="aboutCheck" hidden><span class="row-k">Check for updates</span><span class="row-v" id="aboutNote" aria-live="polite"></span></button>
+  <div class="sheet-body blocks about">
+    <div class="about-id">
+      <img src="icons/icon-192.png" width="64" height="64" alt="" onerror="this.hidden=true">
+      <p class="about-name">Tally</p>
+      <p class="about-tag">Split costs with anyone.</p>
+      <p class="about-ver" id="aboutVer" hidden></p>
     </div>
-    <div class="blk">
-      <a class="cell" href="https://teloone.au/apps/tally/privacy/" rel="noreferrer">Privacy</a>
-      <a class="cell" href="https://teloone.au/apps/tally/terms/" rel="noreferrer">Terms</a>
-      <a class="cell" href="mailto:support@teloone.au?subject=Tally"><span class="row-k">Contact</span><span class="row-v">support@teloone.au</span></a>
-      <a class="cell" id="getApp" href="/app" hidden>Get the Android app</a>
+    <div class="about-links">
+      <div id="aboutApp" hidden><button class="about-upd" type="button" id="aboutCheck">Check for updates<span id="aboutNote" aria-live="polite"></span></button></div>
+      <a class="about-mail" href="mailto:support@teloone.au?subject=Tally">support@teloone.au</a>
+      <div class="about-legal"><a href="https://teloone.au/apps/tally/privacy/" rel="noreferrer">Privacy policy</a><i aria-hidden="true"></i><a href="https://teloone.au/apps/tally/terms/" rel="noreferrer">Terms of use</a></div>
+      <a id="getApp" href="/app" hidden>Get the Android app</a>
     </div>
-    <a class="hint credit" href="https://www.exchangerate-api.com" rel="noreferrer">Rates by Exchange Rate API</a>
+    <p class="about-foot"><a href="https://www.exchangerate-api.com" rel="noreferrer">Rates by Exchange Rate API</a> and Coinbase<br>Made in Adelaide by Telo One</p>
   </div>
 </dialog>
 
@@ -3277,6 +3299,14 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   // selfUpdates is off until the app says otherwise: Play builds update through
   // the store, so there the version is a plain label with nothing to tap.
   let appVersion = '', selfUpdates = false, updateReady = false, versionTimer = 0;
+  // The app says which build it is. The website's copy is stamped with its version when it is published.
+  const WEB_VERSION = '__VERSION__';
+  function showVersion() {
+    const v = appVersion || (WEB_VERSION.startsWith('__') ? '' : WEB_VERSION);
+    $('aboutVer').textContent = v ? 'Version ' + v : '';
+    $('aboutVer').hidden = !v;
+  }
+  showVersion();
   // Top right says About, or that an update is waiting; the About sheet has the rest.
   function showLabel() {
     $('version').textContent = updateReady ? 'Update available' : 'About';
@@ -3325,9 +3355,8 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       if (m.type === 'info') {
         appVersion = m.version;
         selfUpdates = m.updates === true;
-        $('aboutVer').textContent = appVersion;
-        $('aboutApp').hidden = !appVersion;
-        $('aboutCheck').hidden = !selfUpdates;
+        showVersion();
+        $('aboutApp').hidden = !selfUpdates;
         showLabel();
         render();
       } else if (m.type === 'updateStatus' && selfUpdates) {

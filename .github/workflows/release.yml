@@ -108,6 +108,7 @@ jobs:
           mkdir pub && cp "$APK_NAME" pub/ && cp "$APK_NAME" pub/Tally.apk
           # The page and its files, served to browsers by the sync server.
           mkdir pub/web && cp -r web/index.html web/lib.js web/pwa.js web/sw.js web/manifest.json web/fonts web/icons pub/web/
+          sed -i "s/__VERSION__/$VERSION_NAME/" pub/web/index.html
           cd pub
           SHA=$(sha256sum "$APK_NAME" | cut -d' ' -f1)
           SIZE=$(stat -c%s "$APK_NAME")
