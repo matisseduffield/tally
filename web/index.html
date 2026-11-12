@@ -478,6 +478,18 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 .cell > .link { flex: none; }
 /* A small heading over a panel */
 .sec { margin: 6px 2px -4px; }
+.inv .kick { margin: 0 0 4px; font-size: .95rem; font-weight: 500; color: var(--muted); }
+.inv .start-t { margin: 0; overflow-wrap: anywhere; }
+.inv .who { margin: 10px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+.inviting .sheet-body { gap: 14px; padding-top: 22px; }
+.inviting .pic { margin: 6px 0 8px; }
+.inviting .pic-row b { overflow-wrap: anywhere; }
+.pic-say.plain::before { display: none; }
+.pic-say.plain span { color: var(--ink); }
+.names { display: flex; flex-wrap: wrap; gap: 8px; }
+.names:empty { display: none; }
+.names .btn { border-color: var(--line-strong); overflow-wrap: anywhere; }
+.inviting .field-label { font-size: .9rem; }
 .terms { margin: 2px 2px 0; font-size: .8rem; color: var(--muted); }
 .terms a { color: inherit; }
 .blk + .hint { margin: -4px 2px 0; }
@@ -783,9 +795,15 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       <div class="cell"><input class="row-in" id="joinLink" placeholder="Code or link" aria-label="Group code or link" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go"><button class="link" type="button" id="joinGo">Open</button></div>
     </div>
     <span class="hint" id="joinHint" role="status"></span>
+    <div class="inv" id="whoIntro" hidden>
+      <p class="kick">You’re invited to</p>
+      <h3 class="start-t" id="whoName"></h3>
+      <p class="who" id="whoSay"></p>
+    </div>
+    <div class="pic" id="whoPeek" hidden></div>
     <span class="field-label sec" id="whoLabel" hidden>Which one is you?</span>
+    <div class="names" id="whoChips" hidden></div>
     <div class="blk" id="whoField" hidden>
-      <div class="cells" id="whoChips"></div>
       <div class="cell"><input class="row-in" id="whoNew" aria-label="Your name, if you're not listed" placeholder="Not listed? Add your name" maxlength="40" autocomplete="given-name" enterkeyhint="done"><button class="link add-go" type="button" id="whoAdd">Add</button></div>
     </div>
     <p class="terms">By making or joining a group you agree to the <a href="https://teloone.au/apps/tally/terms/" rel="noreferrer">terms</a>.</p>
@@ -2232,7 +2250,9 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   // The link field, or (once the group is found) which one is you.
   function showJoinStep(who) {
     $('joinLinkField').hidden = who;
-    $('whoField').hidden = $('whoLabel').hidden = !who;
+    $('whoField').hidden = $('whoLabel').hidden = $('whoChips').hidden = $('whoIntro').hidden = !who;
+    if (!who) $('whoPeek').hidden = true;
+    $('joinDlg').classList.toggle('inviting', who);
     if (who) $('joinHint').textContent = '';
   }
   const idFromLink = s => { const m = String(s).match(/([A-Za-z0-9_-]{22})\s*$/); return m && L.isId(m[1]) ? m[1] : null; };
@@ -2275,13 +2295,35 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     try {
       const state = await fetchGroup(id);
       joining = { id, state };
-      $('joinTitle').textContent = state.group.name;
+      const live = state.members.filter(m => !m.removed), a = live.map(m => m.name), n = a.length, code = state.group.currency;
+      const spent = state.entries.filter(e => !e.deleted && e.kind === 'expense' && !e.repeat).sort((x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : 0));
+      $('joinTitle').textContent = 'Join a group';
+      $('whoName').textContent = state.group.name;
+      $('whoSay').textContent = !n ? 'Nobody has joined yet.' : n === 1 ? `${a[0]} is in.` : n <= 3 ? `${a.slice(0, -1).join(', ')} and ${a[n - 1]} are in.` : `${a[0]}, ${a[1]} and ${n - 2} others are in.`;
+      $('whoLabel').textContent = n ? 'Which one is you?' : 'Add your name';
       showJoinStep(true);
+      // A look inside: the latest few expenses and what the group has spent.
+      const who = e => { const ids = e.paidBy ? [e.paidBy] : Object.keys(e.paid || {}); const m = ids.length === 1 && state.members.find(x => x.id === ids[0]); return m ? `${m.name} paid` : ids.length > 1 ? `${ids.length} people paid` : ''; };
+      $('whoPeek').hidden = !spent.length;
+      $('whoPeek').replaceChildren(...spent.slice(0, 3).map((e, r) => {
+        const row = document.createElement('div'), l = document.createElement('span'), b = document.createElement('b'), sm = document.createElement('small'), amt = document.createElement('span');
+        row.className = 'pic-row'; row.style.setProperty('--r', r);
+        b.textContent = e.title; sm.textContent = who(e); amt.className = 'amt'; amt.textContent = money(L.entryTotal(e, code), code);
+        l.append(b, sm); row.append(l, amt);
+        return row;
+      }));
+      if (spent.length) {
+        const say = document.createElement('p'), t = document.createElement('span');
+        say.className = 'pic-say plain';
+        say.textContent = `${spent.length} ${spent.length === 1 ? 'expense' : 'expenses'} so far`;
+        t.textContent = money(spent.reduce((x, e) => x + L.entryTotal(e, code), 0), code);
+        say.append(t); $('whoPeek').append(say);
+      }
       $('whoNew').value = store.get('myName') || '';
-      $('whoChips').replaceChildren(...state.members.filter(m => !m.removed).map(m => {
+      $('whoChips').replaceChildren(...live.map(m => {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = 'cell';
+        b.className = 'btn btn-secondary';
         b.textContent = m.name;
         b.dataset.member = m.id;
         return b;
