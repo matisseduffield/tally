@@ -408,8 +408,29 @@ async function findCode(env, raw, request) {
 // An op's removed/deleted: 1 or 0 when it says, null (keep what's there) when it doesn't.
 const flag = v => (v === undefined ? null : v ? 1 : 0);
 
+// The word filter: slurs and a few crude words are starred out of anything typed.
+// The list is kept as hashes, so the words themselves aren't written here.
+const BAD = new Set([336914794, 373809855, 919192496, 1372089695, 1584456691, 1825958011, 1937589700, 2090526271, 2235558830, 2285825857, 2307522440, 2491417249, 2505785029, 2758825305, 3114006918, 3168946342, 3573646226, 3656079069, 3691556361, 4010308924, 4064161250, 4137990222, 4146676842, 4183830597, 4203129625, 4253324943]);
+// The same words with doubled letters pulled to one, for words typed drawn out.
+const BAD_FLAT = new Set([336914794, 373809855, 641486548, 919192496, 958105440, 1372089695, 1584456691, 1631846163, 1825958011, 1937589700, 2090526271, 2235558830, 2307522440, 2491417249, 3114006918, 3168946342, 3573646226, 3691556361, 3739672974, 3990946575, 4010308924, 4035825995, 4137990222, 4146676842, 4253324943]);
+const LOOKALIKE = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', '@': 'a', $: 's', '!': 'i' };
+function hash(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+}
+function isBad(word) {
+  // Read as it sounds: lower case, digits and signs as the letters they stand for. A 1 can be an i or an l.
+  const bare = word.toLowerCase().replace(/^[^a-z0-9\$]+|[^a-z0-9$]+$/g, '');
+  const read = one => bare.replace(/[013457\$!]/g, c => (c === '1' ? one : LOOKALIKE[c])).replace(/[^a-z]/g, '');
+  const hit = (set, x) => x.length > 2 && (set.has(hash(x)) || (x.endsWith('s') && set.has(hash(x.slice(0, -1)))));
+  // Only a drawn-out word is read with its doubles pulled in, so ordinary words that differ by a double stay.
+  return [read('i'), read('l')].some(w => hit(BAD, w) || (/(.)\1\1/.test(w) && (hit(BAD, w.replace(/(.)\1{2,}/g, '$1$1')) || hit(BAD_FLAT, w.replace(/(.)\1+/g, '$1')))));
+}
+const mask = s => s.replace(/\S+/g, w => (isBad(w) ? '***' : w));
+
 function cleanText(s, max) {
-  return typeof s === 'string' ? s.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max) : '';
+  return typeof s === 'string' ? mask(s.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max)) : '';
 }
 const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : NaN);
 

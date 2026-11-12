@@ -627,3 +627,12 @@ test('the daily clean-up drops codes and guesses that have run out', async t => 
   assert.equal(count('codes'), 0);
   assert.equal(count('guesses'), 0);
 });
+
+test('the word filter stars out listed words in names, titles and notes', async t => {
+  const { post } = await setup(t);
+  const r = await post([{ type: 'group', name: 'Trip  filtertestword', currency: 'EUR' }, { type: 'member', id: YOU, name: 'F1LTERTESTWORDS' }]);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.group.name, 'Trip  ***');
+  assert.equal(r.body.members.find(m => m.id === YOU).name, '***');
+  assert.equal(r.body.members.find(m => m.id === ME).name, 'Me');
+});
