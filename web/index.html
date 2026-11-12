@@ -204,6 +204,23 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
 .empty p { margin: 0; max-width: 34ch; }
 .empty .acts { display: flex; gap: 20px; margin-top: 10px; }
 .empty .link { padding: 6px 0; font-size: .9rem; }
+/* A group with nothing in it yet: where it stands and what comes next, in three ruled steps */
+.fresh .act-head { display: none; }
+.fresh .card { padding: 0; background: none; border: 0; }
+.start-t { margin: 4px 0 22px; font-size: 1.9rem; font-weight: 600; line-height: 1.15; letter-spacing: -.02em; }
+.steps { margin: 0; padding: 0; list-style: none; }
+.steps li { display: grid; grid-template-columns: 36px minmax(0, 1fr); padding: 17px 0; border-top: 1px solid var(--line); color: var(--faint); }
+.steps li:last-child { border-bottom: 1px solid var(--line); }
+.steps .n { font-size: 1.05rem; font-weight: 600; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.steps .n svg { display: block; margin-top: 4px; }
+.steps b { display: block; font-size: 1.05rem; font-weight: 600; line-height: 1.4; }
+.steps .sub { display: block; margin-top: 3px; font-size: .9rem; line-height: 1.4; color: var(--muted); }
+.steps .now { color: var(--ink); }
+.steps .now .n { color: var(--accent); }
+.steps .done .n { color: var(--pos); }
+.steps .done b { font-weight: 500; color: var(--muted); }
+.steps .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.steps .acts .btn { width: 100%; }
 
 /* Home, before any group: what Tally does, in three ruled steps */
 /* First run: one question a screen. The screen fills the phone so the way on,
@@ -1670,18 +1687,25 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       out.push(entryRow(g, e));
       if (e.id === expanded) out.push(detailPanel(g, e));
     }
-    if (!out.length) {
+    const fresh = !out.length && !q;
+    $('activity').parentElement.classList.toggle('fresh', fresh);
+    if (fresh) {
+      // Nothing in the group yet: where it stands, and the steps from here.
+      const n = live(g).length, alone = n < 2;
+      const box = document.createElement('div');
+      box.className = 'start';
+      box.innerHTML = `<p class="start-t">${alone ? 'Just you so far' : 'Nothing spent yet'}</p><ol class="steps">`
+        + (alone
+          ? '<li class="now"><span class="n">1</span><div><b>Bring in the others</b><span class="sub">Send a link, or add their names yourself.</span>'
+            + '<div class="acts"><button class="btn btn-primary" type="button" data-empty="share">Invite</button><button class="btn btn-secondary" type="button" data-empty="people">Add people</button></div></div></li>'
+          : `<li class="done"><span class="n">${TICK}</span><div><b>${n} people in the group</b></div></li>`)
+        + `<li${alone ? '' : ' class="now"'}><span class="n">2</span><div><b>Add what gets paid</b>${alone ? '' : '<span class="sub">Add each cost as it comes up. Tally works out who owes what.</span>'}</div></li>`
+        + '<li><span class="n">3</span><div><b>Settle up at the end</b></div></li></ol>';
+      out.push(box);
+    } else if (!out.length) {
       const box = document.createElement('div');
       box.className = 'empty';
-      const alone = live(g).length < 2;
-      box.innerHTML = '<p></p>';
-      box.firstChild.textContent = q ? 'Nothing matches.'
-        : alone ? 'Just you so far. Invite the others, or add them yourself.'
-        : 'No expenses yet. Add the first one, or invite the others to add theirs.';
-      if (!q) {
-        box.insertAdjacentHTML('beforeend', '<div class="acts"><button class="link" type="button" data-empty="share">Invite</button></div>');
-        if (alone) box.lastChild.insertAdjacentHTML('beforeend', '<button class="link" type="button" data-empty="people">Add people</button>');
-      }
+      box.innerHTML = '<p>Nothing matches.</p>';
       out.push(box);
     }
     if (list.length > shown.length) {
@@ -1695,6 +1719,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     keepFocus($('activity'), () => $('activity').replaceChildren(...out));
   }
 
+  const TICK = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Done"><path d="m2.5 8.5 3.5 3.5 7.5-8"/></svg>';
   const ARROW = {
     L: '<svg width="22" height="10" viewBox="0 0 22 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 5H1.5M5.5 1 1.5 5l4 4"/></svg>',
     R: '<svg width="22" height="10" viewBox="0 0 22 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 5h19.5M16.5 1l4 4-4 4"/></svg>',
