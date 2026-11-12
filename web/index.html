@@ -210,7 +210,7 @@ button.row[aria-expanded="true"] .row-title { font-weight: 600; }
    and the small print, sit at the foot. */
 body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 #home.first { min-height: calc(100dvh - 112px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); grid-template-rows: 1fr; grid-auto-rows: auto; }
-#home.first .rate-credit, #home.stepping > :not(.onb):not(.legal) { display: none; }
+#home.stepping > :not(.onb) { display: none; }
 .onb { display: flex; flex-direction: column; gap: 24px; padding-top: 4px; }
 .onb .lead { margin: 0 auto; text-align: center; max-width: 13ch; font-size: 1.9rem; font-weight: 600; line-height: 1.15; letter-spacing: -.02em; }
 .onb .ask { margin: 0; font-size: 1.55rem; font-weight: 600; line-height: 1.2; letter-spacing: -.015em; }
@@ -290,7 +290,6 @@ body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 .totals .share { display: block; height: 4px; margin: 5px 0 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .share i { display: block; width: 0; height: 100%; border-radius: 2px; background: var(--ink); transform-origin: left; transition: width .5s cubic-bezier(.2, .9, .3, 1); }
 /* How many are in a group, kept the way a tally is kept */
-.marks { flex: none; margin-right: 5px; vertical-align: -2px; color: var(--muted); }
 
 
 /* Everyone else's balance: a plain ruled list, like Bureau's quick amounts */
@@ -307,6 +306,12 @@ body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 #groupList { padding-bottom: 16px; }
 .group-row { border-top: 0; padding: 13px 2px 0; }
 .group-row .bal-bar { grid-row: 3; margin-top: 9px; }
+/* Nothing outstanding: no bar to draw, so the row is a plain one with a rule above it */
+.group-row.even, #people .bal-row.even { padding-bottom: 13px; }
+.group-row.even > .bal-bar, #people .even > .bal-bar { display: none; }
+#groupList > .even + *, #people > .even + * { border-top: 1px solid var(--line); }
+.group-row .g-amt.even { font-size: .86rem; font-weight: 400; color: var(--muted); }
+#groupList:has(> .even:last-child), #people:has(> .even:last-child) { padding-bottom: 3px; }
 .bal-bar::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line); }
 .bal-bar::after { content: ""; position: absolute; left: calc(50% - .5px); bottom: 0; width: 1px; height: 6px; background: var(--line-strong); }
 .bal-bar i { position: absolute; bottom: 0; height: 6px; width: max(3px, calc(var(--w) * 50%)); }
@@ -561,12 +566,6 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
 .toast button { min-height: 44px; padding: 0 10px; border: 0; background: none; color: var(--on-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .install-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; font-size: .84rem; line-height: 1.35; color: var(--muted); }
 .install-hint button { flex: none; width: 44px; height: 44px; margin: -10px -12px -10px 0; padding: 0; background: none; border: 0; font-size: 1.2rem; color: var(--muted); }
-.get-app { justify-self: start; margin: 0; font-size: .84rem; color: var(--muted); }
-.get-app a { color: inherit; }
-.legal { display: flex; justify-content: center; gap: 48px; }
-.legal a { padding: 12px 8px; font-size: .84rem; color: var(--muted); text-decoration: none; }
-.rate-credit { margin: -22px 0 -14px; text-align: center; font-size: .76rem; color: var(--muted); }
-.rate-credit a { display: inline-block; padding: 14px 8px; color: inherit; text-decoration: none; }
 .by-line { font-size: .82rem; color: var(--muted); }
 .act-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; }
 .act-head .link { padding: 6px 0; }
@@ -624,7 +623,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       <button class="icon-btn" id="settingsBtn" type="button" aria-label="Group settings" hidden>
         <svg width="19" height="19" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4.5" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="15.5" cy="10" r="1.6"/></svg>
       </button>
-      <button class="version" id="version" type="button" title="Check for updates" hidden></button>
+      <button class="version" id="version" type="button" hidden>About</button>
     </div>
   </header>
   <p class="status" id="status" role="status" hidden></p>
@@ -663,9 +662,6 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       <h2>Groups</h2>
       <div class="card list rows" id="groupList"></div>
     </section>
-    <p class="get-app" id="getApp" hidden><a href="/app">Get the Android app</a></p>
-    <nav class="legal" aria-label="Legal"><a href="https://teloone.au/apps/tally/privacy/" rel="noreferrer">Privacy</a><a href="https://teloone.au/apps/tally/terms/" rel="noreferrer">Terms</a></nav>
-    <p class="rate-credit"><a href="https://www.exchangerate-api.com" rel="noreferrer">Rates By Exchange Rate API</a></p>
   </div>
 
   <!-- One group -->
@@ -828,6 +824,27 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       <label class="cell"><span class="row-k">Amount</span><input class="row-in num" id="payAmount" aria-label="Amount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done" data-done><span class="pay-code" id="payCode"></span></label>
     </div>
     <div class="field"><span class="by-line" id="payBy" hidden></span><div><button class="link danger" type="button" id="payDelete" hidden>Delete payment</button></div></div>
+  </div>
+</dialog>
+
+<!-- About: the version, and the way to the policy, the terms and us -->
+<dialog id="aboutDlg" tabindex="-1" aria-labelledby="aboutTitle">
+  <div class="sheet-head">
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <h2 id="aboutTitle">Tally</h2>
+  </div>
+  <div class="sheet-body blocks">
+    <div class="blk" id="aboutApp" hidden>
+      <div class="cell"><span class="row-k">Version</span><span class="row-v" id="aboutVer"></span></div>
+      <button class="cell" type="button" id="aboutCheck" hidden><span class="row-k">Check for updates</span><span class="row-v" id="aboutNote" aria-live="polite"></span></button>
+    </div>
+    <div class="blk">
+      <a class="cell" href="https://teloone.au/apps/tally/privacy/" rel="noreferrer">Privacy</a>
+      <a class="cell" href="https://teloone.au/apps/tally/terms/" rel="noreferrer">Terms</a>
+      <a class="cell" href="mailto:support@teloone.au?subject=Tally"><span class="row-k">Contact</span><span class="row-v">support@teloone.au</span></a>
+      <a class="cell" id="getApp" href="/app" hidden>Get the Android app</a>
+    </div>
+    <a class="hint credit" href="https://www.exchangerate-api.com" rel="noreferrer">Rates by Exchange Rate API</a>
   </div>
 </dialog>
 
@@ -1414,16 +1431,6 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     move(old, fresh);
   }
 
-  // A group's head count, as a tally: four strokes and a fifth across them.
-  function marks(n) {
-    let x = 3, d = '';
-    for (let k = 1; k <= n; k++) {
-      if (k % 5) { d += `M${x} 1.5v10`; x += 4; }
-      else { d += `M${x - 18} 10.5 ${x - 2} 2.5`; x += 5; }
-    }
-    return `<svg class="marks" width="${x}" height="13" viewBox="0 0 ${x} 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="${d}"/></svg>`;
-  }
-
   function draw() {
     const g = current && groups.get(current);
     $('home').hidden = !!g;
@@ -1437,7 +1444,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     if (g && g.deleting) $('delBannerText').textContent = `This group will be deleted for everyone on ${dateOf(g.deleting)}.`;
     $('homeDock').hidden = !!g || !groupIds.length;
     document.body.classList.toggle('first', !g && !groupIds.length);
-    $('version').hidden = !!g || !appVersion;
+    $('version').hidden = !!g;
     $('title').textContent = g ? g.group.name : 'Tally';
     document.title = g ? `${g.group.name} · Tally` : 'Tally';
     if (g) renderGroup(g); else renderHome();
@@ -1483,18 +1490,17 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       const who = `${people} ${people === 1 ? 'person' : 'people'}`;
       // Owed or owe is the amount's colour; the row's label says it for screen readers.
       const sub = row.querySelector('.row-sub');
-      const drawn = people > 0 && people <= 10;
       if (g.gone) sub.textContent = 'No longer available';
       else if (g.deleting) sub.textContent = `Being deleted on ${dateOf(g.deleting)}`;
       else {
-        if (drawn) sub.innerHTML = marks(people);
-        sub.append((drawn ? '' : who + ' · ') + (latest ? `${latest.kind === 'payment' ? 'Payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt, true)}` : 'No expenses yet'));
+        sub.append(who + ' · ' + (latest ? `${latest.kind === 'payment' ? 'Payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt, true)}` : 'No expenses yet'));
       }
       const amt = row.querySelector('.g-amt');
       amt.dataset.k = 'ga:' + id;
       amt.dataset.fx = 'tick';
-      amt.textContent = net ? b.amount : '';
-      amt.classList.add(b.cls || 'muted');
+      amt.textContent = net ? b.amount : g.gone || !entriesOf(g).length ? '' : 'settled';
+      amt.classList.add(b.cls || 'even');
+      row.classList.toggle('even', !net || !!g.gone);
       // Red and green alone don't tell everyone which way it goes.
       row.querySelector('.g-lbl').textContent = net > 0 ? 'you’re owed' : net < 0 ? 'you owe' : '';
       const spent = entriesOf(g).filter(e => e.kind === 'expense').reduce((t, e) => t + L.entryTotal(e, g.group.currency), 0);
@@ -1586,6 +1592,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       row.dataset.person = m.id;
       row.dataset.k = 'm:' + m.id;
       const v = net[m.id] || 0;
+      row.classList.toggle('even', !v);
       row.firstChild.textContent = m.name;
       row.querySelector('small').textContent = v > 0 ? 'is owed' : v < 0 ? 'owes' : 'settled';
       const amt = row.querySelector('.bal-amt').lastChild;
@@ -2110,7 +2117,7 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
           <div class="pic-row" style="--r:2" aria-hidden="true"><span><b>Groceries</b><small>Alex paid</small></span><span class="amt">${m(52)}</span></div>
           <p class="pic-say" aria-hidden="true">Sam pays Alex<span>${m(70)}</span></p>
         </div>
-        <div class="end"><button class="btn btn-primary" type="button" data-step="name">Get started</button><p>By continuing you agree to the terms.</p></div>`;
+        <div class="end"><button class="btn btn-primary" type="button" data-step="name">Get started</button><p>By continuing you agree to the <a href="https://teloone.au/apps/tally/terms/" rel="noreferrer">terms</a>.</p></div>`;
     const me = el.querySelector('[name=me]'); if (me) me.value = store.get('myName') || '';
     const bad = el.querySelector('.bad'); if (bad) bad.textContent = obBad;
     const code = el.querySelector('.code-in input'); if (code) code.value = obCode;
@@ -3270,10 +3277,15 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
   // selfUpdates is off until the app says otherwise: Play builds update through
   // the store, so there the version is a plain label with nothing to tap.
   let appVersion = '', selfUpdates = false, updateReady = false, versionTimer = 0;
-  function showVersion(text, state) {
+  // Top right says About, or that an update is waiting; the About sheet has the rest.
+  function showLabel() {
+    $('version').textContent = updateReady ? 'Update available' : 'About';
+    $('version').dataset.state = updateReady ? 'available' : '';
+    if (updateReady) $('aboutNote').textContent = 'Available';
+  }
+  function showNote(text) {
     clearTimeout(versionTimer);
-    $('version').textContent = text;
-    $('version').dataset.state = state || '';
+    $('aboutNote').textContent = text;
   }
   let updateVersion = '', updateSize = 0;
   function showUpdate(m) {
@@ -3313,21 +3325,17 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
       if (m.type === 'info') {
         appVersion = m.version;
         selfUpdates = m.updates === true;
-        $('version').disabled = !selfUpdates;
-        if (!selfUpdates) $('version').removeAttribute('title');
-        const seen = store.get('seenVersion');
-        store.set('seenVersion', appVersion);
-        if (selfUpdates && !updateReady && seen && seen !== appVersion) {
-          showVersion(`Updated to v${appVersion}`, 'available');
-          versionTimer = setTimeout(() => showVersion(`v${appVersion}`), 4000);
-        } else if (!updateReady) showVersion(`v${appVersion}`);
+        $('aboutVer').textContent = appVersion;
+        $('aboutApp').hidden = !appVersion;
+        $('aboutCheck').hidden = !selfUpdates;
+        showLabel();
         render();
       } else if (m.type === 'updateStatus' && selfUpdates) {
-        if (m.state === 'available') { updateReady = true; return showVersion('Update available', 'available'); }
-        showVersion(m.state === 'latest' ? 'Up to date' : "Couldn't check");
-        versionTimer = setTimeout(() => showVersion(`v${appVersion}`), 2500);
+        if (m.state === 'available') { updateReady = true; return showLabel(); }
+        showNote(m.state === 'latest' ? 'Up to date' : "Couldn't check");
+        versionTimer = setTimeout(() => showNote(''), 4000);
       } else if (m.type === 'update' && selfUpdates) {
-        if (m.state === 'available') { updateReady = true; showVersion('Update available', 'available'); }
+        if (m.state === 'available') { updateReady = true; showLabel(); }
         showUpdate(m);
       } else if (m.type === 'openLink') {
         const id = idFromLink(m.url || ''), code = id ? null : codeFrom(m.url || '');
@@ -3337,12 +3345,13 @@ button.cell:focus-visible, a.cell:focus-visible, .cell:has(> .cur-btn:focus-visi
     };
     $('updateGo').addEventListener('click', () => { showUpdate({ state: 'downloading', progress: 0 }); toApp({ type: 'installUpdate' }); });
     $('updateLater').addEventListener('click', () => { $('updateCard').hidden = true; });
-    $('version').addEventListener('click', () => {
-      if (updateReady) { $('updateCard').hidden = false; scrollTo({ top: 0, behavior: 'smooth' }); return; }
-      showVersion('Checking…');
+    $('aboutCheck').addEventListener('click', () => {
+      if (updateReady) { $('aboutDlg').close(); $('updateCard').hidden = false; scrollTo({ top: 0, behavior: 'smooth' }); return; }
+      showNote('Checking…');
       toApp({ type: 'checkUpdate' });
     });
   }
+  $('version').addEventListener('click', () => openDlg($('aboutDlg')));
 
   // A group link: open it if it's here and we know who we are, else join.
   function openFromLink(id, push = true) {
