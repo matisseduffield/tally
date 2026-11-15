@@ -175,12 +175,13 @@ button { cursor: pointer; }
 .top-right { flex: none; display: flex; align-items: center; gap: 10px; }
 /* At home the one round button is About itself; the three dots come with a group */
 #version:not([hidden]) ~ #menuBtn { display: none; }
-/* With no Back before it, the name stands a little in from the edge, nearer the cards' text */
-#back[hidden] + .mark { margin-left: 4px; }
-.status { margin: -12px 4px -8px; font-size: .84rem; color: var(--muted); }
+/* At home Tally's own mark stands before its name; with Back there, on the way in or in a group, it doesn't */
+.top-left .logo { flex: none; }
+#back:not([hidden]) + .logo { display: none; }
+.status { margin: -12px 2px -8px; font-size: .84rem; color: var(--muted); }
 
 /* More: a small panel that drops from its button, a picture and a word for each thing */
-.menu { position: absolute; z-index: 6; top: calc(100% + 6px); right: 0; min-width: 192px; max-width: 100%; padding: 9px 8px; background: var(--pop); border: 1px solid var(--pop-line); border-radius: 28px; box-shadow: 0 12px 32px rgba(0, 0, 0, .4); transform-origin: top right; animation: pop .14s ease-out; }
+.menu { position: absolute; z-index: 6; top: calc(100% + 4px); right: 0; min-width: 192px; max-width: 100%; padding: 9px 8px; background: var(--pop); border: 1px solid var(--pop-line); border-radius: 28px; box-shadow: 0 12px 32px rgba(0, 0, 0, .4); transform-origin: top right; animation: pop .14s ease-out; }
 @keyframes pop { from { opacity: 0; transform: scale(.94); } }
 .menu-row { display: flex; align-items: center; gap: 15px; width: 100%; min-height: 46px; padding: 0 20px 0 16px; background: none; border: 0; border-radius: 18px; font-size: 1.06rem; text-align: left; white-space: nowrap; }
 .menu-row:active { background: var(--key); }
@@ -188,13 +189,23 @@ button { cursor: pointer; }
 .menu-row svg { flex: none; }
 .menu-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .menu-row[data-state="available"] span { color: var(--accent); }
+/* A list to choose from (who paid, how often, who to) is the same panel: it drops from under
+   its row inside the sheet, with a tick on what's chosen; the script places it, and a long one
+   scrolls inside itself. What can't be chosen is grey. */
+.menu.pick-menu { position: fixed; top: 0; left: 0; right: auto; max-width: calc(100vw - 24px); overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: none; }
+.pick-menu::-webkit-scrollbar { display: none; }
+.menu-row .tick { display: none; color: var(--accent); }
+.menu-row[aria-checked="true"] .tick { display: block; }
+.menu-row[aria-disabled="true"] { opacity: .38; cursor: default; }
+.menu-row[aria-disabled="true"]:active, .menu-row[aria-disabled="true"]:hover { background: none; }
+.menu-row:focus-visible { outline-offset: -2px; }
 /* An update is waiting: a dot on the button */
 #menuBtn[data-state="available"]::after, #version[data-state="available"]::after { content: ""; position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 
 /* Buttons: pills, the one to press next in blue and the rest grey */
 .btn {
-  min-height: 52px; padding: 0 20px; border: 0; border-radius: 99px;
-  font-size: 1rem; font-weight: 500;
+  min-height: 52px; padding: 0 18px; border: 0; border-radius: 99px;
+  font-size: .95rem; font-weight: 500;
 }
 .btn-primary { background: var(--accent); color: var(--on-accent); }
 .btn-primary:active { opacity: .85; }
@@ -376,7 +387,7 @@ body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 .totals > div { display: grid; align-content: start; gap: 2px; min-width: 0; padding: 16px var(--pad) 18px; background: var(--surface); border-radius: 24px; }
 /* A figure too long for half the screen: one card above the other */
 .totals.stack { grid-template-columns: minmax(0, 1fr); }
-.totals .lbl { font-size: .95rem; line-height: 1.4; color: var(--muted); }
+.totals .lbl { font-size: 1rem; line-height: 1.4; color: var(--muted); }
 .totals .val { font-size: 1.75rem; font-weight: 400; letter-spacing: -.015em; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .totals .val.zero { color: var(--faint); }
 .totals .also { font-size: .82rem; line-height: 1.35; color: var(--muted); }
@@ -464,41 +475,57 @@ dialog[open], dialog[open]::backdrop { opacity: 1; transform: none; }
   flex: none; display: flex; align-items: center; gap: 10px; min-height: 72px; padding: 14px 16px;
 }
 .sheet-head h2 { flex: 1; min-width: 0; margin: 0; font-size: 1.35rem; font-weight: 500; letter-spacing: -.01em; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sheet-head .btn { flex: none; min-height: 44px; padding: 0 20px; }
+.sheet-head .btn { flex: none; min-height: 44px; }
 .sheet-body { padding: 10px 20px 28px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; }
 @media (max-width: 480px) { .sheet-body { padding-left: 16px; padding-right: 16px; } }
 .field { min-width: 0; grid-template-columns: minmax(0, 1fr); }
 .field { display: grid; gap: 6px; padding: 0 var(--pad); }
 .field-label { font-size: 1rem; line-height: 1.4; color: var(--muted); }
 .input {
-  width: 100%; min-height: 50px; padding: 0 20px;
+  width: 100%; min-height: 52px; padding: 0 20px;
   border: 0; border-radius: 99px; background: var(--surface); caret-color: var(--accent);
 }
 .input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
 .input::placeholder { color: var(--muted); }
+/* A search field has its own small round x at its right end, there only while there's something to clear;
+   the browser's own is put away */
+.search { position: relative; display: flex; min-width: 0; --key: var(--card-key); --key-hi: var(--card-key-hi); --key-down: var(--card-key-down); }
+.search:has(> input[hidden]) { display: none; }
+.search .input { flex: 1; min-width: 0; padding-right: 52px; }
+.search .input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+.search .clear { position: absolute; top: 50%; right: 14px; display: grid; place-items: center; width: 24px; height: 24px; margin-top: -12px; padding: 0; background: var(--key); border: 0; border-radius: 50%; color: var(--ink); }
+.search .clear::after { content: ""; position: absolute; inset: -10px; }
+.search .clear:active { background: var(--key-down); }
+.search .input:placeholder-shown ~ .clear { display: none; }
 .hint { font-size: .86rem; color: var(--muted); }
 .hint.bad { color: var(--neg); }
 .hint a { color: var(--accent); }
 .sheet-body > .hint { margin: 0 var(--pad); }
 a.credit { margin: -10px 0 -8px; padding: 13px 0; color: var(--muted); }
 /* About: who this is, then rounded lists, a row for each thing, with a hairline between them */
-.about-id { display: grid; justify-items: center; gap: 4px; padding: 4px 0 2px; margin-bottom: 8px; text-align: center; }
-.about-id img { margin-bottom: 10px; border-radius: 15px; }
+/* What this is, on a card of its own: the icon, with the name and a line about it beside it */
+.about-id { flex: none; display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 16px; row-gap: 2px; padding: 18px 20px; background: var(--surface); border-radius: 24px; text-align: left; }
+.about-id img { grid-row: 1 / 3; border-radius: 13px; }
 .about-id p, .about-foot { margin: 0; }
-.about-name { font-size: 1.4rem; font-weight: 500; letter-spacing: -.02em; line-height: 1.2; }
-.about-tag { color: var(--muted); }
-.sheet-body.about { flex: 1; display: flex; flex-direction: column; gap: 18px; padding-top: 22px; }
-.about-links { flex: none; display: grid; padding: 0 var(--pad); background: var(--surface); border-radius: 24px; }
+.about-id .about-name { align-self: end; font-size: 1.25rem; font-weight: 500; letter-spacing: -.01em; line-height: 1.25; }
+.about-id .about-tag { align-self: start; font-size: .95rem; line-height: 1.35; color: var(--muted); }
+/* About is a page of its own, the same as in the other apps: it fills the screen and Back leaves it */
+#aboutDlg { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; padding: env(safe-area-inset-top, 0px) 0 0; border-radius: 0; box-shadow: none; }
+#aboutDlg > :not(.toast) { width: 100%; max-width: 480px; margin-inline: auto; }
+#aboutDlg .sheet-head { min-height: 0; padding: 14px 18px 6px; }
+#aboutDlg .sheet-head h2 { letter-spacing: 0; line-height: 1.5; }
+.sheet-body.about { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 14px 18px max(22px, env(safe-area-inset-bottom, 0px)); }
+.about-links { flex: none; display: grid; padding: 0 20px; background: var(--surface); border-radius: 24px; }
 /* A card with nothing to show (the version, on a page that has none) isn't drawn */
 .about-links:not(:has(> .about-row:not([hidden]), > :not([hidden]) > .about-row:not([hidden]))) { display: none; }
 .about-legal, .about-wrap { display: contents; }
-.about-links .about-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; margin: 0; padding: 8px 0; background: none; border: 0; font-size: 1.125rem; line-height: 1.3; color: var(--ink); text-align: left; text-decoration: none; }
+.about-links .about-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; margin: 0; padding: 12px 0; background: none; border: 0; font-size: 1.06rem; line-height: 1.3; color: var(--ink); text-align: left; text-decoration: none; }
 .about-links > :not([hidden]) ~ .about-row, .about-links > :not([hidden]) ~ * > .about-row, .about-legal .about-row + .about-row { border-top: 1px solid var(--line); }
-.about-row small { display: block; font-size: .9rem; color: var(--muted); }
-.about-row > span + span { flex: none; font-size: .9rem; color: var(--muted); }
+.about-row small { display: block; margin-top: 2px; font-size: .9rem; color: var(--muted); }
+.about-row > span + span { flex: none; font-size: 1rem; color: var(--muted); }
 .about-row > span + span:empty { display: none; }
-a.about-row::after { content: ""; flex: none; width: 9px; height: 9px; margin-right: 3px; border: solid var(--muted); border-width: 1.5px 1.5px 0 0; transform: rotate(45deg); }
-.about-foot { margin-top: auto !important; padding: 18px 0 0; text-align: center; font-size: .82rem; line-height: 1.7; color: var(--muted); }
+a.about-row::after { content: ""; flex: none; width: 9px; height: 9px; margin-right: 3px; border: solid var(--line-strong); border-width: 1.5px 1.5px 0 0; transform: rotate(45deg); }
+.about-foot { margin-top: auto !important; text-align: center; font-size: .8rem; line-height: 1.55; color: var(--muted); }
 .about-foot a { color: inherit; }
 a.credit[hidden] { display: none; }
 a.link { text-decoration: none; }
@@ -542,7 +569,7 @@ button.cell:active, a.cell:active { background: var(--key); }
 .cell.tall { min-height: 68px; }
 .cell.bad { color: var(--neg); }
 /* A row that leads somewhere carries a small arrow */
-a.cell.go .row-k::after { content: ""; position: absolute; right: calc(var(--pad) + 3px); top: 50%; width: 9px; height: 9px; margin-top: -5px; border: solid var(--muted); border-width: 1.5px 1.5px 0 0; transform: rotate(45deg); }
+a.cell.go .row-k::after { content: ""; position: absolute; right: calc(var(--pad) + 3px); top: 50%; width: 9px; height: 9px; margin-top: -5px; border: solid var(--line-strong); border-width: 1.5px 1.5px 0 0; transform: rotate(45deg); }
 a.cell.go .row-k { padding-right: 24px; }
 .row-k { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .row-k b { display: block; font-weight: 400; }
@@ -556,8 +583,13 @@ a.cell.go .row-k { padding-right: 24px; }
   content: ""; position: absolute; right: 3px; top: 50%; width: 6px; height: 6px; margin-top: -5px;
   border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg);
 }
-/* The real <select> or date input lies invisible over its row, so a tap
-   anywhere on the row opens the phone's own picker. */
+/* A value to choose from a list is a button: a tap anywhere on its row (the row is its label) drops the list */
+button.row-v { min-height: 32px; padding: 0 18px 0 0; background: none; border: 0; font: inherit; font-size: 1rem; text-align: right; cursor: pointer; }
+button.row-v:focus-visible { outline: none; }
+.cell:has(> button.row-v:focus-visible) { outline: 2px solid var(--accent); outline-offset: -6px; border-radius: 22px; }
+.cell:has(> button.row-v[aria-expanded="true"]) { background: var(--key); }
+/* The date input lies invisible over its row, so a tap anywhere on the row
+   opens the phone's own date picker. (A list's <select> stays in the page, unseen, to hold the choice.) */
 .over, .date-native { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; }
 .date-native::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; margin: 0; cursor: pointer; }
 /* The row in use is ringed, a little inside its edge so the ring keeps to the panel's round corners */
@@ -643,14 +675,14 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 
 /* Segmented control (split modes): a track with the chosen one raised on it */
 .seg { flex: 1; display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 22px; background: var(--bg); }
-.seg button { position: relative; flex: 1 1 auto; min-width: 44px; min-height: 38px; padding: 0 8px; border: 0; border-radius: 99px; background: none; font-size: .95rem; font-weight: 500; color: var(--muted); }
+.seg button { position: relative; flex: 1 1 auto; min-width: 44px; min-height: 34px; padding: 0 8px; border: 0; border-radius: 99px; background: none; font-size: .92rem; font-weight: 500; color: var(--muted); }
 /* Small on screen, a full-size tap */
-.seg button::before { content: ""; position: absolute; inset: -6px 0; }
+.seg button::before { content: ""; position: absolute; inset: -8px 0; }
 @media (hover: hover) { .seg button:hover { color: var(--ink); } }
-.seg button[aria-pressed="true"] { background: linear-gradient(var(--key-hi), var(--key)); box-shadow: var(--rim), var(--lift); color: var(--ink); }
+.seg button[aria-pressed="true"] { background: linear-gradient(var(--key-hi), var(--key)); box-shadow: var(--rim); color: var(--ink); }
 .cell.seg-cell { min-height: 64px; padding: 10px 12px; }
 /* A narrow phone keeps the four on one line */
-@media (max-width: 340px) { .seg button { padding: 0 5px; font-size: .9rem; } .cell.seg-cell { padding: 10px; } }
+@media (max-width: 340px) { .seg button { padding: 0 5px; } .cell.seg-cell { padding: 10px; } }
 
 /* Split and payer rows: the name (with what it comes to under it) and a
    plain number that underlines only while it's being typed in */
@@ -694,7 +726,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 
 /* Currency picker: a round search field, then each set of currencies on its own card */
 .picker-head { flex: none; display: flex; padding: 2px 16px 6px; }
-.picker-head .input { flex: 1; }
+.picker-head .search { flex: 1; }
 .picker-list { list-style: none; margin: 0; padding: 0 16px 20px; overflow-y: auto; overscroll-behavior: contain; }
 .picker-list .group { padding: 16px var(--pad) 8px; font-size: 1rem; line-height: 1.4; color: var(--muted); }
 .picker-list li:not(.group) { position: relative; background: var(--surface); }
@@ -710,7 +742,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 @media (hover: hover) { .picker-list button:hover { background: var(--key); } }
 .picker-list button:focus-visible { outline: 2px solid var(--accent); outline-offset: -6px; border-radius: 22px; }
 .picker-list button[aria-current="true"] .c, .picker-list button[aria-current="true"] .n { color: var(--accent); }
-.picker-list .tickmark { width: 18px; height: 18px; color: var(--accent); }
+.picker-list .tick { color: var(--accent); }
 .picker-list .c { font-weight: 500; }
 .picker-list .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -780,6 +812,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       <button class="icon-btn" id="back" type="button" aria-label="All groups" hidden>
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12H3M10.5 4.5 3 12l7.5 7.5"/></svg>
       </button>
+      <svg class="logo" width="26" height="26" viewBox="18 18 72 72" aria-hidden="true"><rect x="18" y="18" width="72" height="72" rx="16" fill="#1F6F54"/><clipPath id="logoCut"><path d="M0,0H108V20.23L0,72.23ZM0,108H108V35.77L0,87.77Z"/></clipPath><g fill="none" stroke="#FAF8F3" stroke-width="7.6" stroke-linecap="round"><path clip-path="url(#logoCut)" d="M36,33V75M48,33V75M60,33V75M72,33V75"/><path d="M27,67L81,41"/></g></svg>
       <h1 class="mark" id="title">Tally</h1>
     </div>
     <div class="top-right">
@@ -848,7 +881,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     </section>
     <section class="section">
       <div class="act-head"><h2>Activity</h2><button class="link" type="button" id="searchBtn" hidden>Search</button></div>
-      <input class="input" id="searchBox" type="search" placeholder="Search names, notes, amounts" autocomplete="off" enterkeyhint="search" aria-label="Search activity" hidden>
+      <div class="search"><input class="input" id="searchBox" type="search" placeholder="Search names, notes, amounts" autocomplete="off" enterkeyhint="search" aria-label="Search activity" hidden><button class="clear" type="button" data-clear="searchBox" aria-label="Clear"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button></div>
       <div class="card list rows" id="activity"></div>
     </section>
   </div>
@@ -870,7 +903,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 <!-- New group -->
 <dialog id="newDlg" tabindex="-1" aria-labelledby="newTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m4 4 10 10M14 4 4 14"/></svg></button>
     <h2 id="newTitle">New group</h2>
     <button class="btn btn-primary" type="button" id="createGo">Create</button>
   </div>
@@ -892,7 +925,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 <!-- Invite: the group's code -->
 <dialog id="invDlg" tabindex="-1" aria-labelledby="invTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m4 4 10 10M14 4 4 14"/></svg></button>
     <h2 id="invTitle">Invite</h2>
   </div>
   <div class="sheet-body foot">
@@ -906,7 +939,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 <!-- Join with a code or a link / who are you -->
 <dialog id="joinDlg" tabindex="-1" aria-labelledby="joinTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m4 4 10 10M14 4 4 14"/></svg></button>
     <h2 id="joinTitle">Join a group</h2>
   </div>
   <div class="sheet-body blocks">
@@ -932,7 +965,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 <!-- Add / edit expense -->
 <dialog id="expDlg" tabindex="-1" aria-labelledby="expTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m4 4 10 10M14 4 4 14"/></svg></button>
     <h2 id="expTitle">Add expense</h2>
     <button class="btn btn-primary" type="button" id="expSave">Save</button>
   </div>
@@ -952,14 +985,14 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       </div>
     </div>
     <div class="blk">
-      <label class="cell"><span class="row-k">Paid by</span><span class="row-v chev" id="expPaidText" aria-hidden="true"></span><select class="over" id="expPaid" aria-label="Paid by"></select></label>
+      <label class="cell"><span class="row-k">Paid by</span><button class="row-v chev" type="button" id="expPaidText" data-pick="expPaid" aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"></button><select class="over" id="expPaid" aria-label="Paid by" hidden></select></label>
       <div class="cells" id="expPayers" hidden>
         <div class="cells" id="expPayerRows"></div>
         <div class="split-foot"><span id="expPayFoot"></span><span id="expPayFootRight"></span></div>
       </div>
       <label class="cell"><span class="row-k">Date</span><span class="row-v chev" id="expDateText" aria-hidden="true"></span><input class="date-native" type="date" id="expDate" aria-label="Date"></label>
-      <label class="cell" id="expRepeatField"><span class="row-k">Repeats</span><span class="row-v chev" id="expRepeatText" aria-hidden="true"></span>
-        <select class="over" id="expRepeat" aria-label="Repeats"><option value="">Never</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
+      <label class="cell" id="expRepeatField"><span class="row-k">Repeats</span><button class="row-v chev" type="button" id="expRepeatText" data-pick="expRepeat" aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"></button>
+        <select class="over" id="expRepeat" aria-label="Repeats" hidden><option value="">Never</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
     </div>
     <span class="field-label sec">Split</span>
     <div class="blk">
@@ -982,7 +1015,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 <!-- Settle up / record a payment -->
 <dialog id="payDlg" tabindex="-1" aria-labelledby="payTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m4 4 10 10M14 4 4 14"/></svg></button>
     <h2 id="payTitle">Settle up</h2>
     <button class="btn btn-primary" type="button" id="payGo">Record</button>
   </div>
@@ -993,8 +1026,8 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     </div>
     <span class="field-label sec" id="payFormLabel">Other payment</span>
     <div class="blk">
-      <label class="cell"><span class="row-k">From</span><span class="row-v chev" id="payFromText" aria-hidden="true"></span><select class="over" id="payFrom" aria-label="From"></select></label>
-      <label class="cell"><span class="row-k">To</span><span class="row-v chev" id="payToText" aria-hidden="true"></span><select class="over" id="payTo" aria-label="To"></select></label>
+      <label class="cell"><span class="row-k">From</span><button class="row-v chev" type="button" id="payFromText" data-pick="payFrom" aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"></button><select class="over" id="payFrom" aria-label="From" hidden></select></label>
+      <label class="cell"><span class="row-k">To</span><button class="row-v chev" type="button" id="payToText" data-pick="payTo" aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"></button><select class="over" id="payTo" aria-label="To" hidden></select></label>
       <label class="cell"><span class="row-k">Amount</span><input class="row-in num" id="payAmount" aria-label="Amount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done" data-done><span class="pay-code" id="payCode"></span></label>
     </div>
     <div class="field"><span class="by-line" id="payBy" hidden></span><div><button class="link danger" type="button" id="payDelete" hidden>Delete payment</button></div></div>
@@ -1009,7 +1042,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   </div>
   <div class="sheet-body about">
     <div class="about-id">
-      <img src="icons/icon-192.png" width="64" height="64" alt="" onerror="this.hidden=true">
+      <img src="icons/icon-192.png" width="52" height="52" alt="" onerror="this.hidden=true">
       <p class="about-name">Tally</p>
       <p class="about-tag">Split costs with anyone.</p>
     </div>
@@ -1029,7 +1062,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 <!-- Group settings -->
 <dialog id="setDlg" tabindex="-1" aria-labelledby="setTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m4 4 10 10M14 4 4 14"/></svg></button>
     <h2 id="setTitle">Group settings</h2>
     <button class="btn btn-primary" type="button" id="setSave">Done</button>
   </div>
@@ -1059,7 +1092,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 <!-- Delete for everyone: the second step -->
 <dialog id="delDlg" tabindex="-1" aria-labelledby="delTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m4 4 10 10M14 4 4 14"/></svg></button>
     <h2 id="delTitle">Delete for everyone</h2>
   </div>
   <div class="sheet-body foot">
@@ -1074,14 +1107,17 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 <!-- Currency picker -->
 <dialog id="picker" tabindex="-1" aria-labelledby="pickerTitle">
   <div class="sheet-head">
-    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l10 10M14 4 4 14"/></svg></button>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m4 4 10 10M14 4 4 14"/></svg></button>
     <h2 id="pickerTitle">Currency</h2>
   </div>
   <div class="picker-head">
-    <input class="input" id="pickerSearch" type="search" placeholder="Search by code or name" autocomplete="off" enterkeyhint="search" aria-label="Search currencies">
+    <div class="search"><input class="input" id="pickerSearch" type="search" placeholder="Search by code or name" autocomplete="off" enterkeyhint="search" aria-label="Search currencies"><button class="clear" type="button" data-clear="pickerSearch" aria-label="Clear"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button></div>
   </div>
   <ul class="picker-list" id="pickerList"></ul>
 </dialog>
+
+<!-- The list a Paid by, Repeats, From or To row drops: filled from its hidden <select>, and moved into the sheet that opens it -->
+<div class="menu pick-menu" id="pickMenu" role="menu" hidden></div>
 
 <div class="toast" id="toast" role="status" popover="manual"><span id="toastText"></span><button type="button" id="toastUndo" hidden>Undo</button></div>
 
@@ -1538,10 +1574,12 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     // sheet and stays in the group, as the Back key does on Android.
     const sheets = [...document.querySelectorAll('dialog[open]')];
     if (sheets.length && current && window.tallyApp && window.tallyApp.ios && !(e.state && e.state.g === current)) {
-      sheets.pop().close();
+      // An open list in the sheet goes first, and the sheet stays.
+      if (picking) closePick(); else sheets.pop().close();
       history.pushState({ g: current, own: true }, '', onSite ? `/g/${current}` : `#g=${current}`);
       return;
     }
+    closePick(false);
     for (const d of document.querySelectorAll('dialog[open]')) d.close();
     const id = e.state && e.state.g;
     if (id && groups.has(id)) openGroup(id, false); else goHome(false);
@@ -2123,6 +2161,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   }
   // Android Back closes the top sheet, then leaves a group, then the app.
   window.tallyBack = () => {
+    if (picking) { closePick(); return true; }
     const open = [...document.querySelectorAll('dialog[open]')];
     if (open.length) { open.at(-1).close(); return true; }
     if (!$('menu').hidden) { showMenu(false); return true; }
@@ -2132,11 +2171,133 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     return false;
   };
 
+  // ---- drop-downs ----
+  // Paid by, Repeats, From and To: the row's value is a button, and its <select> stays in the
+  // page, unseen, holding the choices and the choice. The list is made from the select's options
+  // each time it opens; choosing a row sets the select and fires the change the sheet listens for,
+  // so everything after that is as it was with the phone's own picker.
+  const pickMenu = $('pickMenu');
+  let picking = null;     // the button whose list is open
+  let pickedAt = 0;       // when it opened
+  let pickShutAt = 0;     // when Escape last shut one
+  function openPick(trigger) {
+    closePick(false);
+    const select = $(trigger.dataset.pick);
+    pickMenu.replaceChildren(...[...select.options].map(o => {
+      const row = document.createElement('button'), text = document.createElement('span');
+      row.type = 'button';
+      row.className = 'menu-row';
+      row.dataset.value = o.value;
+      row.setAttribute('role', 'menuitemradio');
+      row.setAttribute('aria-checked', String(o.value === select.value && !o.disabled));
+      if (o.disabled) row.setAttribute('aria-disabled', 'true');
+      text.textContent = o.textContent;
+      row.append(text);
+      row.insertAdjacentHTML('beforeend', ROW_TICK);
+      return row;
+    }));
+    pickMenu.setAttribute('aria-label', select.getAttribute('aria-label'));
+    // Into the sheet itself: a sheet is drawn above everything outside it.
+    (trigger.closest('dialog') || document.body).append(pickMenu);
+    // Under its row, its right edge on the row's; above the row when it doesn't fit below and
+    // there's more room there. Never off the screen, and no taller than its room: the rest scrolls.
+    pickMenu.style.cssText = '';
+    pickMenu.hidden = false;
+    const row = (trigger.closest('.cell') || trigger).getBoundingClientRect();
+    const W = document.documentElement.clientWidth, H = innerHeight;
+    const w = pickMenu.offsetWidth, h = pickMenu.offsetHeight;
+    const below = H - 12 - (row.bottom - 4), above = row.top + 4 - 12;
+    const up = h > below && above > below;
+    pickMenu.style.left = Math.max(12, Math.min(W - 12 - w, row.right - w)) + 'px';
+    pickMenu.style.top = (up ? Math.max(12, row.top + 4 - h) : row.bottom - 4) + 'px';
+    pickMenu.style.maxHeight = (up ? above : below) + 'px';
+    pickMenu.style.transformOrigin = `${up ? 'bottom' : 'top'} right`;
+    picking = trigger;
+    pickedAt = performance.now();
+    trigger.setAttribute('aria-expanded', 'true');
+    const at = pickMenu.querySelector('[aria-checked="true"]') || pickMenu.querySelector('.menu-row:not([aria-disabled])');
+    if (at) { at.focus({ preventScroll: true }); at.scrollIntoView({ block: 'nearest' }); }
+  }
+  // Focus goes back to the row's button, so a keyboard carries on from where it was.
+  function closePick(refocus = true) {
+    if (!picking) return;
+    const trigger = picking;
+    picking = null;
+    pickMenu.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    if (refocus && trigger.offsetParent) trigger.focus({ preventScroll: true });
+  }
+  // The button of the row that was tapped: the row is its label, so a tap anywhere on it counts.
+  const pickOf = el => { const c = el.closest ? el.closest('[data-pick], label.cell') : null; return c && (c.matches('[data-pick]') ? c : c.querySelector('[data-pick]')); };
+  for (const b of document.querySelectorAll('[data-pick]')) {
+    b.addEventListener('click', () => (picking === b ? closePick() : openPick(b)));
+    b.addEventListener('keydown', e => { if (e.key === 'ArrowDown' && picking !== b) { e.preventDefault(); openPick(b); } });
+  }
+  pickMenu.addEventListener('click', e => {
+    const row = e.target.closest('.menu-row');
+    if (!row || !picking || row.getAttribute('aria-disabled') === 'true') return;
+    const select = $(picking.dataset.pick), value = row.dataset.value;
+    closePick();
+    // As with the phone's own picker, choosing what's already chosen changes nothing.
+    if (value === select.value) return;
+    select.value = value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  pickMenu.addEventListener('keydown', e => {
+    const rows = [...pickMenu.querySelectorAll('.menu-row:not([aria-disabled])')], at = rows.indexOf(document.activeElement);
+    if (!rows.length) return;
+    const to = { ArrowDown: (at + 1) % rows.length, ArrowUp: (at - 1 + rows.length) % rows.length, Home: 0, End: rows.length - 1 }[e.key];
+    if (to != null) { e.preventDefault(); rows[to].focus(); }
+    else if (e.key === 'Tab') closePick();
+  });
+  // A tap anywhere else puts the list away and, like the phone's own picker, does nothing else:
+  // only another list's row takes it, and opens.
+  let swallowUntil = 0;
+  document.addEventListener('pointerdown', e => {
+    swallowUntil = 0;
+    if (!picking || e.target.closest('#pickMenu')) return;
+    const other = pickOf(e.target);
+    if (other === picking) return;
+    closePick();
+    if (other) return;
+    swallowUntil = performance.now() + 700;
+    e.stopPropagation();
+  }, true);
+  document.addEventListener('pointercancel', () => { swallowUntil = 0; }, true);
+  document.addEventListener('mousedown', e => { if (performance.now() < swallowUntil) e.preventDefault(); }, true);
+  document.addEventListener('click', e => { if (performance.now() < swallowUntil) { swallowUntil = 0; e.stopPropagation(); e.preventDefault(); } }, true);
+  // Escape shuts the list and leaves its sheet open; the sheet scrolling, the screen changing
+  // shape or the sheet closing put it away too.
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !picking) return;
+    e.preventDefault();
+    e.stopPropagation();
+    pickShutAt = performance.now();
+    closePick();
+  }, true);
+  for (const d of document.querySelectorAll('dialog')) {
+    d.addEventListener('cancel', e => { if (picking || performance.now() - pickShutAt < 200) { e.preventDefault(); closePick(); } });
+    d.addEventListener('close', () => closePick(false));
+  }
+  document.addEventListener('scroll', e => { if (picking && !pickMenu.contains(e.target) && performance.now() - pickedAt > 250) closePick(); }, true);
+  addEventListener('resize', () => closePick());
+
+  // ---- search fields ----
+  // Each has its own small x, shown by the page's styles while there's something typed: it empties
+  // the field, tells the page as typing would, and leaves the keyboard where it was.
+  for (const b of document.querySelectorAll('[data-clear]')) {
+    const box = $(b.dataset.clear);
+    b.addEventListener('mousedown', e => e.preventDefault());
+    b.addEventListener('click', () => { box.value = ''; box.dispatchEvent(new Event('input', { bubbles: true })); box.focus(); });
+  }
+
   // A currency button shows its code; its name says what it is and the code with it.
   function showCur(btn, code) {
     btn.textContent = code;
     btn.setAttribute('aria-label', `Currency, ${code}`);
   }
+  // The tick on what's chosen, in the currency list and in a drop-down.
+  const ROW_TICK = '<svg class="tick" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 10.5 4 4 8-9"/></svg>';
   // Currency picker shared by every currency button; resolves with a code or null.
   let pickResolve = null;
   let pickCurrent = '';
@@ -2157,7 +2318,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       li.firstChild.dataset.code = c;
       if (c === pickCurrent) {
         li.firstChild.setAttribute('aria-current', 'true');
-        li.firstChild.insertAdjacentHTML('beforeend', '<svg class="tickmark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>');
+        li.firstChild.insertAdjacentHTML('beforeend', ROW_TICK);
       }
       li.querySelector('.c').textContent = c;
       li.querySelector('.n').textContent = curName(c);
@@ -3514,12 +3675,11 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   const WEB_VERSION = '__VERSION__';
   function showVersion() {
     const v = appVersion || (WEB_VERSION.startsWith('__') ? '' : WEB_VERSION);
-    // A row in About: the word, with the number small under it.
-    const row = document.createElement('span'), num = document.createElement('small');
-    row.textContent = 'Version';
+    // A row in About: the word at the left, the number at the right.
+    const word = document.createElement('span'), num = document.createElement('span');
+    word.textContent = 'Version';
     num.textContent = v;
-    row.append(num);
-    $('aboutVer').replaceChildren(row);
+    $('aboutVer').replaceChildren(word, num);
     $('aboutVer').hidden = !v;
   }
   showVersion();
