@@ -20,8 +20,10 @@ CREATE TABLE IF NOT EXISTS members (
   group_id TEXT NOT NULL,
   name TEXT NOT NULL,
   removed INTEGER NOT NULL DEFAULT 0,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  photo TEXT -- their picture: a 96px square JPEG as base64, or NULL
 );
+-- Added after launch: ALTER TABLE members ADD COLUMN photo TEXT;
 CREATE INDEX IF NOT EXISTS members_group ON members (group_id);
 CREATE TABLE IF NOT EXISTS entries (
   id TEXT PRIMARY KEY,

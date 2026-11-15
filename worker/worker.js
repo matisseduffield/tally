@@ -52,6 +52,8 @@ const MAX_OPS = 200;
 const MAX_BODY = 256 * 1024;
 const MAX_MEMBERS = 100;
 const MAX_ENTRIES = 20000;
+// A person's picture: a small square JPEG the app has already cut down, as base64.
+const MAX_PHOTO = 12000;
 // A live group always has a currency, so a blank one marks a deleted group.
 const LIVE = "currency <> ''";
 const GRACE_MS = 14 * 24 * 60 * 60 * 1000;
@@ -139,7 +141,7 @@ export default {
 function readStatements(env, id, since) {
   return [
     env.DB.prepare(`SELECT id, name, currency, version, split, purge_at FROM groups LEFT JOIN pending_deletes ON group_id = id WHERE id = ? AND ${LIVE}`).bind(id),
-    env.DB.prepare('SELECT id, name, removed FROM members WHERE group_id = ? ORDER BY rowid').bind(id),
+    env.DB.prepare('SELECT id, name, removed, photo FROM members WHERE group_id = ? ORDER BY rowid').bind(id),
     since === null
       ? env.DB.prepare('SELECT id, data, deleted, created_at, updated_at FROM entries WHERE group_id = ?').bind(id)
       : env.DB.prepare('SELECT id, data, deleted, created_at, updated_at FROM entries WHERE group_id = ? AND v > ?').bind(id, since),
@@ -152,7 +154,7 @@ function groupFrom([g, members, entries], since, now) {
   if (split) group.split = JSON.parse(split);
   const state = {
     group,
-    members: members.results.map(m => ({ id: m.id, name: m.name, removed: !!m.removed })),
+    members: members.results.map(m => ({ id: m.id, name: m.name, removed: !!m.removed, photo: m.photo || null })),
     entries: entries.results.map(e => ({ ...JSON.parse(e.data), id: e.id, deleted: !!e.deleted, createdAt: e.created_at, updatedAt: e.updated_at })),
   };
   if (since !== null) state.delta = true;
@@ -242,10 +244,17 @@ async function applyOps(env, id, request) {
     } else if (op.type === 'member') {
       const name = cleanText(op.name, 40);
       if (!ID.test(op.id || '') || !name) return fail(400, 'Bad member');
+      // Their picture: kept unless the op names it (null clears it). Apps from
+      // before pictures never name it, so a rename from one leaves it alone.
+      const hasPhoto = 'photo' in op;
+      if (hasPhoto && op.photo !== null && !isPhoto(op.photo)) return fail(400, 'Bad photo');
       stmts.push(env.DB.prepare(
-        `INSERT INTO members (id, group_id, name, removed, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT(id) DO UPDATE SET name = ?3, removed = COALESCE(?6, members.removed), updated_at = ?5 WHERE members.group_id = ?2`,
-      ).bind(op.id, id, name, op.removed ? 1 : 0, now, flag(op.removed)));
+        `INSERT INTO members (id, group_id, name, removed, updated_at, photo) VALUES (?1, ?2, ?3, ?4, ?5, ?8)
+         ON CONFLICT(id) DO UPDATE SET name = ?3, removed = COALESCE(?6, members.removed), updated_at = ?5,
+           photo = CASE WHEN ?7 = 1 THEN (CASE WHEN COALESCE(?6, members.removed) = 1 THEN NULL ELSE ?8 END) ELSE members.photo END
+         WHERE members.group_id = ?2`,
+      // Removing a person takes their picture with them, whichever app asks.
+      ).bind(op.id, id, name, op.removed ? 1 : 0, now, flag(op.removed), hasPhoto || op.removed ? 1 : 0, hasPhoto && !op.removed ? op.photo : null));
     } else if (op.type === 'entry') {
       if (!ID.test(op.id || '')) return fail(400, 'Bad entry');
       const data = cleanEntry(op.data, people);
@@ -407,6 +416,14 @@ async function findCode(env, raw, request) {
 
 // An op's removed/deleted: 1 or 0 when it says, null (keep what's there) when it doesn't.
 const flag = v => (v === undefined ? null : v ? 1 : 0);
+
+// A picture is plain base64 of a JPEG, and small: nothing else is kept.
+function isPhoto(p) {
+  if (typeof p !== 'string' || !p.length || p.length > MAX_PHOTO || p.length % 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(p)) return false;
+  let head;
+  try { head = atob(p.slice(0, 4)); } catch { return false; }
+  return head.charCodeAt(0) === 0xff && head.charCodeAt(1) === 0xd8 && head.charCodeAt(2) === 0xff;
+}
 
 // The word filter: slurs and a few crude words are starred out of anything typed.
 // The list is kept as hashes, so the words themselves aren't written here.

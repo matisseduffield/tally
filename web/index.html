@@ -370,17 +370,26 @@ body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 .pick .eg i { display: grid; place-items: center; width: 36px; height: 44px; font-style: normal; font-size: 1.1rem; font-weight: 500; color: var(--muted); border-radius: 12px; background: var(--bg); }
 .pick strong { display: block; font-size: 1.35rem; font-weight: 500; line-height: 1.25; letter-spacing: -.01em; }
 .pick small { display: block; font-size: .95rem; color: var(--muted); }
-/* Home: name and your balance on the first line, details across the whole
-   second line (so nothing is cut short by the amount column). */
-.group-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; min-height: 64px; }
-.group-row .row-title { grid-column: 1; grid-row: 1; }
-.group-row .g-amt { grid-column: 2; grid-row: 1; font-size: 1.06rem; white-space: nowrap; text-align: right; }
-.group-row .row-sub { grid-column: 1 / -1; grid-row: 2; }
-/* What the amount means, in words as well as colour */
-.group-row .g-lbl { grid-column: 2; grid-row: 2; font-size: .8rem; color: var(--muted); text-align: right; white-space: nowrap; }
-.group-row .g-lbl:empty { display: none; }
-.group-row:has(.g-lbl:not(:empty)) .row-sub { grid-column: 1; }
+/* A person: their picture in a round, or the first letter of their name on grey */
+.face { flex: none; display: grid; place-items: center; width: 36px; height: 36px; overflow: hidden; border-radius: 50%; background: var(--card-key); font-size: .86rem; font-weight: 500; line-height: 1; color: var(--ink); }
+.face img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Several in a row overlap, each ringed in the card's colour */
+.faces { display: flex; }
+.faces .face { box-shadow: 0 0 0 2px var(--surface); }
+.faces .face + .face { margin-left: -9px; }
+/* Home: each group is a card of its own. Its name and the latest thing in it at the left;
+   at the right the people in it, and where you stand under them, in words as well as colour. */
+#groupList { gap: 10px; background: none; border-radius: 0; overflow: visible; }
+.group-row { display: flex; align-items: center; gap: 12px; min-height: 84px; padding: 14px var(--pad); background: var(--surface); border-radius: 24px; }
+.group-row::before { content: none; }
+.group-row .g-main { flex: 1; display: grid; gap: 2px; min-width: 0; }
+/* The right side takes half the card at most: a long balance is cut short before the name is */
+.group-row .g-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 0; max-width: 50%; }
+.group-row .g-amt { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: .9rem; line-height: 1.35; white-space: nowrap; }
+.group-row .g-amt.even { color: var(--muted); }
+.group-row .g-amt:empty { display: none; }
 .group-row.gone .row-title { color: var(--muted); }
+.group-row.gone .face { opacity: .5; }
 
 /* Totals: two cards side by side, a small label over a large figure */
 .totals { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
@@ -411,18 +420,14 @@ body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 #people { padding-bottom: 18px; }
 #people .bal-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 9px 12px; width: 100%; min-height: 54px; padding: 14px var(--pad) 0; background: none; border: 0; color: inherit; font: inherit; font-size: 1.06rem; text-align: left; cursor: pointer; }
 #people .bal-amt { white-space: nowrap; }
+#people .bal-who { display: flex; align-items: center; gap: 10px; }
+#people .bal-who > span:last-child { min-width: 0; overflow-wrap: break-word; }
+#people .face { width: 28px; height: 28px; font-size: .74rem; }
 .bal-bar, #people .bal-bar { grid-column: 1 / -1; position: relative; display: block; height: 6px; margin: 0; }
-/* Home draws each group the same way: what's outstanding for you, as a part of what the group has spent */
-#groupList { padding-bottom: 18px; }
-.group-row { padding: 14px var(--pad) 0; }
-.group-row::before { content: none; }
-.group-row .bal-bar { grid-row: 3; margin-top: 10px; }
 /* Nothing outstanding: no bar to draw, so the row is a plain one with a rule above it */
-.group-row.even, #people .bal-row.even { padding-bottom: 14px; }
-.group-row.even > .bal-bar, #people .even > .bal-bar { display: none; }
-#groupList > .even + .group-row::before { content: ""; }
-.group-row .g-amt.even { font-size: .9rem; color: var(--muted); }
-#groupList:has(> .even:last-child), #people:has(> .even:last-child) { padding-bottom: 0; }
+#people .bal-row.even { padding-bottom: 14px; }
+#people .even > .bal-bar { display: none; }
+#people:has(> .even:last-child) { padding-bottom: 0; }
 .bal-bar::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line); }
 .bal-bar::after { content: ""; position: absolute; left: calc(50% - .5px); bottom: 0; width: 1px; height: 6px; background: var(--line-strong); }
 .bal-bar i { position: absolute; bottom: 0; height: 6px; width: max(3px, calc(var(--w) * 50%)); }
@@ -604,6 +609,11 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 /* Add shows only once there's something to add; Enter adds too */
 .row-in:placeholder-shown ~ .add-go { display: none; }
 .cell .act { font-size: .95rem; color: var(--muted); }
+/* In People, each round is a button: it opens the short list for that person's photo */
+.face-btn { position: relative; flex: none; padding: 0; background: none; border: 0; border-radius: 50%; }
+.face-btn::after { content: ""; position: absolute; inset: -9px -6px; }
+.face-btn:active .face, .face-btn[aria-expanded="true"] .face { background: var(--card-key-down); }
+.face-btn:active img, .face-btn[aria-expanded="true"] img { opacity: .8; }
 .cell > .link { flex: none; }
 /* Join: Open is what the sheet is for, so it is the blue one */
 #joinGo { min-height: 40px; padding: 0 18px; background: var(--accent); box-shadow: none; color: var(--on-accent); }
@@ -1075,9 +1085,10 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     <span class="field-label sec">People</span>
     <div class="blk">
       <div class="cells" id="setMembers"></div>
+      <input type="file" id="facePick" accept="image/*" hidden tabindex="-1" aria-hidden="true">
       <div class="cell"><input class="row-in" id="setNew" aria-label="Add someone" placeholder="Add someone" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="link add-go" type="button" id="setAdd">Add</button></div>
     </div>
-    <span class="hint">Tap a name to change it. Anyone with the link or the code can see, change and delete this group.</span>
+    <span class="hint">Tap a name to change it, or the circle beside it to add a photo. Anyone with the link or the code can see, change and delete this group.</span>
     <div class="blk">
       <button class="cell go" type="button" id="setExport">Export CSV</button>
       <a class="cell go tall" id="setReport" href="mailto:support@teloone.au?subject=Report%20a%20Tally%20group&amp;body=Paste%20the%20group%E2%80%99s%20link%20here%2C%20and%20tell%20us%20what%E2%80%99s%20wrong%3A%0A%0A"><span class="row-k">Report a problem<small id="setReportTo">Opens an email to support@teloone.au</small></span></a>
@@ -1289,6 +1300,23 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 
   const live = g => g.members.filter(m => !m.removed);
   const memberName = (g, id) => (id === g.me ? 'You' : ((g.members.find(m => m.id === id) || {}).name || 'Someone'));
+  // A person's picture is a small square JPEG, kept as base64; anything else is shown as no picture.
+  const PHOTO_PX = 96, PHOTO_MAX = 12000;
+  const okPhoto = p => typeof p === 'string' && p.length > 0 && p.length <= PHOTO_MAX && /^\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(p);
+  // Their round: the picture, or the first letter of their name.
+  function faceOf(m) {
+    const face = document.createElement('span');
+    face.className = 'face';
+    face.setAttribute('aria-hidden', 'true');
+    if (okPhoto(m.photo)) {
+      const img = new Image();
+      img.alt = '';
+      img.draggable = false;
+      img.src = 'data:image/jpeg;base64,' + m.photo;
+      face.append(img);
+    } else face.textContent = (Array.from((m.name || '').trim())[0] || '').toLocaleUpperCase();
+    return face;
+  }
   const entriesOf = g => g.entries.filter(e => !e.deleted);
   const netCache = new WeakMap();
   const netOf = g => {
@@ -1312,8 +1340,8 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     }
     else if (op.type === 'member') {
       const m = g.members.find(x => x.id === op.id);
-      if (m) Object.assign(m, { name: op.name, removed: 'removed' in op ? !!op.removed : m.removed });
-      else g.members.push({ id: op.id, name: op.name, removed: !!op.removed });
+      if (m) Object.assign(m, { name: op.name, removed: 'removed' in op ? !!op.removed : m.removed, photo: 'photo' in op ? op.photo : m.photo || null });
+      else g.members.push({ id: op.id, name: op.name, removed: !!op.removed, photo: op.photo || null });
     } else if (op.type === 'entry') {
       const i = g.entries.findIndex(x => x.id === op.id);
       const was = i >= 0 ? g.entries[i] : null;
@@ -1389,7 +1417,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       offline = faulty = false;
       retries.delete(id);
       if (!groups.has(id)) return; // removed from this device meanwhile
-      if (res.status === 304) { if (!g.pending.length) fillRepeats(id); return; }
+      if (res.status === 304) { if (!g.pending.length) fillRepeats(id); if (id === current) carryPhoto(g); return; }
       if (res.status === 404 || res.status === 422) {
         // Someone deleted it for everyone: what's queued can never be saved,
         // and there's nothing left to ask the server for.
@@ -1436,6 +1464,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       render();
       wake();
       if (!g.pending.length) fillRepeats(id);
+      if (id === current) carryPhoto(g);
     } catch {
       offline = true;
       faulty = answered;
@@ -1700,8 +1729,17 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       row.dataset.open = id;
       row.dataset.k = 'g:' + id;
       const people = live(g).length;
-      row.innerHTML = `<span class="row-title"></span><span class="g-amt"></span><span class="row-sub"></span><span class="g-lbl" aria-hidden="true"></span><span class="bal-bar" aria-hidden="true"></span>`;
+      row.innerHTML = '<span class="g-main"><span class="row-title"></span><span class="row-sub"></span></span><span class="g-side"><span class="faces" aria-hidden="true"></span><span class="g-amt"></span></span>';
       row.querySelector('.row-title').textContent = g.group.name;
+      // The people in it: four at most, or three and how many more.
+      const faces = live(g).slice(0, people > 4 ? 3 : 4).map(faceOf);
+      if (people > 4) {
+        const more = document.createElement('span');
+        more.className = 'face';
+        more.textContent = '+' + (people - 3);
+        faces.push(more);
+      }
+      row.querySelector('.faces').append(...faces);
       const latest = entriesOf(g).reduce((a, e) => ((e.updatedAt || e.createdAt || 0) > ((a && (a.updatedAt || a.createdAt)) || 0) ? e : a), null);
       const who = `${people} ${people === 1 ? 'person' : 'people'}`;
       // Owed or owe is the amount's colour; the row's label says it for screen readers.
@@ -1709,25 +1747,14 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       if (g.gone) sub.textContent = 'No longer available';
       else if (g.deleting) sub.textContent = `Being deleted on ${dateOf(g.deleting)}`;
       else {
-        sub.append(who + ' · ' + (latest ? `${latest.kind === 'payment' ? 'Payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt, true)}` : 'No expenses yet'));
+        sub.append(latest ? `${latest.kind === 'payment' ? 'Payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt, true)}` : 'No expenses yet');
       }
+      // Red and green alone don't tell everyone which way it goes: the words say it too.
       const amt = row.querySelector('.g-amt');
       amt.dataset.k = 'ga:' + id;
       amt.dataset.fx = 'tick';
-      amt.textContent = net ? b.amount : g.gone || !entriesOf(g).length ? '' : 'settled';
+      amt.textContent = g.gone ? '' : net ? `${net > 0 ? 'you’re owed' : 'you owe'} ${b.amount}` : entriesOf(g).length ? 'settled' : '';
       amt.classList.add(b.cls || 'even');
-      row.classList.toggle('even', !net || !!g.gone);
-      // Red and green alone don't tell everyone which way it goes.
-      row.querySelector('.g-lbl').textContent = net > 0 ? 'you’re owed' : net < 0 ? 'you owe' : '';
-      const spent = entriesOf(g).filter(e => e.kind === 'expense').reduce((t, e) => t + L.entryTotal(e, g.group.currency), 0);
-      if (net && !g.gone) {
-        const bar = document.createElement('i');
-        bar.className = net > 0 ? 'pos' : 'neg';
-        bar.style.setProperty('--w', Math.min(1, spent ? Math.abs(net) / spent : 1).toFixed(4));
-        bar.dataset.k = 'gb:' + id;
-        bar.dataset.fx = 'bar';
-        row.lastChild.append(bar);
-      }
       row.setAttribute('aria-label', `${g.group.name}. ${who}. ${net ? `${b.label} ${b.amount}` : 'Settled up'}`);
       return row;
     }));
@@ -1829,7 +1856,8 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       row.dataset.k = 'm:' + m.id;
       const v = net[m.id] || 0;
       row.classList.toggle('even', !v);
-      row.firstChild.textContent = m.name;
+      row.firstChild.className = 'bal-who';
+      row.firstChild.append(faceOf(m), Object.assign(document.createElement('span'), { textContent: m.name }));
       row.querySelector('small').textContent = v > 0 ? 'is owed' : v < 0 ? 'owes' : 'settled';
       const amt = row.querySelector('.bal-amt').lastChild;
       amt.textContent = v ? money(v, code) : '';
@@ -2180,10 +2208,22 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   let picking = null;     // the button whose list is open
   let pickedAt = 0;       // when it opened
   let pickShutAt = 0;     // when Escape last shut one
-  function openPick(trigger) {
+  let pickActs = null;    // things to do rather than choices: [[words, what happens]]
+  function openPick(trigger, acts, label) {
     closePick(false);
-    const select = $(trigger.dataset.pick);
-    pickMenu.replaceChildren(...[...select.options].map(o => {
+    pickActs = acts || null;
+    const select = acts ? null : $(trigger.dataset.pick);
+    if (acts) pickMenu.replaceChildren(...acts.map(([words], n) => {
+      const row = document.createElement('button'), text = document.createElement('span');
+      row.type = 'button';
+      row.className = 'menu-row';
+      row.dataset.act = n;
+      row.setAttribute('role', 'menuitem');
+      text.textContent = words;
+      row.append(text);
+      return row;
+    }));
+    else pickMenu.replaceChildren(...[...select.options].map(o => {
       const row = document.createElement('button'), text = document.createElement('span');
       row.type = 'button';
       row.className = 'menu-row';
@@ -2196,7 +2236,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       row.insertAdjacentHTML('beforeend', ROW_TICK);
       return row;
     }));
-    pickMenu.setAttribute('aria-label', select.getAttribute('aria-label'));
+    pickMenu.setAttribute('aria-label', acts ? label : select.getAttribute('aria-label'));
     // Into the sheet itself: a sheet is drawn above everything outside it.
     (trigger.closest('dialog') || document.body).append(pickMenu);
     // Under its row, its right edge on the row's; above the row when it doesn't fit below and
@@ -2208,10 +2248,11 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     const w = pickMenu.offsetWidth, h = pickMenu.offsetHeight;
     const below = H - 12 - (row.bottom - 4), above = row.top + 4 - 12;
     const up = h > below && above > below;
-    pickMenu.style.left = Math.max(12, Math.min(W - 12 - w, row.right - w)) + 'px';
+    // A list of things to do drops from its own button, at the row's left.
+    pickMenu.style.left = Math.max(12, Math.min(W - 12 - w, acts ? trigger.getBoundingClientRect().left - 8 : row.right - w)) + 'px';
     pickMenu.style.top = (up ? Math.max(12, row.top + 4 - h) : row.bottom - 4) + 'px';
     pickMenu.style.maxHeight = (up ? above : below) + 'px';
-    pickMenu.style.transformOrigin = `${up ? 'bottom' : 'top'} right`;
+    pickMenu.style.transformOrigin = `${up ? 'bottom' : 'top'} ${acts ? 'left' : 'right'}`;
     picking = trigger;
     pickedAt = performance.now();
     trigger.setAttribute('aria-expanded', 'true');
@@ -2236,6 +2277,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   pickMenu.addEventListener('click', e => {
     const row = e.target.closest('.menu-row');
     if (!row || !picking || row.getAttribute('aria-disabled') === 'true') return;
+    if (pickActs) { const act = pickActs[row.dataset.act]; closePick(); return act && act[1](); }
     const select = $(picking.dataset.pick), value = row.dataset.value;
     closePick();
     // As with the phone's own picker, choosing what's already chosen changes nothing.
@@ -2425,11 +2467,14 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     const id = L.newId(), meId = L.newId();
     store.set('myName', me);
     store.set('lastCurrency', currency);
-    const g = { group: { id, name, currency, version: 0 }, members: [], entries: [], pending: [], me: meId, added: Date.now() };
+    const g = { group: { id, name, currency, version: 0 }, members: [], entries: [], pending: [], me: meId, meNew: true, added: Date.now() };
     groups.set(id, g);
     groupIds.unshift(id);
     saveIds();
-    const ops = [{ type: 'group', name, currency }, { type: 'member', id: meId, name: me }, ...others.map(n => ({ type: 'member', id: L.newId(), name: n }))];
+    // Your photo, if this device has one, comes with you.
+    const mine = myPhoto();
+    if (mine) g.photoAt = mine.at;
+    const ops = [{ type: 'group', name, currency }, mine ? { type: 'member', id: meId, name: me, photo: mine.photo } : { type: 'member', id: meId, name: me }, ...others.map(n => ({ type: 'member', id: L.newId(), name: n }))];
     haptic();
     change(g, ops);
     openGroup(id);
@@ -2661,7 +2706,10 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     const g = adopt(id, state, meId);
     $('joinDlg').close();
     haptic();
-    if (newName) { store.set('myName', newName); change(g, [{ type: 'member', id: meId, name: newName }]); }
+    const mine = newName && myPhoto();
+    if (mine) g.photoAt = mine.at;
+    if (newName) { g.meNew = true; saveGroup(g); }
+    if (newName) { store.set('myName', newName); change(g, [mine ? { type: 'member', id: meId, name: newName, photo: mine.photo } : { type: 'member', id: meId, name: newName }]); }
     openGroup(id);
   }
 
@@ -3326,8 +3374,11 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     $('setMembers').replaceChildren(...live(g).map(m => {
       const row = document.createElement('div');
       row.className = 'cell';
-      row.innerHTML = '<input class="row-in" maxlength="40" autocomplete="off" enterkeyhint="done" data-done>';
-      const input = row.firstChild;
+      row.innerHTML = '<button class="face-btn" type="button" aria-haspopup="menu" aria-expanded="false"></button><input class="row-in" maxlength="40" autocomplete="off" enterkeyhint="done" data-done>';
+      const face = row.firstChild, input = row.lastChild;
+      face.dataset.face = m.id;
+      face.setAttribute('aria-label', m.id === g.me ? 'Your photo' : `${m.name}’s photo`);
+      face.append(faceOf(m));
       input.value = input.dataset.was = m.name;
       input.dataset.name = m.id;
       input.setAttribute('aria-label', m.id === g.me ? 'Your name' : `${m.name}’s name`);
@@ -3356,8 +3407,90 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     if (ops.length) change(g, ops);
   }
   $('setMembers').addEventListener('focusout', saveNames);
+  // ---- photos ----
+  // A photo is cut to a square from its middle, made small and kept as a JPEG:
+  // only that small square is ever sent. Answers null for a file that isn't a picture.
+  async function shrinkPhoto(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      if (!side) return null;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = PHOTO_PX;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; // under a picture with see-through parts
+      ctx.fillRect(0, 0, PHOTO_PX, PHOTO_PX);
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, PHOTO_PX, PHOTO_PX);
+      for (let q = 0.72; q > 0.15; q -= 0.12) {
+        const photo = canvas.toDataURL('image/jpeg', q).split(',')[1] || '';
+        if (okPhoto(photo)) return photo;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+  // Your own photo is remembered on this device (`at`: when it was chosen), and
+  // goes with you: a group you're in with no photo gets it, once for each photo,
+  // so one that's taken off there afterwards stays off. Only where this device
+  // made you (`meNew`: you started the group, or joined under a new name): a
+  // name picked from the list could be the wrong one, and would put your face
+  // on someone else for everyone.
+  const myPhoto = () => { const p = store.get('myPhoto'); return p && okPhoto(p.photo) && p.at ? p : null; };
+  function setPhoto(g, id, photo) {
+    const m = g.members.find(x => x.id === id);
+    if (!m || g.deleted) return;
+    if (id === g.me) {
+      if (photo) { g.photoAt = Date.now(); store.set('myPhoto', { photo, at: g.photoAt }); }
+      else store.del('myPhoto');
+    }
+    change(g, [{ type: 'member', id, name: m.name, photo }]);
+    if (id === g.me) saveGroup(g);
+  }
+  // Only on a copy the server has just confirmed, so a photo someone else put there is never written over.
+  function carryPhoto(g) {
+    const mine = myPhoto(), m = g.me && g.members.find(x => x.id === g.me);
+    if (!mine || !g.meNew || !m || m.removed || m.photo || g.photoAt === mine.at || g.gone || g.deleted || g.pending.length) return;
+    g.photoAt = mine.at;
+    change(g, [{ type: 'member', id: m.id, name: m.name, photo: mine.photo }]);
+    saveGroup(g);
+  }
+  let photoFor = null; // whose photo is being chosen
+  $('facePick').addEventListener('change', async () => {
+    const file = $('facePick').files[0], g = groups.get(current), id = photoFor;
+    $('facePick').value = '';
+    photoFor = null;
+    if (!file || !g || !id) return;
+    const photo = await shrinkPhoto(file);
+    if (!photo) return toast('That photo couldn’t be used');
+    if (groups.get(current) !== g) return;
+    putPhoto(g, id, photo);
+  });
+  // From the People list: the rows are drawn again, and the round keeps the focus it had.
+  function putPhoto(g, id, photo) {
+    saveNames();
+    setPhoto(g, id, photo);
+    if (!$('setDlg').open) return;
+    renderMembers();
+    const again = $('setMembers').querySelector(`[data-face="${CSS.escape(id)}"]`);
+    if (again) again.focus({ preventScroll: true });
+  }
   $('setMembers').addEventListener('click', e => {
     const g = groups.get(current);
+    const f = e.target.closest('[data-face]');
+    if (f) {
+      const m = g.members.find(x => x.id === f.dataset.face);
+      if (!m) return;
+      const acts = [['Choose a photo', () => { photoFor = m.id; $('facePick').click(); }]];
+      if (okPhoto(m.photo)) acts.push(['Remove photo', () => putPhoto(g, m.id, null)]);
+      return openPick(f, acts, f.getAttribute('aria-label'));
+    }
     const d = e.target.closest('[data-remove]');
     if (d) {
       saveNames(); // before the rows are drawn again

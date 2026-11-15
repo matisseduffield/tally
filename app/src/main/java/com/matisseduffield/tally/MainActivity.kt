@@ -4,10 +4,13 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.res.Configuration
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.webkit.RenderProcessGoneDetail
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -15,6 +18,7 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -37,6 +41,7 @@ import org.json.JSONObject
  * that origin, lets the page drive Back, sharing, haptics and update checks,
  * and tells the app which groups to watch for notifications; group links
  * opened on the phone (or from a notification) are handed to the page.
+ * When the page asks for a photo, the phone's own photo picker answers.
  */
 class MainActivity : ComponentActivity() {
     private companion object {
@@ -66,6 +71,17 @@ class MainActivity : ComponentActivity() {
     private var crashed = false
     private val pauseLater = Runnable { if (!resumed) web.pauseTimers() }
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+
+    // The page choosing a photo: the system photo picker, which needs no
+    // permission and hands over only the one picture chosen. The page is owed
+    // an answer every time, null when nothing was chosen, or it never asks
+    // again. If Android started the app again while the picker was open, the
+    // page that asked is gone: the answer then has nowhere to go and is dropped.
+    private var photoAsked: ValueCallback<Array<Uri>>? = null
+    private val pickPhoto = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        photoAsked?.onReceiveValue(uri?.let { arrayOf(it) })
+        photoAsked = null
+    }
 
     // With the bridge, Back is only intercepted while the page has somewhere
     // to go back to (a sheet or a group; its "back" message), so the system's
@@ -99,6 +115,24 @@ class MainActivity : ComponentActivity() {
             settings.allowContentAccess = false
             // Follow the phone's font size setting.
             settings.textZoom = (resources.configuration.fontScale * 100).toInt()
+            webChromeClient = object : WebChromeClient() {
+                override fun onShowFileChooser(
+                    view: WebView,
+                    callback: ValueCallback<Array<Uri>>,
+                    params: FileChooserParams,
+                ): Boolean {
+                    // One at a time: an earlier one still waiting chose nothing.
+                    photoAsked?.onReceiveValue(null)
+                    photoAsked = callback
+                    runCatching {
+                        pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    }.onFailure {
+                        photoAsked = null
+                        callback.onReceiveValue(null)
+                    }
+                    return true
+                }
+            }
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(
                     view: WebView,
@@ -195,6 +229,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         web.removeCallbacks(pauseLater)
+        photoAsked?.onReceiveValue(null)
+        photoAsked = null
         web.destroy()
         super.onDestroy()
     }

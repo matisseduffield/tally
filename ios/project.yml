@@ -28,6 +28,9 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        # Choosing a photo offers "Take Photo", which crashes without this. The
+        # library needs no entry: the system's own picker hands over the one chosen.
+        NSCameraUsageDescription: Take a photo to use as your picture in a group.
         LSRequiresIPhoneOS: true
         UILaunchScreen:
           UIColorName: Page

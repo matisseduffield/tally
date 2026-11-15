@@ -636,3 +636,118 @@ test('the word filter stars out listed words in names, titles and notes', async 
   assert.equal(r.body.members.find(m => m.id === YOU).name, '***');
   assert.equal(r.body.members.find(m => m.id === ME).name, 'Me');
 });
+
+// ---- pictures
+
+// A stand-in picture: the first bytes of a JPEG, then filler, as base64.
+const jpeg = (bytes = 300, fill = 7) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(bytes - 4, fill)]).toString('base64');
+const photoOf = (res, id) => res.body.members.find(m => m.id === id).photo;
+
+test('a person’s picture is set, read back, and moves the version on', async t => {
+  const { post, call } = await setup(t);
+  const before = (await call('GET', `/api/g/${ID}`)).body;
+  assert.deepEqual(before.members.map(m => m.photo), [null, null]);
+  const pic = jpeg();
+  const set = await post([{ type: 'member', id: ME, name: 'Me', photo: pic }], before.group.version);
+  assert.equal(set.status, 200);
+  assert.equal(photoOf(set, ME), pic);
+  assert.equal(photoOf(set, YOU), null);
+  assert.equal(set.body.group.version, before.group.version + 1);
+  // Another phone polling with the old version gets the picture, not a 304.
+  const poll = await call('GET', `/api/g/${ID}?since=${before.group.version}`, { headers: { 'If-None-Match': `"${before.group.version}"` } });
+  assert.equal(poll.status, 200);
+  assert.equal(photoOf(poll, ME), pic);
+  assert.equal(photoOf(await call('GET', `/api/g/${ID}`), ME), pic);
+});
+
+test('a picture is cleared by null, and replaced by another', async t => {
+  const { post, row } = await setup(t);
+  await post([{ type: 'member', id: ME, name: 'Me', photo: jpeg(300, 1) }]);
+  const next = jpeg(400, 2);
+  assert.equal(photoOf(await post([{ type: 'member', id: ME, name: 'Me', photo: next }]), ME), next);
+  const cleared = await post([{ type: 'member', id: ME, name: 'Me', photo: null }]);
+  assert.equal(cleared.status, 200);
+  assert.equal(photoOf(cleared, ME), null);
+  assert.equal(row('SELECT photo FROM members WHERE id = ?', ME).photo, null);
+});
+
+test('a change that doesn’t name the picture leaves it as it is', async t => {
+  const { post, row } = await setup(t);
+  const pic = jpeg();
+  await post([{ type: 'member', id: ME, name: 'Me', photo: pic }]);
+  // As an app from before pictures renames.
+  const renamed = await post([{ type: 'member', id: ME, name: 'Myself' }]);
+  assert.equal(renamed.body.members.find(m => m.id === ME).name, 'Myself');
+  assert.equal(photoOf(renamed, ME), pic);
+  // Removing a person takes their picture with them, and bringing them back doesn't return it.
+  assert.equal(photoOf(await post([{ type: 'member', id: ME, name: 'Myself', removed: true }]), ME), null);
+  assert.equal(row('SELECT photo FROM members WHERE id = ?', ME).photo, null);
+  const back = await post([{ type: 'member', id: ME, name: 'Myself', removed: false }]);
+  assert.equal(photoOf(back, ME), null);
+  assert.equal(back.body.members.find(m => m.id === ME).removed, false);
+  // And a picture change doesn't touch removed.
+  await post([{ type: 'member', id: YOU, name: 'You', removed: true }]);
+  const pictured = await post([{ type: 'member', id: YOU, name: 'You', photo: pic }]);
+  assert.equal(pictured.body.members.find(m => m.id === YOU).removed, true);
+  // Nor does it stick: a picture sent for someone already removed (queued offline, say) isn't kept.
+  assert.equal(photoOf(pictured, YOU), null);
+  assert.equal(row('SELECT photo FROM members WHERE id = ?', YOU).photo, null);
+});
+
+test('someone new can arrive with a picture', async t => {
+  const { post } = await setup(t);
+  const pic = jpeg(), id = 'n'.repeat(22);
+  const res = await post([{ type: 'member', id, name: 'New', photo: pic }]);
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.members.find(m => m.id === id), { id, name: 'New', removed: false, photo: pic });
+});
+
+test('a picture that is too big is turned away, and nothing is written', async t => {
+  const { post, call } = await setup(t);
+  const most = jpeg(9000), over = jpeg(9003);
+  assert.equal(most.length, 12000);
+  assert.equal(over.length, 12004);
+  const before = (await call('GET', `/api/g/${ID}`)).body.group.version;
+  const res = await post([{ type: 'member', id: YOU, name: 'Renamed' }, { type: 'member', id: ME, name: 'Me', photo: over }]);
+  assert.equal(res.status, 400);
+  assert.deepEqual(res.body, { error: 'Bad photo' });
+  const after = (await call('GET', `/api/g/${ID}`)).body;
+  assert.equal(after.group.version, before);
+  assert.equal(after.members.find(m => m.id === YOU).name, 'You');
+  assert.equal(photoOf({ body: after }, ME), null);
+  assert.equal((await post([{ type: 'member', id: ME, name: 'Me', photo: most }])).status, 200);
+});
+
+test('only base64 of a JPEG is taken as a picture', async t => {
+  const { post, call } = await setup(t);
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.alloc(200)]).toString('base64');
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>').toString('base64');
+  const good = jpeg();
+  const bad = [png, svg, '', 'data:image/jpeg;base64,' + good, good.slice(0, -2), good + '"><script>', good.replace('A', '-'), ' ' + good + '   ', 7, true, {}, [good], undefined];
+  for (const photo of bad) {
+    const res = await post([{ type: 'member', id: ME, name: 'Me', photo }]);
+    // JSON drops a field that is undefined, so that one is an ordinary rename.
+    assert.equal(res.status, photo === undefined ? 200 : 400, JSON.stringify(photo));
+    if (photo !== undefined) assert.equal(res.body.error, 'Bad photo');
+  }
+  assert.equal(photoOf(await call('GET', `/api/g/${ID}`), ME), null);
+});
+
+test('requests from before pictures work as they did', async t => {
+  const { post, call, row } = await setup(t);
+  const other = 'o'.repeat(22), them = 't'.repeat(22);
+  const made = await post([{ type: 'group', name: 'Flat', currency: 'AUD' }, { type: 'member', id: them, name: 'Them' }], undefined, other);
+  assert.equal(made.status, 200);
+  assert.deepEqual(made.body.members, [{ id: them, name: 'Them', removed: false, photo: null }]);
+  assert.equal(row('SELECT photo FROM members WHERE id = ?', them).photo, null);
+  const renamed = await post([{ type: 'member', id: them, name: 'They' }], 1, other);
+  assert.equal(renamed.status, 200);
+  assert.equal(renamed.body.delta, true);
+  assert.deepEqual(renamed.body.members, [{ id: them, name: 'They', removed: false, photo: null }]);
+  const gone = await post([{ type: 'member', id: them, name: 'They', removed: true }], undefined, other);
+  assert.deepEqual(gone.body.members, [{ id: them, name: 'They', removed: true, photo: null }]);
+  // A picture can't be put on someone in another group by naming their id.
+  const stray = await post([{ type: 'member', id: them, name: 'X', photo: jpeg() }]);
+  assert.equal(stray.status, 200);
+  assert.deepEqual((await call('GET', `/api/g/${other}`)).body.members, [{ id: them, name: 'They', removed: true, photo: null }]);
+});
