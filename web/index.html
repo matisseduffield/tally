@@ -1132,7 +1132,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 
 <div class="toast" id="toast" role="status" popover="manual"><span id="toastText"></span><button type="button" id="toastUndo" hidden>Undo</button></div>
 
-<script src="lib.js?v=5"></script>
+<script src="lib.js?v=6"></script>
 <script src="pwa.js?v=2"></script>
 <script>
 (() => {
@@ -1140,7 +1140,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   const L = TallyLib;
   // Just after a release a cache can hand over an old lib.js with this page:
   // reload once to get the matching one rather than run the two together.
-  const LIB_VERSION = 5; // the ?v= on lib.js above
+  const LIB_VERSION = 6; // the ?v= on lib.js above
   if (L.VERSION !== LIB_VERSION) {
     let tried = true;
     try { tried = sessionStorage.getItem('tally.libReload') === String(LIB_VERSION); sessionStorage.setItem('tally.libReload', LIB_VERSION); } catch {}
@@ -1407,11 +1407,15 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       if (!sending.length) g.oneByOne = false;
       // With a version from the server, only newer entries come back.
       const since = g.etag && Number.isInteger(g.group.version) ? g.group.version : null;
+      // And only the pictures this phone doesn't hold: it says which it has, by their tags.
+      // (An older lib.js still in this page's cache has none of this: then every photo is asked for, as before.)
+      const held = since === null || !L.photosHeld ? null : L.photosHeld(g.members);
+      const have = held && held.size ? L.photoTags(held) : '';
       if (sending.length) {
         const ops = sending.map(({ k, ...op }) => op);
-        res = await fetch(`${API}/api/g/${id}/ops`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(since === null ? { ops } : { ops, since }), signal: within(20_000) });
+        res = await fetch(`${API}/api/g/${id}/ops`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(since === null ? { ops } : have ? { ops, since, have } : { ops, since }), signal: within(20_000) });
       } else {
-        res = await fetch(`${API}/api/g/${id}${since === null ? '' : '?since=' + since}`, { headers: g.etag ? { 'If-None-Match': g.etag } : {}, cache: 'no-store', signal: within(20_000) });
+        res = await fetch(`${API}/api/g/${id}${since === null ? '' : '?since=' + since + (have ? '&have=' + have : '')}`, { headers: g.etag ? { 'If-None-Match': g.etag } : {}, cache: 'no-store', signal: within(20_000) });
       }
       answered = true;
       offline = faulty = false;
@@ -1452,13 +1456,15 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
         for (const e of state.entries) byId.set(e.id, e);
         entries = [...byId.values()];
       }
-      Object.assign(g, { group: state.group, members: state.members, entries, etag: res.headers.get('ETag'), pending: rest, gone: false, deleting: state.deleting || null, rev: (g.rev || 0) + 1 });
+      // Pictures the server left out, because this phone said it holds them, are put back.
+      const { members, lost } = L.withPhotos ? L.withPhotos(state.members, held) : { members: state.members, lost: false };
+      Object.assign(g, { group: state.group, members, entries, etag: res.headers.get('ETag'), pending: rest, gone: false, deleting: state.deleting || null, rev: (g.rev || 0) + 1 });
       for (const op of rest) applyOp(g, op);
-      if (refused.length) {
+      if (refused.length || lost) {
         // Reload the server's copy, so the screen shows what was kept.
         g.etag = null;
         if (!g.pending.length) setTimeout(() => sync(id), 0);
-        toast('One change couldn’t be saved and was undone');
+        if (refused.length) toast('One change couldn’t be saved and was undone');
       }
       saveGroup(g);
       render();

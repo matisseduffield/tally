@@ -751,3 +751,110 @@ test('requests from before pictures work as they did', async t => {
   assert.equal(stray.status, 200);
   assert.deepEqual((await call('GET', `/api/g/${other}`)).body.members, [{ id: them, name: 'They', removed: true, photo: null }]);
 });
+
+// ---- pictures a phone already holds
+
+// The tags are worked out by the app's own code, so the two can't drift apart.
+const L = require('../web/lib.js');
+const tags = (...pairs) => L.photoTags(new Map(pairs));
+const member = (res, id) => res.body.members.find(m => m.id === id);
+
+test('a request that names no pictures gets them all, as it always did', async t => {
+  const { post, call } = await setup(t);
+  const pic = jpeg();
+  const set = await post([{ type: 'member', id: ME, name: 'Me', photo: pic }], 1);
+  const whole = [{ id: ME, name: 'Me', removed: false, photo: pic }, { id: YOU, name: 'You', removed: false, photo: null }];
+  assert.deepEqual(set.body.members, whole);
+  assert.deepEqual((await call('GET', `/api/g/${ID}`)).body.members, whole);
+  assert.deepEqual((await call('GET', `/api/g/${ID}?since=1`)).body.members, whole);
+  assert.deepEqual((await post([expense(E2)], 2)).body.members, whole);
+  assert.deepEqual((await post([expense(E2)])).body.members, whole);
+});
+
+test('a picture the phone holds is left out, on a poll and on a write', async t => {
+  const { post, call } = await setup(t);
+  const pic = jpeg(), other = jpeg(300, 2);
+  const v = (await post([{ type: 'member', id: ME, name: 'Me', photo: pic }, { type: 'member', id: YOU, name: 'You', photo: other }])).body.group.version;
+  const held = { id: ME, name: 'Me', removed: false, photoHeld: true };
+  // Holding one of the two: only the other is sent.
+  const poll = await call('GET', `/api/g/${ID}?since=1&have=${tags([ME, pic])}`);
+  assert.equal(poll.status, 200);
+  assert.deepEqual(poll.body.members, [held, { id: YOU, name: 'You', removed: false, photo: other }]);
+  assert.equal(JSON.stringify(poll.body).includes(pic), false);
+  // Holding both, and with nothing new: still a 304.
+  const both = tags([ME, pic], [YOU, other]);
+  assert.equal((await call('GET', `/api/g/${ID}?since=${v}&have=${both}`, { headers: { 'If-None-Match': `"${v}"` } })).status, 304);
+  const wrote = await call('POST', `/api/g/${ID}/ops`, { body: { ops: [expense(E2)], since: v, have: both } });
+  assert.equal(wrote.status, 200);
+  assert.deepEqual(wrote.body.members, [held, { id: YOU, name: 'You', removed: false, photoHeld: true }]);
+  // A picture sent in the same request is held too, once it's saved.
+  const next = jpeg(300, 3);
+  const swapped = await call('POST', `/api/g/${ID}/ops`, { body: { ops: [{ type: 'member', id: ME, name: 'Me', photo: next }], since: v + 1, have: tags([ME, next]) } });
+  assert.deepEqual(swapped.body.members, [held, { id: YOU, name: 'You', removed: false, photo: other }]);
+});
+
+test('a picture changed on another phone is sent, whatever the phone held', async t => {
+  const { post, call } = await setup(t);
+  const old = jpeg(), now = jpeg(300, 2);
+  await post([{ type: 'member', id: ME, name: 'Me', photo: old }]);
+  await post([{ type: 'member', id: ME, name: 'Me', photo: now }]);
+  const poll = await call('GET', `/api/g/${ID}?since=2&have=${tags([ME, old])}`);
+  assert.deepEqual(member(poll, ME), { id: ME, name: 'Me', removed: false, photo: now });
+  // The same picture on someone else is not the same tag.
+  await post([{ type: 'member', id: YOU, name: 'You', photo: old }]);
+  const mixed = await call('GET', `/api/g/${ID}?since=3&have=${tags([ME, old])}`);
+  assert.equal(member(mixed, ME).photo, now);
+  assert.equal(member(mixed, YOU).photo, old);
+});
+
+test('a picture taken away comes back as null, never as held', async t => {
+  const { post, call } = await setup(t);
+  const pic = jpeg();
+  await post([{ type: 'member', id: ME, name: 'Me', photo: pic }, { type: 'member', id: YOU, name: 'You', photo: pic }]);
+  const have = tags([ME, pic], [YOU, pic]);
+  await post([{ type: 'member', id: ME, name: 'Me', photo: null }]);
+  const cleared = await call('GET', `/api/g/${ID}?since=2&have=${have}`);
+  assert.deepEqual(member(cleared, ME), { id: ME, name: 'Me', removed: false, photo: null });
+  assert.equal(member(cleared, YOU).photoHeld, true);
+  // Removing someone takes their picture, and the phone that held it is told.
+  const gone = await call('POST', `/api/g/${ID}/ops`, { body: { ops: [{ type: 'member', id: YOU, name: 'You', removed: true }], since: 3, have } });
+  assert.deepEqual(member(gone, YOU), { id: YOU, name: 'You', removed: true, photo: null });
+  // And a queued picture for them still can't put it back.
+  const late = await call('POST', `/api/g/${ID}/ops`, { body: { ops: [{ type: 'member', id: YOU, name: 'You', photo: pic }], since: 4, have } });
+  assert.deepEqual(member(late, YOU), { id: YOU, name: 'You', removed: true, photo: null });
+});
+
+test('tags that make no sense are ignored, and every picture is sent', async t => {
+  const { post, call } = await setup(t);
+  const pic = jpeg();
+  await post([{ type: 'member', id: ME, name: 'Me', photo: pic }]);
+  const good = tags([ME, pic]);
+  for (const have of ['', 'x', good.toUpperCase(), good + '.', good + ',' + good, Array(102).join(good + '.') + good]) {
+    const poll = await call('GET', `/api/g/${ID}?since=1&have=${encodeURIComponent(have)}`);
+    assert.equal(photoOf(poll, ME), pic, have.slice(0, 40));
+  }
+  for (const have of [null, 7, [good], { [ME]: good }, true]) {
+    const res = await call('POST', `/api/g/${ID}/ops`, { body: { ops: [{ type: 'member', id: YOU, name: 'You' }], since: 2, have } });
+    assert.equal(res.status, 200);
+    assert.equal(photoOf(res, ME), pic, JSON.stringify(have));
+  }
+  // Without `since` it works the same: the tags alone decide.
+  assert.equal(member(await call('GET', `/api/g/${ID}?have=${good}`), ME).photoHeld, true);
+});
+
+test('the app puts back the pictures the server left out, and takes the rest as sent', async t => {
+  const { post, call } = await setup(t);
+  const mine = jpeg(), yours = jpeg(300, 2), newer = jpeg(300, 3);
+  await post([{ type: 'member', id: ME, name: 'Me', photo: mine }, { type: 'member', id: YOU, name: 'You', photo: yours }]);
+  // What the phone holds, then a change from another phone.
+  const local = (await call('GET', `/api/g/${ID}`)).body.members;
+  const held = L.photosHeld(local);
+  await post([{ type: 'member', id: YOU, name: 'You', photo: newer }]);
+  const poll = await call('GET', `/api/g/${ID}?since=2&have=${L.photoTags(held)}`);
+  assert.equal(member(poll, ME).photoHeld, true);
+  const merged = L.withPhotos(poll.body.members, held);
+  assert.equal(merged.lost, false);
+  assert.deepEqual(merged.members, [{ id: ME, name: 'Me', removed: false, photo: mine }, { id: YOU, name: 'You', removed: false, photo: newer }]);
+  // The merged copy is just what a phone that asked for everything has.
+  assert.deepEqual(merged.members, (await call('GET', `/api/g/${ID}`)).body.members);
+});

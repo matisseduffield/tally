@@ -318,11 +318,47 @@
       .map(op => (op.type === 'entry' && 'base' in op && wrote.has(op.id) && Number.isInteger(version) ? { ...op, base: version } : op));
   }
 
+  // Pictures are only sent to a phone that doesn't have them. A sync says which
+  // it holds as short tags, one for each: a 53-bit hash of the person's id and
+  // the picture, so the same picture on someone else is a different tag. The
+  // server works out the same tag (photoTag in worker.js must match this one)
+  // and, where it finds it, answers photoHeld: true in place of the picture.
+  function photoTag(id, photo) {
+    const s = id + ':' + photo;
+    let a = 0xdeadbeef, b = 0x41c6ce57;
+    for (let i = 0; i < s.length; i++) {
+      const c = s.charCodeAt(i);
+      a = Math.imul(a ^ c, 2654435761);
+      b = Math.imul(b ^ c, 1597334677);
+    }
+    a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909);
+    b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909);
+    return (4294967296 * (2097151 & b) + (a >>> 0)).toString(36);
+  }
+  // The pictures a phone holds as a sync sets off (member id -> picture), and their tags.
+  const photosHeld = members => new Map(members.filter(m => typeof m.photo === 'string' && m.photo).map(m => [m.id, m.photo]));
+  const photoTags = held => [...held].map(([id, photo]) => photoTag(id, photo)).join('.');
+  // The server's people, with the pictures it left out put back from `held`.
+  // An answer that names the picture (or null, for none) is taken as it is,
+  // which is every answer from a server that knows nothing of this. `lost`: it
+  // left out one that isn't held, so everything has to be asked for again.
+  function withPhotos(members, held) {
+    let lost = false;
+    const out = members.map(m => {
+      if ('photo' in m || !m.photoHeld) return m;
+      const { photoHeld, ...rest } = m;
+      const photo = held && held.get(m.id);
+      if (!photo) lost = true;
+      return { ...rest, photo: photo || null };
+    });
+    return { members: out, lost };
+  }
+
   // Matches the ?v= the page loads this file with; the page checks it, so a page
   // and a lib.js from different releases never run together. Bump both together.
-  const VERSION = 5;
+  const VERSION = 6;
 
-  const lib = { VERSION, keptDraft, opKey, mergeQueue, requeue, parseRates, parseLiveRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, overview, newId, isId };
+  const lib = { VERSION, photoTag, photosHeld, photoTags, withPhotos, keptDraft, opKey, mergeQueue, requeue, parseRates, parseLiveRates, rateNote, rateBetween, pollDelay, fractionDigits, parseNumber, evaluate, toMinor, fromMinor, allocate, entryTotal, shares, payments, occurrences, balances, settle, overview, newId, isId };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.TallyLib = lib;
 })(this);

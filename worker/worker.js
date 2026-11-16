@@ -4,9 +4,13 @@
 //                         deleting: the purge time, if a countdown is running
 //   GET  /api/g/:id?since=N   the group and members, and only the entries
 //                         changed after version N ({ ..., delta: true })
-//   POST /api/g/:id/ops   apply changes { ops: [...], since? }, answer with
-//                         the group (only what changed after `since`, if given),
-//                         plus refused: the entries it left as they were
+//   GET  /api/g/:id?since=N&have=a.b   the same, without the pictures the
+//                         phone says it holds (see photoTag): those people
+//                         come back with photoHeld: true and no photo
+//   POST /api/g/:id/ops   apply changes { ops: [...], since?, have? }, answer
+//                         with the group (only what changed after `since`, if
+//                         given, and without the pictures in `have`), plus
+//                         refused: the entries it left as they were
 //   DELETE /api/g/:id     start the 14-day countdown to deleting the group
 //   POST /api/g/:id/keep  undo that, any time before it runs out
 //   POST /api/g/:id/code  the group's join code: { code, until }
@@ -147,14 +151,19 @@ function readStatements(env, id, since) {
       : env.DB.prepare('SELECT id, data, deleted, created_at, updated_at FROM entries WHERE group_id = ? AND v > ?').bind(id, since),
   ];
 }
-function groupFrom([g, members, entries], since, now) {
+// `have`: the tags of the pictures the phone already holds, or null. A person
+// whose picture is one of them is sent with photoHeld: true and no photo; with
+// no tags, or any that don't match, every answer is as it always was.
+function groupFrom([g, members, entries], since, now, have = null) {
   const row = g.results[0];
   if (!row || expired(row.purge_at, now)) return null;
   const { split, purge_at: deleting, ...group } = row;
   if (split) group.split = JSON.parse(split);
   const state = {
     group,
-    members: members.results.map(m => ({ id: m.id, name: m.name, removed: !!m.removed, photo: m.photo || null })),
+    members: members.results.map(m => (have && m.photo && !m.removed && have.has(photoTag(m.id, m.photo))
+      ? { id: m.id, name: m.name, removed: false, photoHeld: true }
+      : { id: m.id, name: m.name, removed: !!m.removed, photo: m.photo || null })),
     entries: entries.results.map(e => ({ ...JSON.parse(e.data), id: e.id, deleted: !!e.deleted, createdAt: e.created_at, updatedAt: e.updated_at })),
   };
   if (since !== null) state.delta = true;
@@ -167,6 +176,24 @@ function sinceOf(v) {
   const n = typeof v === 'string' && /^\d{1,12}$/.test(v) ? Number(v) : typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null;
   return n;
 }
+// The pictures a phone says it holds: up to a hundred short tags with dots
+// between. Anything else counts as none, and every picture is sent.
+const HAVE = /^[0-9a-z]{1,11}(\.[0-9a-z]{1,11}){0,99}$/;
+const haveOf = v => (typeof v === 'string' && HAVE.test(v) ? new Set(v.split('.')) : null);
+// A picture's tag: a 53-bit hash of whose it is and the picture itself. The
+// app works out the same one (photoTag in web/lib.js); the two must match.
+function photoTag(id, photo) {
+  const s = id + ':' + photo;
+  let a = 0xdeadbeef, b = 0x41c6ce57;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    a = Math.imul(a ^ c, 2654435761);
+    b = Math.imul(b ^ c, 1597334677);
+  }
+  a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909);
+  b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909);
+  return (4294967296 * (2097151 & b) + (a >>> 0)).toString(36);
+}
 const sameTag = (a, b) => !!a && a.replace(/^W\//, '') === b;
 // A read found no live group: was there one?
 async function missing(env, id) {
@@ -175,7 +202,9 @@ async function missing(env, id) {
 }
 
 async function getGroup(env, id, request) {
-  let since = sinceOf(new URL(request.url).searchParams.get('since'));
+  const asked = new URL(request.url).searchParams;
+  let since = sinceOf(asked.get('since'));
+  const have = haveOf(asked.get('have'));
   const tag = request.headers.get('If-None-Match');
   const now = Date.now();
   if (since === null && tag) {
@@ -184,11 +213,11 @@ async function getGroup(env, id, request) {
     if (!head || expired(head.purge_at, now)) return missing(env, id);
     if (sameTag(tag, `"${head.version}"`)) return notModified(`"${head.version}"`);
   }
-  let state = groupFrom(await env.DB.batch(readStatements(env, id, since)), since, now);
+  let state = groupFrom(await env.DB.batch(readStatements(env, id, since)), since, now, have);
   if (!state) return missing(env, id);
   if (since !== null && since > state.group.version) {
     since = null;
-    state = groupFrom(await env.DB.batch(readStatements(env, id, null)), null, now);
+    state = groupFrom(await env.DB.batch(readStatements(env, id, null)), null, now, have);
     if (!state) return missing(env, id);
   }
   const etag = `"${state.group.version}"`;
@@ -291,7 +320,7 @@ async function applyOps(env, id, request) {
   // Writes and the read-back in one batch: one transaction, one round trip.
   const fresh = since !== null && exists && since <= exists.version ? since : null;
   const results = await env.DB.batch([...stmts, ...readStatements(env, id, fresh)]);
-  const state = groupFrom(results.slice(-3), fresh, now);
+  const state = groupFrom(results.slice(-3), fresh, now, haveOf(body.have));
   if (!state) return deleted(422);
   if (based.size) {
     const written = new Set(results[results.length - 4].results.map(e => e.id));

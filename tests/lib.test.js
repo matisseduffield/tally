@@ -262,3 +262,54 @@ test('amounts typed in Arabic, Persian or Hindi digits are read', () => {
   assert.equal(L.parseNumber('१५०', ','), 150);
   assert.equal(L.evaluate('١٢*٢', ','), 24);
 });
+
+// ---- pictures a phone already holds
+
+test('a picture\'s tag is short, steady, and its own for each person and picture', () => {
+  const a = 'a'.repeat(22), b = 'b'.repeat(22);
+  const tag = L.photoTag(a, '/9j/AAAA');
+  assert.match(tag, /^[0-9a-z]{1,11}$/);
+  assert.notEqual(L.photoTag(b, '/9j/AAAA'), tag);
+  assert.notEqual(L.photoTag(a, '/9j/AAAB'), tag);
+  // Pinned: the server works out the same tag in its own copy of this, and
+  // phones already out there send it, so it must never change.
+  assert.equal(tag, '12408k3x2l4');
+});
+
+test('only people with a picture are held, and their tags go in one short string', () => {
+  const members = [{ id: 'a', name: 'A', photo: 'P1' }, { id: 'b', name: 'B', photo: null }, { id: 'c', name: 'C' }, { id: 'd', name: 'D', removed: true, photo: 'P2' }, { id: 'e', name: 'E', photo: '' }];
+  const held = L.photosHeld(members);
+  assert.deepEqual([...held], [['a', 'P1'], ['d', 'P2']]);
+  assert.equal(L.photoTags(held), `${L.photoTag('a', 'P1')}.${L.photoTag('d', 'P2')}`);
+  assert.equal(L.photoTags(L.photosHeld([])), '');
+});
+
+test('a picture the server left out is kept, and one it sent or cleared is taken', () => {
+  const held = new Map([['a', 'P1'], ['b', 'P2'], ['c', 'P3']]);
+  const answer = [
+    { id: 'a', name: 'A', removed: false, photoHeld: true },
+    { id: 'b', name: 'B', removed: false, photo: 'NEW' },
+    { id: 'c', name: 'C', removed: true, photo: null },
+    { id: 'd', name: 'D', removed: false, photo: null },
+  ];
+  assert.deepEqual(L.withPhotos(answer, held), { lost: false, members: [
+    { id: 'a', name: 'A', removed: false, photo: 'P1' },
+    { id: 'b', name: 'B', removed: false, photo: 'NEW' },
+    { id: 'c', name: 'C', removed: true, photo: null },
+    { id: 'd', name: 'D', removed: false, photo: null },
+  ] });
+});
+
+test('an answer from a server that always sends pictures is taken as it is', () => {
+  const answer = [{ id: 'a', name: 'A', removed: false, photo: 'SERVER' }, { id: 'b', name: 'B', removed: false, photo: null }];
+  for (const held of [null, new Map(), new Map([['a', 'MINE'], ['b', 'GONE']])]) {
+    assert.deepEqual(L.withPhotos(answer, held), { lost: false, members: answer });
+  }
+});
+
+test('a picture left out that the phone doesn\'t hold is reported, not made up', () => {
+  const answer = [{ id: 'a', name: 'A', removed: false, photoHeld: true }];
+  for (const held of [null, new Map(), new Map([['b', 'P']])]) {
+    assert.deepEqual(L.withPhotos(answer, held), { lost: true, members: [{ id: 'a', name: 'A', removed: false, photo: null }] });
+  }
+});
