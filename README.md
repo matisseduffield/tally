@@ -56,6 +56,36 @@ Group links use https://tally.teloone.au. The old address, https://tally.matisse
 runs the same Worker and keeps working for good: its links still open, and the Android
 app accepts both and still syncs through the old one, so it never depends on the new domain.
 
+## The iPhone app
+
+`ios/` is a small Swift shell (XcodeGen, built by `.github/workflows/ios.yml` and `ios-release.yml`)
+that shows the page from inside the app. It does not bundle `web/` as it is: `scripts/ios-bundle.mjs`
+makes `ios/bundle/web` (not in git), a copy without what the iPhone app doesn't have, and the app
+bundles that. Left out are the website's files (`pwa.js`, `sw.js`, `manifest.json`, the home-screen
+icons) and every part of `index.html` between these marks:
+
+```
+/* ios:cut */ ... /* ios:end */          in scripts and styles
+<!-- ios:cut --> ... <!-- ios:end -->    in markup
+```
+
+The marks are comments, so the website and the Android app are not changed by them. Marked today:
+the updater and its card, the Android app's background check and Back key, the link to the Android
+app, the install hint and home-screen tags, the website's addresses (`/g/<id>`, the old server), its
+version stamp and `lib.js` check, its own ways to share and save a file, keeping two tabs in step,
+and every test for which edition this is, so the copy has no platform switch in it. `web/lib.js`
+carries no marks, because a test pins it by hash to its version: the script takes its version
+number and its test export out by name instead (`REWRITES`). The script stops the build on a mark
+without its partner, on a file in `web/` it hasn't been told about, on a message to the app that
+the app does not answer, on an address not on its list, and if any word on its `FORBIDDEN` list is
+still in the copy. **Anything new that only the website or the Android app uses goes between
+marks**, and its names on that list.
+
+```
+node scripts/ios-bundle.mjs               # make ios/bundle/web and check it (run before xcodegen)
+node scripts/ios-bundle.mjs --check DIR   # check a folder, such as the one inside a built app
+```
+
 ## The server
 
 There are no accounts. A group's 22-character random id is its link, and

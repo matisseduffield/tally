@@ -15,6 +15,10 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+      # The app bundles ios/bundle/web: web/ without the parts only the website and
+      # the Android app have. The script stops the build if any of them is left in.
+      - name: Make the iPhone copy of the page
+        run: node scripts/ios-bundle.mjs
       - name: Make the Xcode project
         run: |
           brew install xcodegen
@@ -76,6 +80,27 @@ jobs:
             for key in $(plutil -convert json -o - "$wanted" | python3 -c 'import json,sys; print(" ".join(json.load(sys.stdin)))'); do
               grep -q "\"$key\"" signed.json || { echo "Missing from the signed app: $key"; exit 1; }
             done
+          fi
+      # What goes to Apple is looked at once more: the page inside the signed app must be
+      # the iPhone copy, and the app itself must not name a feature it does not have.
+      - name: Check the page inside the app
+        run: |
+          app=$(echo "$RUNNER_TEMP"/out/ipa/Payload/*.app)
+          node scripts/ios-bundle.mjs --check "$app/web"
+          # No file of another edition anywhere in the app.
+          if find "$app" -type f | grep -E -i "manifest|\.wasm$|\.apk$|/sw\.js$|/pwa\.js$"; then
+            echo "The app holds a file the iPhone app does not have."; exit 1
+          fi
+          # The app's own program, which is all of our Swift and none of Apple's
+          # frameworks (those stay on the phone): names of things it does not do.
+          # Case as written, so a system name such as wasMainFrame is not taken for wasm.
+          if strings "$app/$APP" | grep -E "checkUpdate|installUpdate|androidplatform|UNUserNotificationCenter|askNotifications|openSettings|webmanifest|manifest\+json|application/wasm"; then
+            echo "The app names something the iPhone app does not have."; exit 1
+          fi
+          # Short words are only looked for as a whole string of their own, as a
+          # message name or a key would be, never inside a longer system name.
+          if strings "$app/$APP" | grep -x -E "watch|notify|manifest|wasm"; then
+            echo "The app names something the iPhone app does not have."; exit 1
           fi
       - name: Upload to App Store Connect
         env:

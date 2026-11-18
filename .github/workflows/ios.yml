@@ -12,6 +12,10 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      # The app bundles ios/bundle/web: web/ without the parts only the website and
+      # the Android app have. The script stops the build if any of them is left in.
+      - name: Make the iPhone copy of the page
+        run: node scripts/ios-bundle.mjs
       - name: Make the Xcode project
         run: |
           brew install xcodegen
@@ -24,6 +28,8 @@ jobs:
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { grep -E "error:|BUILD" build.log | sort -u | tail -60; exit 1; }
           grep -E "warning: " build.log | sort -u | tail -30 || true
+      - name: Check the page inside the app
+        run: node scripts/ios-bundle.mjs --check "ios/build/Build/Products/Debug-iphonesimulator/$APP.app/web"
       - name: Open it and take screenshots
         run: |
           cd ios

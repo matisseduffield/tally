@@ -18,7 +18,10 @@ targets:
     sources:
       - path: App
       - path: Shell
-      - path: ../web
+      # The page as the iPhone app has it: web/ without the parts that only the
+      # website and the Android app use. Made by `node scripts/ios-bundle.mjs`,
+      # which has to run before XcodeGen (the folder is not in git).
+      - path: bundle/web
         type: folder
         buildPhase: resources
     info:

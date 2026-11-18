@@ -1,12 +1,17 @@
 import UIKit
 
-/// Tally on iPhone: the same page as the website, kept in the app.
+/// Tally on iPhone: the page, kept in the app.
+///
+/// The page is the folder `web` in the app, which is `ios/bundle/web`: the
+/// shared page without the parts only the website and the Android app use
+/// (see scripts/ios-bundle.mjs). What it can ask of the app is in Shell.swift
+/// (the share sheet and a tick on taps) and here: a little longer to finish
+/// sending changes when the app goes out of sight. The app hands it group links.
 @MainActor
 enum App {
-    // The page already knows this address as "inside the app".
     static let config = ShellConfig(
         bridge: "tallyApp",
-        host: "appassets.androidplatform.net",
+        host: "tally",
         root: "/assets/",
         start: "/assets/index.html",
         background: UIColor(named: "Page") ?? .systemBackground
@@ -28,8 +33,6 @@ enum App {
     }
 
     static func setUp(_ shell: Shell) {
-        // The page reads this before it draws.
-        shell.scripts = ["window.tallyApp.ios = true;"]
         shell.onReady = {
             ready = true
             started = true
@@ -45,9 +48,6 @@ enum App {
             case "unsent":
                 unsent = msg["on"] as? Bool ?? false
                 if !unsent { letGo() }
-                return true
-            // Android's Back key, its background check and its updater.
-            case "back", "watch", "checkUpdate", "installUpdate":
                 return true
             default:
                 return false
@@ -85,6 +85,4 @@ enum App {
             Shell.current?.show(config.start + (isCode ? "#j=" : "#g=") + id)
         }
     }
-
-    static func opened(notification: [AnyHashable: Any]) {}
 }

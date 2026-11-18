@@ -7,6 +7,9 @@ const vm = require('node:vm');
 
 const WEB = path.join(__dirname, '../web');
 const read = file => fs.readFileSync(path.join(WEB, file));
+// The page as the website and the Android app run it: the marks that say what the iPhone
+// app leaves out (scripts/ios-bundle.mjs) are comments, so they are taken out before a line is matched.
+const unmarked = () => read('index.html').toString().replace(/\/\* ios:(?:cut|end) \*\//g, '');
 const NAME = 'Tally';
 const PASS_THROUGH = ['https://tally.teloone.au/api/g/AAAAAAAAAAAAAAAAAAAAAA', 'https://tally.teloone.au/app', 'https://open.er-api.com/v6/latest/USD', 'https://api.coinbase.com/v2/exchange-rates?currency=USD', 'https://tally.teloone.au/manifest.json'];
 const KEPT = ['lib.js', 'lib.js?v=2', 'pwa.js?v=2', 'fonts/hanken-grotesk-latin.woff2'];
@@ -433,14 +436,14 @@ test('Mark paid asks the server first, briefly, and records only a payment still
 });
 
 test('a group opened from its link in a browser has Home under it, when it is already on the device', () => {
-  const page = read('index.html').toString();
+  const page = unmarked();
   assert.match(page, /const mine = !app && !!pathId && groups\.has\(pathId\) && !!groups\.get\(pathId\)\.me;/);
   assert.match(page, /const overHome = \(ios \|\| mine\) && !!pathId && !under;/);
   assert.match(page, /else if \(overHome\) history\.replaceState\(\{\}, '', ios \|\| !onSite \? '#' : '\/'\);/);
 });
 
 test('Back with a sheet open closes the sheet and stays in the group, in a browser as on an iPhone', () => {
-  const page = read('index.html').toString();
+  const page = unmarked();
   // Everywhere but the Android app, whose own Back goes through tallyBack and never through history.
   assert.match(page, /if \(sheets\.length && current && !\(window\.tallyApp && !window\.tallyApp\.ios\) && !\(e\.state && e\.state\.g === current\)\) \{/);
 });
@@ -482,7 +485,7 @@ test('amounts are put into fields without thousands marks, so every locale reads
 });
 
 test('on an iPhone the note field is 16px like the rest, so tapping it doesn\'t zoom the page', () => {
-  const page = read('index.html').toString();
+  const page = unmarked();
   assert.match(page, /@supports \(-webkit-touch-callout: none\) \{\s+input, select, textarea, \.note-input \{ font-size: 16px; \}/);
   // It has to come after the field's own, smaller size to win over it.
   assert.ok(page.indexOf('@supports (-webkit-touch-callout: none)') > page.indexOf('.note-input { display: block;'));

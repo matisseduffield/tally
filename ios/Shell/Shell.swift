@@ -1,25 +1,28 @@
+// Tally's shell: the whole of the iPhone app that isn't the page.
+//
+// It began as the file my apps share (APPS/app-store/shell/Shell.swift) and has
+// been cut down to what Tally does. It shows the bundled page in a web view,
+// opens the share sheet, gives a tick on taps, hands group links to the page,
+// opens other links in Safari or Mail, and keeps a copy of what the page has
+// saved. It has no notifications and no way for a page to ask it for anything else.
 import UIKit
 import WebKit
-import UserNotifications
-import UniformTypeIdentifiers
 
-/// What differs between the apps. Each app's App.swift fills one in.
+/// Where the bundled page lives and what it calls the app.
 struct ShellConfig {
-    /// The object pages talk to: `window.<bridge>.postMessage(json)`.
+    /// The object the page talks to: `window.<bridge>.postMessage(json)`.
     let bridge: String
-    /// Where the bundled pages appear to live: app://<host><root>...
+    /// Where the bundled page appears to live: app://<host><root>...
     let host: String
     let root: String
-    /// The first page.
+    /// The page.
     let start: String
     let background: UIColor
-    /// For single-page apps: addresses with no file behind them that still show the app.
-    var isAppPath: (String) -> Bool = { _ in false }
 }
 
-/// Shows the app's own bundled pages in a web view and gives them a few things
-/// a page can't do alone: the share sheet, haptics, notifications.
-final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+/// Shows the app's own bundled page in a web view and gives it the two things
+/// a page can't do alone: the share sheet and haptics.
+final class Shell: UIViewController, WKNavigationDelegate, WKScriptMessageHandler {
     static let scheme = "app"
     static private(set) weak var current: Shell?
 
@@ -27,18 +30,10 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
     private(set) var web: WKWebView!
     /// Messages only this app knows. Return true when one is dealt with.
     var onMessage: (String, [String: Any]) -> Bool = { _, _ in false }
-    /// More to tell a page when it says hello.
-    var info: () -> [String: Any] = { [:] }
-    /// A page has said hello and can take messages.
+    /// The page has said hello and can take messages.
     var onReady: () -> Void = {}
-    /// The app is in front again.
-    var onActive: () -> Void = {}
     /// iOS ended the page's process and the page is starting again: it can't take messages until it says hello.
     var onRestart: () -> Void = {}
-    /// Scripts to run before each page's own.
-    var scripts: [String] = []
-    /// Answers a page needs before it can carry on: `prompt('shell:<what>')`.
-    var answer: (String) -> String? = { _ in nil }
 
     private var first: String?
     private let tick = UISelectionFeedbackGenerator()
@@ -54,7 +49,7 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
 
     func url(_ path: String) -> URL { URL(string: "\(Shell.scheme)://\(config.host)\(path)")! }
 
-    /// Opens a page of the app, now or as the first page if nothing is up yet.
+    /// Opens the page at an address of its own (a group link), now or as the first load if nothing is up yet.
     func show(_ path: String) {
         if isViewLoaded { web.load(URLRequest(url: url(path))) } else { first = path }
     }
@@ -67,8 +62,6 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
 
         let setup = WKWebViewConfiguration()
         setup.setURLSchemeHandler(Pages(config: config), forURLScheme: Shell.scheme)
-        setup.allowsInlineMediaPlayback = true
-        setup.mediaTypesRequiringUserActionForPlayback = []
         setup.dataDetectorTypes = []
         let content = setup.userContentController
         content.add(self, name: "shell")
@@ -78,19 +71,19 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
           window.\(config.bridge) = { postMessage: s => out.postMessage(String(s)), onmessage: null };
         })();
         """
-        for source in [Shell.restoreScript(), bridge, Shell.feel] + scripts where !source.isEmpty {
+        for source in [Shell.restoreScript(), bridge, Shell.feel] where !source.isEmpty {
             content.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         }
 
         web = WKWebView(frame: view.bounds, configuration: setup)
         web.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         web.navigationDelegate = self
-        web.uiDelegate = self
         web.isOpaque = false
         web.backgroundColor = config.background
         web.scrollView.backgroundColor = config.background
-        // The pages keep clear of the notch and home bar themselves.
+        // The page keeps clear of the notch and home bar itself.
         web.scrollView.contentInsetAdjustmentBehavior = .never
+        // A swipe from the left edge goes back: out of a sheet, then out of a group.
         web.allowsBackForwardNavigationGestures = true
         web.allowsLinkPreview = false
         #if DEBUG
@@ -99,14 +92,12 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
         view.addSubview(web)
         web.load(URLRequest(url: url(first ?? config.start)))
 
-        let center = NotificationCenter.default
-        center.addObserver(self, selector: #selector(resigned), name: UIApplication.willResignActiveNotification, object: nil)
-        center.addObserver(self, selector: #selector(active), name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(resigned), name: UIApplication.willResignActiveNotification, object: nil)
     }
 
-    /// What makes the pages sit like an app: no pinch or double-tap zoom, no
+    /// What makes the page sit like an app: no pinch or double-tap zoom, no
     /// long-press menus or text selection outside fields, and nothing showing
-    /// through behind the clock when a page scrolls.
+    /// through behind the clock when the page scrolls.
     private static let feel = #"""
     (() => {
       const style = document.createElement('style');
@@ -125,7 +116,6 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
     })();
     """#
 
-    @objc private func active() { onActive() }
     @objc private func resigned() { keepStorage() }
 
     // MARK: Messages
@@ -137,17 +127,12 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
               let text = String(data: json, encoding: .utf8),
               let quoted = try? JSONSerialization.data(withJSONObject: text, options: .fragmentsAllowed),
               let literal = String(data: quoted, encoding: .utf8) else { return }
-        run("(() => { const a = window.\(config.bridge); if (a && typeof a.onmessage === 'function') a.onmessage({ data: \(literal) }); })()")
+        web.evaluateJavaScript("(() => { const a = window.\(config.bridge); if (a && typeof a.onmessage === 'function') a.onmessage({ data: \(literal) }); })()", completionHandler: nil)
     }
 
-    /// Runs a line of script in the page.
-    func run(_ script: String) {
-        guard isViewLoaded else { return }
-        web.evaluateJavaScript(script, completionHandler: nil)
-    }
-
+    /// From the page. There are four messages: three here and one in App.swift. Anything else is dropped.
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        // Only the app's own pages are ever the main frame: anything else opens in Safari.
+        // Only the app's own page is ever the main frame: anything else opens in Safari.
         guard message.frameInfo.isMainFrame, web.url?.scheme == Shell.scheme,
               let text = message.body as? String, let data = text.data(using: .utf8),
               let msg = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -155,43 +140,31 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
         if onMessage(type, msg) { return }
         switch type {
         case "hello":
-            Notices.allowed { [weak self] allowed in
-                guard let self else { return }
-                var reply: [String: Any] = [
-                    "type": "info",
-                    "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
-                    "updates": false,
-                    "platform": "ios",
-                    "notifications": allowed,
-                ]
-                reply.merge(self.info()) { _, new in new }
-                self.send(reply)
-                self.onReady()
-            }
+            // The page shows the version on its About page.
+            send([
+                "type": "info",
+                "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
+            ])
+            onReady()
         case "share":
             let sheet = UIActivityViewController(activityItems: [msg["text"] as? String ?? ""], applicationActivities: nil)
+            // The group's name, for the places that have a subject line.
             if let title = msg["title"] as? String { sheet.setValue(title, forKey: "subject") }
             sheet.popoverPresentationController?.sourceView = view
             sheet.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 80, width: 1, height: 1)
             if presentedViewController == nil { present(sheet, animated: true) }
         case "haptic":
             if msg["kind"] as? String == "tick" { tick.selectionChanged() } else { tap.impactOccurred() }
-        case "askNotifications":
-            Notices.ask { [weak self] allowed in self?.send(["type": "notifications", "allowed": allowed]) }
-        case "notify":
-            Notices.replace(msg["items"] as? [[String: Any]] ?? [])
-        case "openSettings":
-            if let settings = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(settings) }
         default:
             break
         }
     }
 
-    // MARK: Leaving the app's pages
+    // MARK: Leaving the app's page
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = navigationAction.request.url else { return decisionHandler(.cancel) }
-        if url.scheme == Shell.scheme || url.scheme == "about" || url.scheme == "blob" { return decisionHandler(.allow) }
+        if url.scheme == Shell.scheme || url.scheme == "about" { return decisionHandler(.allow) }
         if let frame = navigationAction.targetFrame, !frame.isMainFrame { return decisionHandler(.allow) }
         leave(to: url)
         decisionHandler(.cancel)
@@ -211,49 +184,21 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
         }
     }
 
-    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let url = navigationAction.request.url {
-            if url.scheme == Shell.scheme { webView.load(navigationAction.request) } else { leave(to: url) }
-        }
-        return nil
-    }
-
     /// iOS ended the page's process to free memory: start the page again.
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         onRestart()
         if webView.url == nil { webView.load(URLRequest(url: url(config.start))) } else { webView.reload() }
     }
 
-    // MARK: Page dialogs
+    // MARK: Keeping what the page stores
 
-    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
-        // WebKit must get its answer even when nothing can be shown.
-        guard viewIfLoaded?.window != nil, presentedViewController == nil else { return completionHandler() }
-        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
-        present(alert, animated: true)
-    }
-
-    func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
-        guard viewIfLoaded?.window != nil, presentedViewController == nil else { return completionHandler(false) }
-        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(false) })
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) })
-        present(alert, animated: true)
-    }
-
-    // The pages never ask for typed text this way, so prompt() is how one gets
-    // an answer from the app without waiting for a message back.
-    func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
-        guard frame.isMainFrame, webView.url?.scheme == Shell.scheme, prompt.hasPrefix("shell:") else { return completionHandler(nil) }
-        completionHandler(answer(String(prompt.dropFirst(6))))
-    }
-
-    // MARK: Keeping what the pages store
-
-    // Pages keep their data in web storage, which iOS may clear when the phone
-    // runs short of space. A copy goes in the app's own files, which are in the
-    // phone's backup, and is put back if the storage is ever found empty.
+    // The page keeps its groups in web storage, which iOS may clear when the
+    // phone runs short of space. Each time the app leaves the front, a copy of
+    // that storage goes in one file in the app's own folder (Application
+    // Support/storage.json, which is in the phone's backup). At launch, if the
+    // page's storage is found empty, the copy is put back before the page runs.
+    // It is data only: the saved text is parsed as JSON and set as storage
+    // values, never run. Nothing is sent anywhere.
     private static var storageFile: URL {
         let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -261,14 +206,21 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
     }
 
     private static func restoreScript() -> String {
-        guard let saved = try? String(contentsOf: storageFile, encoding: .utf8), saved.hasPrefix("{"), saved.count > 2 else { return "" }
-        return "(() => { try { if (!localStorage.length) { const s = \(saved); for (const k in s) localStorage.setItem(k, s[k]); } } catch (e) {} })();"
+        // Read as JSON, written out again, and handed to the page as one quoted
+        // string for JSON.parse: whatever the file holds, it can only become values.
+        guard let data = try? Data(contentsOf: storageFile),
+              let saved = (try? JSONSerialization.jsonObject(with: data)) as? [String: String], !saved.isEmpty,
+              let clean = try? JSONSerialization.data(withJSONObject: saved),
+              let text = String(data: clean, encoding: .utf8),
+              let quoted = try? JSONSerialization.data(withJSONObject: text, options: .fragmentsAllowed),
+              let literal = String(data: quoted, encoding: .utf8) else { return "" }
+        return "(() => { try { if (!localStorage.length) { const s = JSON.parse(\(literal)); for (const k in s) localStorage.setItem(k, s[k]); } } catch (e) {} })();"
     }
 
     func keepStorage() {
         guard isViewLoaded, web.url?.scheme == Shell.scheme else { return }
         web.evaluateJavaScript("JSON.stringify(localStorage)") { value, _ in
-            guard let text = value as? String, text.hasPrefix("{"), let data = text.data(using: .utf8) else { return }
+            guard let text = value as? String, text.hasPrefix("{"), text.count > 2, let data = text.data(using: .utf8) else { return }
             try? data.write(to: Shell.storageFile, options: .atomic)
         }
     }
@@ -278,11 +230,10 @@ final class Shell: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScrip
 final class Pages: NSObject, WKURLSchemeHandler {
     private let config: ShellConfig
     private let folder: URL
+    // The kinds of file in the folder.
     private static let types = [
-        "html": "text/html; charset=utf-8", "js": "text/javascript; charset=utf-8", "mjs": "text/javascript; charset=utf-8",
-        "css": "text/css; charset=utf-8", "json": "application/json", "webmanifest": "application/manifest+json",
-        "svg": "image/svg+xml", "png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "ico": "image/x-icon",
-        "woff2": "font/woff2", "woff": "font/woff", "txt": "text/plain; charset=utf-8", "wasm": "application/wasm",
+        "html": "text/html; charset=utf-8", "js": "text/javascript; charset=utf-8",
+        "png": "image/png", "woff2": "font/woff2", "txt": "text/plain; charset=utf-8",
     ]
 
     init(config: ShellConfig) {
@@ -294,8 +245,7 @@ final class Pages: NSObject, WKURLSchemeHandler {
         guard let url = task.request.url, let file = file(for: url.path), let data = try? Data(contentsOf: file) else {
             return task.didFailWithError(URLError(.fileDoesNotExist))
         }
-        let ext = file.pathExtension.lowercased()
-        let type = Pages.types[ext] ?? UTType(filenameExtension: ext)?.preferredMIMEType ?? "application/octet-stream"
+        let type = Pages.types[file.pathExtension.lowercased()] ?? "application/octet-stream"
         let headers = ["Content-Type": type, "Content-Length": String(data.count), "Cache-Control": "no-cache"]
         guard let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers) else {
             return task.didFailWithError(URLError(.badServerResponse))
@@ -314,55 +264,13 @@ final class Pages: NSObject, WKURLSchemeHandler {
         let file = folder.appendingPathComponent(rest).standardizedFileURL
         var isFolder: ObjCBool = false
         if file.path.hasPrefix(folder.path + "/"), FileManager.default.fileExists(atPath: file.path, isDirectory: &isFolder), !isFolder.boolValue { return file }
-        return config.isAppPath(path) ? folder.appendingPathComponent("index.html") : nil
-    }
-}
-
-/// Notifications the phone shows by itself at a set time. No server involved.
-enum Notices {
-    static func allowed(_ done: @escaping (Bool) -> Void) {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            let status = settings.authorizationStatus
-            DispatchQueue.main.async { done(status == .authorized || status == .provisional) }
-        }
-    }
-
-    static func ask(_ done: @escaping (Bool) -> Void) {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { allowed, _ in
-            DispatchQueue.main.async { done(allowed) }
-        }
-    }
-
-    /// Swaps everything waiting for these: [{ id, at (ms), title, body, open }].
-    /// iOS keeps at most 64 per app, so only the soonest go in.
-    static func replace(_ items: [[String: Any]], limit: Int = 60) {
-        let center = UNUserNotificationCenter.current()
-        center.removeAllPendingNotificationRequests()
-        let now = Date().timeIntervalSince1970 * 1000
-        let due = items
-            .compactMap { item -> (at: Double, item: [String: Any])? in
-                guard let at = (item["at"] as? NSNumber)?.doubleValue, at > now else { return nil }
-                return (at, item)
-            }
-            .sorted { $0.at < $1.at }
-            .prefix(limit)
-        for (at, item) in due {
-            let content = UNMutableNotificationContent()
-            content.title = item["title"] as? String ?? ""
-            content.body = item["body"] as? String ?? ""
-            content.sound = .default
-            if let open = item["open"] as? String { content.userInfo = ["open": open] }
-            let when = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: Date(timeIntervalSince1970: at / 1000))
-            let id = item["id"] as? String ?? String(Int(at))
-            center.add(UNNotificationRequest(identifier: id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: when, repeats: false)))
-        }
+        return nil
     }
 }
 
 @main
-final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+final class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        UNUserNotificationCenter.current().delegate = self
         App.launched()
         return true
     }
@@ -372,19 +280,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
         scene.delegateClass = SceneDelegate.self
         return scene
     }
-
-    // A reminder that comes due while the app is open still shows.
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .list, .sound])
-    }
-
-    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        let info = response.notification.request.content.userInfo
-        DispatchQueue.main.async { App.opened(notification: info) }
-        completionHandler()
-    }
 }
 
+/// Group links reach the app three ways: a web link (tally.teloone.au, see
+/// project.yml) or a tally:// link that starts it, and either one while it is open.
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
 

@@ -2,10 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- ios:cut -->
 <!-- A group link is /g/<id> and a join code's is /j/<code>, but the files sit at the top: without this, lib.js and the fonts would be looked for under /g/. -->
 <script>if (/^\/[gj]\//.test(location.pathname)) document.write('<base href="/">');</script>
+<!-- ios:end -->
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
+<!-- ios:cut -->
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#F0F1F3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#171719" media="(prefers-color-scheme: dark)">
@@ -16,6 +19,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Tally">
+<!-- ios:end -->
 <title>Tally</title>
 <style>
 /* Hanken Grotesk ships with the page (fonts/, SIL OFL) so the app looks the same offline. */
@@ -71,7 +75,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root/* ios:cut */:not([data-theme="light"])/* ios:end */ {
     --bg: #171719;
     --surface: #2F2F2F;
     --ink: #EAEAEA;
@@ -102,6 +106,7 @@
     color-scheme: dark;
   }
 }
+/* ios:cut */
 :root[data-theme="dark"] {
   --bg: #171719;
   --surface: #2F2F2F;
@@ -132,6 +137,7 @@
   --shadow: rgba(0, 0, 0, .45);
   color-scheme: dark;
 }
+/* ios:end */
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -188,7 +194,9 @@ button { cursor: pointer; }
 @media (hover: hover) { .menu-row:hover { background: var(--key); } }
 .menu-row svg { flex: none; }
 .menu-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* ios:cut */
 .menu-row[data-state="available"] span { color: var(--accent); }
+/* ios:end */
 /* A list to choose from (who paid, how often, who to) is the same panel: it drops from under
    its row inside the sheet, with a tick on what's chosen; the script places it, and a long one
    scrolls inside itself. What can't be chosen is grey. */
@@ -199,8 +207,10 @@ button { cursor: pointer; }
 .menu-row[aria-disabled="true"] { opacity: .38; cursor: default; }
 .menu-row[aria-disabled="true"]:active, .menu-row[aria-disabled="true"]:hover { background: none; }
 .menu-row:focus-visible { outline-offset: -2px; }
+/* ios:cut */
 /* An update is waiting: a dot on the button */
 #menuBtn[data-state="available"]::after, #version[data-state="available"]::after { content: ""; position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+/* ios:end */
 
 /* Buttons: pills, the one to press next in blue and the rest grey */
 .btn {
@@ -526,7 +536,7 @@ a.credit { margin: -10px 0 -8px; padding: 13px 0; color: var(--muted); }
 .about-links { flex: none; display: grid; padding: 0 20px; background: var(--surface); border-radius: 24px; }
 /* A card with nothing to show (the version, on a page that has none) isn't drawn */
 .about-links:not(:has(> .about-row:not([hidden]), > :not([hidden]) > .about-row:not([hidden]))) { display: none; }
-.about-legal, .about-wrap { display: contents; }
+.about-legal/* ios:cut */, .about-wrap/* ios:end */ { display: contents; }
 .about-links .about-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; margin: 0; padding: 12px 0; background: none; border: 0; font-size: 1.06rem; line-height: 1.3; color: var(--ink); text-align: left; text-decoration: none; }
 .about-links > :not([hidden]) ~ .about-row, .about-links > :not([hidden]) ~ * > .about-row, .about-legal .about-row + .about-row { border-top: 1px solid var(--line); }
 .about-row small { display: block; margin-top: 2px; font-size: .9rem; color: var(--muted); }
@@ -773,13 +783,16 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 .toast:not(:has(button:not([hidden]))) { padding-right: 20px; }
 .toast[popover]:not(:popover-open) { display: none; }
 .toast button { flex: none; min-height: 44px; margin: -5px 0; padding: 0 12px; border: 0; border-radius: 99px; background: none; color: var(--on-ink); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+/* ios:cut */
 .install-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 2px; font-size: .86rem; line-height: 1.35; color: var(--muted); }
 .install-hint button { flex: none; width: 44px; height: 44px; margin: -10px -12px -10px 0; padding: 0; background: none; border: 0; font-size: 1.2rem; color: var(--muted); }
+/* ios:end */
 .by-line { font-size: .86rem; color: var(--muted); }
 .act-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding-right: var(--pad); }
 .act-head .link { padding: 6px 0; }
 .foot-link { justify-self: start; padding: 4px 0; }
 
+/* ios:cut */
 /* Update card (inside the app) */
 .update { display: grid; gap: 16px; padding: 20px; }
 .update p { margin: 0; }
@@ -799,6 +812,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 .update-track span { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--accent); transition: width .2s; }
 .update-pct { min-width: 3.2ch; text-align: right; font-size: .9rem; font-weight: 500; }
 
+/* ios:end */
 /* A narrow phone: a little less room at a card's sides */
 @media (max-width: 340px) { body { --pad: 16px; } }
 @media (max-width: 520px) {
@@ -809,20 +823,27 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   .sheet-body, .picker-list { flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  dialog, dialog::backdrop, .update-track span, .split i, .share i { transition: none; }
+  dialog, dialog::backdrop, /* ios:cut */.update-track span, /* ios:end */.split i, .share i { transition: none; }
   .pay-line { animation: none; }
   dialog { transform: none; }
   .menu { animation: none; }
 }
+/* A field under 16px would have the page zoom in when it is tapped. */
+/* ios:cut */
 /* iPhones zoom the page into any field under 16px; only iOS matches this. */
 @supports (-webkit-touch-callout: none) {
+/* ios:end */
   input, select, textarea, .note-input { font-size: 16px; }
+/* ios:cut */
 }
+/* ios:end */
 </style>
 </head>
 <body>
 <main class="wrap">
+  <!-- ios:cut -->
   <p class="install-hint" id="installHint" hidden><span>Keep Tally on your iPhone: tap Share, then Add to Home Screen.</span><button type="button" aria-label="Dismiss">×</button></p>
+  <!-- ios:end -->
   <header class="top">
     <div class="top-left">
       <button class="icon-btn" id="back" type="button" aria-label="All groups" hidden>
@@ -844,6 +865,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   </header>
   <p class="status" id="status" role="status" hidden></p>
 
+  <!-- ios:cut -->
   <section class="card update" id="updateCard" aria-label="App update" hidden>
     <div class="update-head">
       <span class="update-icon" aria-hidden="true">
@@ -866,6 +888,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     </div>
   </section>
 
+  <!-- ios:end -->
   <!-- Home: your groups -->
   <div id="home" class="wrap" style="gap: 24px">
     <section class="onb" id="intro" hidden></section>
@@ -1064,12 +1087,16 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     </div>
     <div class="about-links">
       <p class="about-row" id="aboutVer" hidden></p>
+      <!-- ios:cut -->
       <div class="about-wrap" id="aboutApp" hidden><button class="about-row" type="button" id="aboutCheck"><span>Check for updates</span><span id="aboutNote" aria-live="polite"></span></button></div>
+      <!-- ios:end -->
     </div>
     <div class="about-links">
       <a class="about-row" href="mailto:support@teloone.au?subject=Tally"><span>Contact support<small>support@teloone.au</small></span></a>
       <div class="about-legal"><a class="about-row" href="https://teloone.au/apps/tally/privacy/" rel="noreferrer">Privacy policy</a><a class="about-row" href="https://teloone.au/apps/tally/terms/" rel="noreferrer">Terms of use</a></div>
+      <!-- ios:cut -->
       <a class="about-row" id="getApp" href="/app" hidden>Get the Android app</a>
+      <!-- ios:end -->
     </div>
     <p class="about-foot"><a href="https://www.exchangerate-api.com" rel="noreferrer">Rates by Exchange Rate API</a> and Coinbase<br>Made in Adelaide by Telo One</p>
   </div>
@@ -1139,11 +1166,14 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 <div class="toast" id="toast" role="status" popover="manual"><span id="toastText"></span><button type="button" id="toastUndo" hidden>Undo</button></div>
 
 <script src="lib.js?v=6"></script>
+<!-- ios:cut -->
 <script src="pwa.js?v=2"></script>
+<!-- ios:end -->
 <script>
 (() => {
   const $ = id => document.getElementById(id);
   const L = TallyLib;
+  /* ios:cut */
   // Just after a release a cache can hand over an old lib.js with this page:
   // reload once to get the matching one rather than run the two together.
   const LIB_VERSION = 6; // the ?v= on lib.js above
@@ -1152,13 +1182,16 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     try { tried = sessionStorage.getItem('tally.libReload') === String(LIB_VERSION); sessionStorage.setItem('tally.libReload', LIB_VERSION); } catch {}
     if (!tried) { location.reload(); return; }
   }
+  /* ios:end */
   const locale = navigator.language || 'en-US';
   const SITE = 'https://tally.teloone.au';   // the address in group links
+  /* ios:cut */
   // Served from the site itself the API is same-origin; in the app (bundled
   // page) or a local preview it's the site's.
   const onSite = location.protocol === 'https:' && location.hostname !== 'appassets.androidplatform.net';
   // The iPhone app uses the site's address; the Android app stays on the old one, which runs the same server.
-  const API = onSite ? '' : window.tallyApp && window.tallyApp.ios ? SITE : 'https://tally.matisseduffield.workers.dev';
+  /* ios:end */
+  const API = /* ios:cut */onSite ? '' : window.tallyApp && window.tallyApp.ios ? /* ios:end */SITE/* ios:cut */ : 'https://tally.matisseduffield.workers.dev'/* ios:end */;
   const POLL_MS = 15_000;
   // Live rates from Coinbase, or daily ones from ExchangeRate-API if that fails.
   // ExchangeRate-API's terms ask for the credit link in the page.
@@ -1414,8 +1447,10 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       // With a version from the server, only newer entries come back.
       const since = g.etag && Number.isInteger(g.group.version) ? g.group.version : null;
       // And only the pictures this phone doesn't hold: it says which it has, by their tags.
+      /* ios:cut */
       // (An older lib.js still in this page's cache has none of this: then every photo is asked for, as before.)
-      const held = since === null || !L.photosHeld ? null : L.photosHeld(g.members);
+      /* ios:end */
+      const held = since === null/* ios:cut */ || !L.photosHeld/* ios:end */ ? null : L.photosHeld(g.members);
       const have = held && held.size ? L.photoTags(held) : '';
       if (sending.length) {
         const ops = sending.map(({ k, ...op }) => op);
@@ -1463,7 +1498,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
         entries = [...byId.values()];
       }
       // Pictures the server left out, because this phone said it holds them, are put back.
-      const { members, lost } = L.withPhotos ? L.withPhotos(state.members, held) : { members: state.members, lost: false };
+      const { members, lost } = /* ios:cut */L.withPhotos ? /* ios:end */L.withPhotos(state.members, held)/* ios:cut */ : { members: state.members, lost: false }/* ios:end */;
       Object.assign(g, { group: state.group, members, entries, etag: res.headers.get('ETag'), pending: rest, gone: false, deleting: state.deleting || null, rev: (g.rev || 0) + 1 });
       for (const op of rest) applyOp(g, op);
       if (refused.length || lost) {
@@ -1598,7 +1633,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     $('searchBox').value = '';
     $('searchBox').hidden = true;
     // Joining from a group's link opens it where the link already put us: no second entry for Back.
-    if (push && !(history.state && history.state.g === id)) history.pushState({ g: id, own: true }, '', onSite ? `/g/${id}` : `#g=${id}`);
+    if (push && !(history.state && history.state.g === id)) history.pushState({ g: id, own: true }, '', /* ios:cut */onSite ? `/g/${id}` : /* ios:end */`#g=${id}`);
     render();
     scrollTo(0, 0);
     sync(id);
@@ -1607,19 +1642,22 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   function goHome(push = true) {
     if (current && toastUndo) { clearTimeout(toastTimer); hideToast(); } // its Undo belongs to the group left behind
     current = null;
-    if (push) history.pushState({}, '', onSite ? '/' : '#');
+    if (push) history.pushState({}, '', /* ios:cut */onSite ? '/' : /* ios:end */'#');
     render();
     for (const id of groupIds) sync(id);
   }
   addEventListener('popstate', e => {
+    // Going back with a sheet open closes the sheet and stays in the group.
+    /* ios:cut */
     // Back in a browser, and on iPhone a swipe from the left edge: with a sheet open it closes
     // the sheet and stays in the group, as the Back key does on Android. The Android app's
     // own Back never comes this way (see tallyBack), so there this is left as it was.
+    /* ios:end */
     const sheets = [...document.querySelectorAll('dialog[open]')];
-    if (sheets.length && current && !(window.tallyApp && !window.tallyApp.ios) && !(e.state && e.state.g === current)) {
+    if (sheets.length && current && /* ios:cut */!(window.tallyApp && !window.tallyApp.ios) && /* ios:end */!(e.state && e.state.g === current)) {
       // An open list in the sheet goes first, and the sheet stays.
       if (picking) closePick(); else sheets.pop().close();
-      history.pushState({ g: current, own: true }, '', onSite ? `/g/${current}` : `#g=${current}`);
+      history.pushState({ g: current, own: true }, '', /* ios:cut */onSite ? `/g/${current}` : /* ios:end */`#g=${current}`);
       return;
     }
     closePick(false);
@@ -1705,12 +1743,16 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     document.body.classList.toggle('first', !g && !groupIds.length);
     $('version').hidden = !!g;
     $('title').textContent = g ? g.group.name : 'Tally';
+    /* ios:cut */
     document.title = g ? `${g.group.name} · Tally` : 'Tally';
+    /* ios:end */
     if (g) renderGroup(g); else renderHome();
 
     renderStatus();
+    /* ios:cut */
     syncBack();
     tellAppWatch();
+    /* ios:end */
     tellAppUnsent();
     renderedDay = today();
     if (g && $('payDlg').open && pay && !pay.editing) renderSuggest(g, false);
@@ -2205,13 +2247,17 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     // showModal focuses the sheet's first field; on a touch screen hold
     // focus on the sheet itself so the keyboard waits for a tap.
     if (!fineMouse.matches) d.focus();
+    /* ios:cut */
     syncBack();
+    /* ios:end */
     placeToast();
   }
+  /* ios:cut */
   // Tells the app whether Back has something to do here (a sheet or a group).
   const syncBack = () => toApp({ type: 'back', enabled: !!(current || document.querySelector('dialog[open]')) });
+  /* ios:end */
   for (const d of document.querySelectorAll('dialog')) {
-    d.addEventListener('close', () => { syncBack(); placeToast(); });
+    d.addEventListener('close', () => { /* ios:cut */syncBack(); /* ios:end */placeToast(); });
     d.addEventListener('click', e => {
       if (e.target.closest('[data-close]')) return d.close();
       // Only a tap on the backdrop itself closes: the sheet's own padding counts as the sheet.
@@ -2219,6 +2265,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       if (e.target === d && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) d.close();
     });
   }
+  /* ios:cut */
   // Android Back closes the top sheet, then leaves a group, then the app.
   window.tallyBack = () => {
     if (picking) { closePick(); return true; }
@@ -2230,6 +2277,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     if (current) { goHome(); return true; }
     return false;
   };
+  /* ios:end */
 
   // ---- drop-downs ----
   // Paid by, Repeats, From and To: the row's value is a button, and its <select> stays in the
@@ -3188,7 +3236,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   });
   const stripMeta = e => { const { id, deleted, createdAt, updatedAt, ...data } = e; return data; };
   // Deleting only marks the entry, so Undo puts it straight back. `by` records
-  // who did it, for the others' notifications.
+  // who did it/* ios:cut */, for the others' notifications/* ios:end */.
   function deleteEntry(id, message) {
     const g = groups.get(current);
     const e = g && g.entries.find(x => x.id === id);
@@ -3631,7 +3679,8 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     if (!g) return;
     const csv = groupCsv(g);
     const name = `${g.group.name.replace(/[^\w\- ]+/g, '').trim() || 'Tally'}.csv`;
-    if (app) return toApp({ type: 'share', title: name, text: csv });
+    /* ios:cut */if (app) /* ios:end */return toApp({ type: 'share', title: name, text: csv });
+    /* ios:cut */
     const file = new File(['\ufeff' + csv], name, { type: 'text/csv' });
     const download = () => {
       const a = document.createElement('a');
@@ -3647,6 +3696,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       return;
     }
     download();
+    /* ios:end */
   });
   // Takes the open group off this device, leaving its unsaved settings behind.
   function dropCurrent() {
@@ -3755,11 +3805,13 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   });
 
   // ---- share ----
-  // Text out through the phone's share sheet, else the browser's, else the clipboard.
+  // Text out through the phone's share sheet/* ios:cut */, else the browser's, else the clipboard/* ios:end */.
   async function shareText(title, text) {
-    if (app) return toApp({ type: 'share', title, text });
+    /* ios:cut */if (app) /* ios:end */return toApp({ type: 'share', title, text });
+    /* ios:cut */
     if (navigator.share) { try { await navigator.share({ title, text }); return; } catch (e) { if (e.name === 'AbortError') return; } }
     try { await navigator.clipboard.writeText(text); toast('Copied'); } catch {}
+    /* ios:end */
   }
   // The group's code, large enough to read out across a room. Asking gives it
   // another week, so it's asked for each time the sheet opens.
@@ -3797,9 +3849,11 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     if (!g) return;
     const url = linkOf(g.group.id);
     const text = `Join “${g.group.name}” on Tally to split costs: ${url}`;
-    if (app) return toApp({ type: 'share', title: g.group.name, text });
+    /* ios:cut */if (app) /* ios:end */return toApp({ type: 'share', title: g.group.name, text });
+    /* ios:cut */
     if (navigator.share) { try { await navigator.share({ title: g.group.name, text, url }); return; } catch (e) { if (e.name === 'AbortError') return; } }
     try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch { prompt('Copy this link', url); }
+    /* ios:end */
   }
 
   // ---- wiring ----
@@ -3812,7 +3866,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     if (ent) {
       const g = groups.get(current);
       const entry = g && g.entries.find(x => x.id === ent.dataset.entry);
-      if (entry) { toggleRow(g, entry, ent); haptic('tick'); syncBack(); }
+      if (entry) { toggleRow(g, entry, ent); haptic('tick');/* ios:cut */ syncBack();/* ios:end */ }
     }
   });
   $('back').addEventListener('click', () => (history.state && (history.state.own || history.state.step) ? history.back() : goHome()));
@@ -3825,7 +3879,9 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     $('searchBox').hidden = false;
     $('searchBtn').hidden = true;
     $('searchBox').focus();
+    /* ios:cut */
     syncBack();
+    /* ios:end */
   });
   let searchTimer = 0;
   $('searchBox').addEventListener('input', () => {
@@ -3867,20 +3923,30 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     for (const d of docks) fit.observe(d);
   }
 
+  // ---- messages to and from the app around the page ----
+  /* ios:cut */
   // ---- Android app bridge (absent in a browser) ----
-  const app = window.tallyApp || null;
+  /* ios:end */
+  const app = window.tallyApp/* ios:cut */ || null/* ios:end */;
   function toApp(msg) {
+    /* ios:cut */
     if (!app) return;
+    /* ios:end */
     try { app.postMessage(JSON.stringify(msg)); } catch {}
   }
   const haptic = (kind = 'tap') => toApp({ type: 'haptic', kind });
+  /* ios:cut */
   // selfUpdates is off until the app says otherwise: Play builds update through
   // the store, so there the version is a plain label with nothing to tap.
-  let appVersion = '', selfUpdates = false, updateReady = false, versionTimer = 0;
-  // The app says which build it is. The website's copy is stamped with its version when it is published.
+  /* ios:end */
+  let appVersion = ''/* ios:cut */, selfUpdates = false, updateReady = false, versionTimer = 0/* ios:end */;
+  // The app says which build it is.
+  /* ios:cut */
+  // The website's copy is stamped with its version when it is published.
   const WEB_VERSION = '__VERSION__';
+  /* ios:end */
   function showVersion() {
-    const v = appVersion || (WEB_VERSION.startsWith('__') ? '' : WEB_VERSION);
+    const v = appVersion/* ios:cut */ || (WEB_VERSION.startsWith('__') ? '' : WEB_VERSION)/* ios:end */;
     // A row in About: the word at the left, the number at the right.
     const word = document.createElement('span'), num = document.createElement('span');
     word.textContent = 'Version';
@@ -3889,6 +3955,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     $('aboutVer').hidden = !v;
   }
   showVersion();
+  /* ios:cut */
   // The round About button at home, and About in a group's menu, say when an update
   // is waiting, with a dot on the button; the About sheet has the rest.
   function showLabel() {
@@ -3932,16 +3999,26 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     }
   }
   if (app) {
+  /* ios:end */
     app.onmessage = e => {
       let m;
       try { m = JSON.parse(e.data); } catch { return; }
       if (m.type === 'info') {
         appVersion = m.version;
+        /* ios:cut */
         selfUpdates = m.updates === true;
+        /* ios:end */
         showVersion();
+        /* ios:cut */
         $('aboutApp').hidden = !selfUpdates;
         showLabel();
+        /* ios:end */
         render();
+      } else if (m.type === 'openLink') {
+        const id = idFromLink(m.url || ''), code = id ? null : codeFrom(m.url || '');
+        if (id) openFromLink(id);
+        else if (code) openCode(code);
+      /* ios:cut */
       } else if (m.type === 'updateStatus' && selfUpdates) {
         if (m.state === 'available') { updateReady = true; return showLabel(); }
         showNote(m.state === 'latest' ? 'Up to date' : "Couldn't check");
@@ -3949,12 +4026,10 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       } else if (m.type === 'update' && selfUpdates) {
         if (m.state === 'available') { updateReady = true; showLabel(); }
         showUpdate(m);
-      } else if (m.type === 'openLink') {
-        const id = idFromLink(m.url || ''), code = id ? null : codeFrom(m.url || '');
-        if (id) openFromLink(id);
-        else if (code) openCode(code);
+      /* ios:end */
       }
     };
+  /* ios:cut */
     $('updateGo').addEventListener('click', () => { showUpdate({ state: 'downloading', progress: 0 }); toApp({ type: 'installUpdate' }); });
     $('updateLater').addEventListener('click', () => { $('updateCard').hidden = true; });
     $('aboutCheck').addEventListener('click', () => {
@@ -3963,6 +4038,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       toApp({ type: 'checkUpdate' });
     });
   }
+  /* ios:end */
   $('version').addEventListener('click', () => openDlg($('aboutDlg')));
   $('menuAbout').addEventListener('click', () => openDlg($('aboutDlg')));
 
@@ -3986,6 +4062,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     joinById(id);
   }
 
+  /* ios:cut */
   // The app checks for others' changes in the background and notifies; it
   // needs each group, who you are in it, and the newest change you've seen.
   let lastWatch = '';
@@ -3999,11 +4076,14 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     const key = JSON.stringify(list);
     if (key !== lastWatch) { lastWatch = key; toApp({ type: 'watch', groups: list }); }
   }
+  /* ios:end */
   // Whether changes made here are still waiting to be sent: while they are, the
   // app lets the page keep retrying for a while after it goes out of sight.
   let lastUnsent = null;
   function tellAppUnsent() {
+    /* ios:cut */
     if (!app) return;
+    /* ios:end */
     const on = [...groups.values()].some(g => g.pending.length && !g.gone && !g.deleted);
     if (on !== lastUnsent) { lastUnsent = on; toApp({ type: 'unsent', on }); }
   }
@@ -4016,22 +4096,28 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       if (id && (!groups.has(id) || (store.get('draft.' + id) || {}).day !== today())) store.del('draft.' + id);
     }
   } catch {}
-  const pathId = (location.pathname.match(/^\/g\/([A-Za-z0-9_-]{22})$/) || [])[1] || (location.hash.match(/g=([A-Za-z0-9_-]{22})/) || [])[1];
+  const pathId = /* ios:cut */(location.pathname.match(/^\/g\/([A-Za-z0-9_-]{22})$/) || [])[1] || /* ios:end */(location.hash.match(/g=([A-Za-z0-9_-]{22})/) || [])[1];
+  // A group opened from its link goes on top of Home, so Back, and a swipe from the edge, have Home to go to.
+  // A page started again inside a group may already have Home under it: then it stays as it is.
+  /* ios:cut */
   // On iPhone a group opened from its link goes on top of Home, so Back, and a swipe from the edge, have Home to go to.
   // A page iOS started again inside a group may already have Home under it: then it stays as it is.
   // In a browser too, for a group already on this device (one still to be joined keeps its address,
   // so the page can be loaded again). The Android app has its own Back and is left as it was.
   const ios = !!app && app.ios === true;
   const mine = !app && !!pathId && groups.has(pathId) && !!groups.get(pathId).me;
-  const under = (ios || mine) && !!pathId && !!history.state && history.state.own === true && history.state.g === pathId;
-  const overHome = (ios || mine) && !!pathId && !under;
-  // A join code's short link, /j/<code> (#j=<code> in the app): the address goes back to Home's, and the join sheet opens on it.
-  const pathCode = pathId ? null : (location.pathname.match(/^\/j\/([A-Za-z]{4})\/?$/) || location.hash.match(/j=([A-Za-z]{4})$/) || [])[1];
-  if (pathCode || location.pathname.startsWith('/j/')) history.replaceState({}, '', location.pathname.startsWith('/j/') ? '/' : '#');
-  else if (overHome) history.replaceState({}, '', ios || !onSite ? '#' : '/');
+  /* ios:end */
+  const under = /* ios:cut */(ios || mine) && /* ios:end */!!pathId && !!history.state && history.state.own === true && history.state.g === pathId;
+  const overHome = /* ios:cut */(ios || mine) && /* ios:end */!!pathId && !under;
+  // A join code's short link/* ios:cut */, /j/<code> (#j=<code> in the app)/* ios:end */: the address goes back to Home's, and the join sheet opens on it.
+  const pathCode = pathId ? null : (/* ios:cut */location.pathname.match(/^\/j\/([A-Za-z]{4})\/?$/) || /* ios:end */location.hash.match(/j=([A-Za-z]{4})$/) || [])[1];
+  if (pathCode/* ios:cut */ || location.pathname.startsWith('/j/')/* ios:end */) history.replaceState({}, '', /* ios:cut */location.pathname.startsWith('/j/') ? '/' : /* ios:end */'#');
+  else if (overHome) history.replaceState({}, '', /* ios:cut */ios || !onSite ? /* ios:end */'#'/* ios:cut */ : '/'/* ios:end */);
   else if (!under) history.replaceState(pathId ? { g: pathId } : {}, '');
+  /* ios:cut */
   // Only in Android browsers: never inside the app, even on a WebView too old for the bridge.
   $('getApp').hidden = !!app || !onSite || !/Android/.test(navigator.userAgent);
+  /* ios:end */
   render();
   if (pathId) openFromLink(pathId, overHome);
   if (pathCode) openCode(pathCode);
@@ -4039,6 +4125,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   if (groupIds.length) freshenRates();
   toApp({ type: 'hello' });
   pollTimer = setTimeout(poll, POLL_MS);
+  /* ios:cut */
   // Another tab changed a group: take its copy when nothing of ours is waiting to send.
   addEventListener('storage', e => {
     if (e.key === 'tally.groups') {
@@ -4061,6 +4148,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       render();
     } catch {}
   });
+  /* ios:end */
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { if ($('expDlg').open) keepDraft(); return; }
     wake();
