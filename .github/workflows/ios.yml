@@ -36,9 +36,9 @@ jobs:
           cat > pick.py <<'PY'
           import json, re, sys
           d = json.load(sys.stdin)['devices']
-          rt = sorted(k for k in d if 'iOS' in k and d[k])[-1]
-          # An ordinary numbered iPhone, with one screen: the largest there is.
-          ph = [x for x in d[rt] if re.match('iPhone [0-9]+', x['name'])]
+          # An ordinary numbered iPhone, with one screen: the largest there is, on
+          # the newest iOS that has one.
+          ph = [x for k in sorted(d) if 'iOS' in k for x in d[k] if re.match('iPhone [0-9]+', x['name'])]
           best = [x for x in ph if 'Pro Max' in x['name']] or ph
           print(best[-1]['name'], file=sys.stderr)
           print(best[-1]['udid'])
