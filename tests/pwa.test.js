@@ -408,7 +408,41 @@ test('the Worker vouches for the app on both addresses, and serves old and new g
 test('editing a payment keeps its date; only a new one is dated today', () => {
   const page = read('index.html').toString();
   assert.match(page, /pay = entry \? \{ id: entry\.id, from: entry\.from, to: entry\.to, date: entry\.date, editing: true \}/);
-  assert.match(page, /const date = \(pay\.editing && pay\.date\) \|\| today\(\);\s+const data = \{ kind: 'payment', [^}]*\bdate, /);
+  assert.match(page, /const editing = !stay && pay\.editing;\s+[^\n]*\n\s+const date = \(editing && pay\.date\) \|\| today\(\);\s+const data = \{ kind: 'payment', [^}]*\bdate, /);
+});
+
+test('Mark paid asks the server first, briefly, and records only a payment still to make', () => {
+  const page = read('index.html').toString();
+  // Every payment has an id of its own again: none is worked out from the payment.
+  assert.match(page, /const id = editing \? pay\.id : L\.newId\(\);/);
+  assert.doesNotMatch(page, /derivedId\(`pay:/);
+  // Not when offline; otherwise the usual sync, given 2.5 s.
+  assert.match(page, /const MARK_WAIT = 2500;/);
+  assert.match(page, /if \(offline \|\| navigator\.onLine === false\) return Promise\.resolve\(false\);/);
+  assert.match(page, /return \(await sync\(id\)\) === true;/);
+  assert.match(page, /return Promise\.race\(\[got, late\]\)\.catch\(\(\) => false\);/);
+  // Recorded only if the same payer, payee and amount are still suggested by what this phone now knows.
+  assert.ok(page.includes("const due = L.settle(net).some(p => p.from === from && p.to === to && p.amount === minor);"));
+  assert.ok(page.includes("if (due) recordPayment(from, to, minor, true, g);"));
+  assert.ok(page.includes("'Already settled'"));
+  // A tap while one waits does nothing, and the button shows it is waiting.
+  assert.match(page, /if \(pay\.marking \|\| Date\.now\(\) - \(pay\.redrawn \|\| 0\) < 600\) return;/);
+  assert.match(page, /b\.disabled = true;\s+b\.setAttribute\('aria-busy', 'true'\);/);
+  // A payment typed into the form is recorded at once, as it always was.
+  assert.match(page, /recordPayment\(pay\.from, pay\.to, L\.toMinor\(amount, g\.group\.currency\)\);/);
+});
+
+test('a group opened from its link in a browser has Home under it, when it is already on the device', () => {
+  const page = read('index.html').toString();
+  assert.match(page, /const mine = !app && !!pathId && groups\.has\(pathId\) && !!groups\.get\(pathId\)\.me;/);
+  assert.match(page, /const overHome = \(ios \|\| mine\) && !!pathId && !under;/);
+  assert.match(page, /else if \(overHome\) history\.replaceState\(\{\}, '', ios \|\| !onSite \? '#' : '\/'\);/);
+});
+
+test('Back with a sheet open closes the sheet and stays in the group, in a browser as on an iPhone', () => {
+  const page = read('index.html').toString();
+  // Everywhere but the Android app, whose own Back goes through tallyBack and never through history.
+  assert.match(page, /if \(sheets\.length && current && !\(window\.tallyApp && !window\.tallyApp\.ios\) && !\(e\.state && e\.state\.g === current\)\) \{/);
 });
 
 test('sheet pickers are the real controls laid over their rows, and no sheet raises the keyboard', () => {

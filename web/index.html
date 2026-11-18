@@ -235,7 +235,7 @@ button { cursor: pointer; }
 .field .link.danger { background: var(--surface); }
 .det-foot .link.danger:active, .field .link.danger:active { background: var(--bg); opacity: .7; }
 .field .link.danger:active { background: var(--surface); }
-.cell > .link:not(.act):disabled, .notice .link:disabled { background: none; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--muted); }
+.cell > .link:not(.act):disabled, .notice .link:disabled, .pay-row .link:disabled { background: none; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--muted); }
 
 /* Cards and lists: one lighter grey, no edge, and a hairline only between rows
    (drawn short of the card's sides, so a pressed row can still fill it) */
@@ -383,8 +383,9 @@ body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 .group-row { display: flex; align-items: center; gap: 12px; min-height: 84px; padding: 14px var(--pad); background: var(--surface); border-radius: 24px; }
 .group-row::before { content: none; }
 .group-row .g-main { flex: 1; display: grid; gap: 2px; min-width: 0; }
-/* The right side takes half the card at most: a long balance is cut short before the name is */
+/* The right side takes half the card at most. A balance too long for that loses words (fitAmts) and, with none left, takes what its figure needs */
 .group-row .g-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 0; max-width: 50%; }
+.group-row .g-side.bare { max-width: none; }
 .group-row .g-amt { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: .9rem; line-height: 1.35; white-space: nowrap; }
 .group-row .g-amt.even { color: var(--muted); }
 .group-row .g-amt:empty { display: none; }
@@ -418,12 +419,14 @@ body.first { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
    right, owing to the left, each to the scale of the largest. The line the
    bar sits on is the row's rule. */
 #people { padding-bottom: 18px; }
-#people .bal-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 9px 12px; width: 100%; min-height: 54px; padding: 14px var(--pad) 0; background: none; border: 0; color: inherit; font: inherit; font-size: 1.06rem; text-align: left; cursor: pointer; }
-#people .bal-amt { white-space: nowrap; }
-#people .bal-who { display: flex; align-items: center; gap: 10px; }
+#people .bal-row { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; width: 100%; min-height: 54px; padding: 14px var(--pad) 0; background: none; border: 0; color: inherit; font: inherit; font-size: 1.06rem; text-align: left; cursor: pointer; }
+/* An amount with no room beside the name drops to a line of its own, so the name is never squeezed */
+#people .bal-amt { margin-left: auto; white-space: nowrap; }
+#people .bal-who { flex: 0 1 auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
 #people .bal-who > span:last-child { min-width: 0; overflow-wrap: break-word; }
 #people .face { width: 28px; height: 28px; font-size: .74rem; }
 .bal-bar, #people .bal-bar { grid-column: 1 / -1; position: relative; display: block; height: 6px; margin: 0; }
+#people .bal-bar { flex: 0 0 100%; margin-top: 9px; }
 /* Nothing outstanding: no bar to draw, so the row is a plain one with a rule above it */
 #people .bal-row.even { padding-bottom: 14px; }
 #people .even > .bal-bar { display: none; }
@@ -628,7 +631,8 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 .inv .who { margin: 8px 0 0; color: var(--muted); overflow-wrap: anywhere; }
 .inviting .sheet-body { gap: 14px; padding-top: 14px; }
 .inviting .pic { margin: 6px 0 8px; }
-.inviting .pic-row b { overflow-wrap: anywhere; }
+.inviting .pic-row > span:first-child { min-width: 0; }
+.inviting .pic-row b, .inviting .pic-row small { overflow-wrap: anywhere; }
 .pic-say.plain::before { display: none; }
 .pic-say.plain span { color: var(--ink); }
 .names { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -721,17 +725,19 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
 .split-foot { position: relative; display: flex; justify-content: space-between; gap: 12px; padding: 12px var(--pad); font-size: .86rem; color: var(--muted); }
 
 /* Settle up suggestions */
-.pay-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; padding: 14px var(--pad); font-size: 1.06rem; }
-.pay-row .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.pay-row .who b { flex: 0 1 auto; min-width: 0; font-weight: 400; overflow-wrap: anywhere; }
+/* An amount with no room beside the names drops to a line of its own */
+.pay-row { position: relative; display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; padding: 14px var(--pad); font-size: 1.06rem; }
+/* Each name has the width it asks for before a longer one is given more: a short one is never split, a very long one breaks */
+.pay-row .who { flex: 1 1 auto; display: grid; grid-template-columns: auto minmax(26px, 1fr) auto; align-items: center; gap: 10px; min-width: 0; }
+.pay-row .who b { min-width: 0; font-weight: 400; overflow-wrap: anywhere; }
 /* The payment drawn as a line from one name to the other */
-.pay-line { flex: 1; min-width: 26px; position: relative; height: 1.5px; border-radius: 1px; background: currentColor; color: var(--muted); transform-origin: left; animation: line-in .5s cubic-bezier(.2, .9, .3, 1) both; }
+.pay-line { position: relative; height: 1.5px; border-radius: 1px; background: currentColor; color: var(--muted); transform-origin: left; animation: line-in .5s cubic-bezier(.2, .9, .3, 1) both; }
 .pay-line::after { content: ""; position: absolute; right: 1px; top: 50%; width: 7px; height: 7px; border-top: 1.5px solid; border-right: 1.5px solid; transform: translateY(-50%) rotate(45deg); }
 .pay-line.pos { color: var(--pos); }
 .pay-line.neg { color: var(--neg); }
 @keyframes line-in { from { transform: scaleX(0); opacity: 0; } }
-.pay-row .amt { white-space: nowrap; }
-.pay-row .acts { grid-column: 1 / -1; display: flex; gap: 8px; margin-top: 8px; }
+.pay-row .amt { margin-left: auto; white-space: nowrap; }
+.pay-row .acts { flex: 0 0 100%; display: flex; gap: 8px; margin-top: 8px; }
 .pay-code { flex: none; font-size: 1rem; color: var(--muted); }
 
 /* Currency picker: a round search field, then each set of currencies on its own card */
@@ -1088,10 +1094,10 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       <input type="file" id="facePick" accept="image/*" hidden tabindex="-1" aria-hidden="true">
       <div class="cell"><input class="row-in" id="setNew" aria-label="Add someone" placeholder="Add someone" maxlength="40" autocomplete="off" enterkeyhint="done"><button class="link add-go" type="button" id="setAdd">Add</button></div>
     </div>
-    <span class="hint">Tap a name to change it, or the circle beside it to add a photo. Anyone with the link or the code can see, change and delete this group.</span>
+    <span class="hint">Anyone with the link or the code can see, change and delete this group.</span>
     <div class="blk">
       <button class="cell go" type="button" id="setExport">Export CSV</button>
-      <a class="cell go tall" id="setReport" href="mailto:support@teloone.au?subject=Report%20a%20Tally%20group&amp;body=Paste%20the%20group%E2%80%99s%20link%20here%2C%20and%20tell%20us%20what%E2%80%99s%20wrong%3A%0A%0A"><span class="row-k">Report a problem<small id="setReportTo">Opens an email to support@teloone.au</small></span></a>
+      <a class="cell go" id="setReport" href="mailto:support@teloone.au?subject=Report%20a%20Tally%20group&amp;body=Paste%20the%20group%E2%80%99s%20link%20here%2C%20and%20tell%20us%20what%E2%80%99s%20wrong%3A%0A%0A"><span class="row-k">Report a problem</span></a>
     </div>
     <div class="blk">
       <button class="cell bad" type="button" id="setForget">Remove from this device</button>
@@ -1421,7 +1427,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       offline = faulty = false;
       retries.delete(id);
       if (!groups.has(id)) return; // removed from this device meanwhile
-      if (res.status === 304) { if (!g.pending.length) fillRepeats(id); if (id === current) carryPhoto(g); return; }
+      if (res.status === 304) { if (!g.pending.length) fillRepeats(id); if (id === current) carryPhoto(g); return true; }
       if (res.status === 404 || res.status === 422) {
         // Someone deleted it for everyone: what's queued can never be saved,
         // and there's nothing left to ask the server for.
@@ -1471,6 +1477,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       wake();
       if (!g.pending.length) fillRepeats(id);
       if (id === current) carryPhoto(g);
+      return true; // the group is as the server has it (see upToDate)
     } catch {
       offline = true;
       faulty = answered;
@@ -1605,10 +1612,11 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     for (const id of groupIds) sync(id);
   }
   addEventListener('popstate', e => {
-    // On iPhone a swipe from the left edge is Back. With a sheet open it closes the
-    // sheet and stays in the group, as the Back key does on Android.
+    // Back in a browser, and on iPhone a swipe from the left edge: with a sheet open it closes
+    // the sheet and stays in the group, as the Back key does on Android. The Android app's
+    // own Back never comes this way (see tallyBack), so there this is left as it was.
     const sheets = [...document.querySelectorAll('dialog[open]')];
-    if (sheets.length && current && window.tallyApp && window.tallyApp.ios && !(e.state && e.state.g === current)) {
+    if (sheets.length && current && !(window.tallyApp && !window.tallyApp.ios) && !(e.state && e.state.g === current)) {
       // An open list in the sheet goes first, and the sheet stays.
       if (picking) closePick(); else sheets.pop().close();
       history.pushState({ g: current, own: true }, '', onSite ? `/g/${current}` : `#g=${current}`);
@@ -1755,15 +1763,36 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       else {
         sub.append(latest ? `${latest.kind === 'payment' ? 'Payment' : latest.title} ${ago(latest.updatedAt || latest.createdAt, true)}` : 'No expenses yet');
       }
-      // Red and green alone don't tell everyone which way it goes: the words say it too.
+      // Red and green alone don't tell everyone which way it goes: the words say it too,
+      // fewer of them when the figure is long, and none only when it leaves no room (fitAmts).
       const amt = row.querySelector('.g-amt');
       amt.dataset.k = 'ga:' + id;
       amt.dataset.fx = 'tick';
       amt.textContent = g.gone ? '' : net ? `${net > 0 ? 'you’re owed' : 'you owe'} ${b.amount}` : entriesOf(g).length ? 'settled' : '';
+      if (net && !g.gone) Object.assign(amt.dataset, { full: amt.textContent, short: `${net > 0 ? 'owed' : 'owe'} ${b.amount}`, bare: b.amount });
       amt.classList.add(b.cls || 'even');
       row.setAttribute('aria-label', `${g.group.name}. ${who}. ${net ? `${b.label} ${b.amount}` : 'Settled up'}`);
       return row;
     }));
+    fitAmts();
+  }
+  // A group's balance too long for its side of the card (rupiah, or large text) keeps every
+  // digit and loses words: "you’re owed" becomes "owed", and only when that is still too long
+  // does the figure stand alone, its colour and the row's label saying which way it goes.
+  // Every row is set, then every row measured, so the page is laid out once a step, not once a row.
+  function fitAmts() {
+    let left = [...$('groupList').querySelectorAll('.g-amt[data-bare]')];
+    for (const el of left) { el.textContent = el.dataset.full; el.parentElement.classList.remove('bare'); }
+    for (const next of ['short', 'bare']) {
+      left = left.filter(cutShort);
+      for (const el of left) { el.textContent = el.dataset[next]; el.parentElement.classList.toggle('bare', next === 'bare'); }
+    }
+  }
+  // scrollWidth is in whole pixels: text a fraction of one too wide is measured too, or it would still be cut short.
+  function cutShort(v) {
+    const text = document.createRange();
+    text.selectNodeContents(v);
+    return v.scrollWidth > v.clientWidth || text.getBoundingClientRect().width > v.getBoundingClientRect().width;
   }
 
   // Home's totals: what you're owed and what you owe across every group.
@@ -1798,23 +1827,20 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   function fitVal(el) {
     const box = el.closest('.totals');
     const vals = [...box.querySelectorAll('.val')].filter(v => v.offsetParent);
-    // scrollWidth is in whole pixels: text a fraction of one too wide is measured too, or it would still be cut short.
-    const over = v => {
-      const text = document.createRange();
-      text.selectNodeContents(v);
-      return v.scrollWidth > v.clientWidth || text.getBoundingClientRect().width > v.getBoundingClientRect().width;
-    };
     const fit = () => {
       for (const v of vals) v.style.fontSize = '';
       if (!vals.length) return 99;
       let px = parseFloat(getComputedStyle(vals[0]).fontSize);
-      while (vals.some(over) && px > 15) { px -= 1; for (const v of vals) v.style.fontSize = px + 'px'; }
+      while (vals.some(cutShort) && px > 15) { px -= 1; for (const v of vals) v.style.fontSize = px + 'px'; }
       return px;
     };
     box.classList.remove('stack');
     if (fit() < 17) { box.classList.add('stack'); fit(); }
   }
-  const refit = () => { for (const el of document.querySelectorAll('.totals .val')) if (el.offsetParent) fitVal(el); };
+  const refit = () => {
+    for (const el of document.querySelectorAll('.totals .val')) if (el.offsetParent) fitVal(el);
+    if ($('groupList').offsetParent) fitAmts();
+  };
   addEventListener('resize', refit);
   // The first fit is measured in a stand-in font: once the page's own has loaded, it's measured again.
   if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', refit);
@@ -3273,6 +3299,8 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
       // Each one says which payment it is, not just "Mark paid" again.
       done.setAttribute('aria-label', `Mark paid: ${who} ${amount}`);
       Object.assign(done.dataset, { from: p.from, to: p.to, amount: p.amount });
+      // Redrawn while its Mark paid waits on the server: still waiting.
+      if (pay.marking && pay.marking.from === p.from && pay.marking.to === p.to && pay.marking.minor === p.amount) { done.disabled = true; done.setAttribute('aria-busy', 'true'); }
       row.lastChild.append(done);
       return row;
     }));
@@ -3296,22 +3324,38 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   $('payAmount').addEventListener('input', renderPay);
   // With a keyboard, Enter records; on a phone, Done only puts the keyboard away.
   $('payAmount').addEventListener('keydown', e => { if (e.key === 'Enter' && fineMouse.matches && !$('payGo').disabled) $('payGo').click(); });
-  // Mark paid leaves the sheet open on the payments still to make (`stay`).
-  function recordPayment(from, to, minor, stay) {
-    const g = groups.get(current);
+  // Mark paid leaves the sheet open on the payments still to make (`stay`). It is always a new
+  // payment, in the group it was tapped in, whatever the sheet has moved on to meanwhile.
+  function recordPayment(from, to, minor, stay, g = groups.get(current)) {
     const code = g.group.currency;
+    const editing = !stay && pay.editing;
     // A payment being edited keeps its own date; only a new one is today's.
-    const date = (pay.editing && pay.date) || today();
+    const date = (editing && pay.date) || today();
     const data = { kind: 'payment', amount: L.fromMinor(minor, code), currency: code, rate: 1, date, from, to, by: g.me };
     if (!stay) $('payDlg').close();
     haptic();
-    const id = pay.editing ? pay.id : L.newId();
+    const id = editing ? pay.id : L.newId();
     const undo = undoFor(g, id);
     change(g, [{ type: 'entry', id, data }]);
-    toast(pay.editing ? 'Payment updated' : 'Payment recorded', undo);
+    toast(editing ? 'Payment updated' : 'Payment recorded', undo);
   }
-  $('payList').addEventListener('click', e => {
-    if (Date.now() - (pay.redrawn || 0) < 600) return;
+  // Mark paid looks at the server first, when it can be reached: someone else may have marked the
+  // same payment a moment ago, and a second one would turn the balance the other way. The answer
+  // is waited for only briefly. With none (offline, a slow signal) the payment is recorded as it
+  // always was, and two phones can still record it twice: both payments then show, and one can be deleted.
+  const MARK_WAIT = 2500;
+  function upToDate(id) {
+    if (offline || navigator.onLine === false) return Promise.resolve(false);
+    const late = new Promise(done => setTimeout(done, MARK_WAIT, false));
+    const got = (async () => {
+      while (syncing.has(id)) await new Promise(done => setTimeout(done, 50));
+      return (await sync(id)) === true;
+    })();
+    return Promise.race([got, late]).catch(() => false);
+  }
+  $('payList').addEventListener('click', async e => {
+    // One Mark paid at a time: a tap while one waits on the server does nothing.
+    if (pay.marking || Date.now() - (pay.redrawn || 0) < 600) return;
     const ask = e.target.closest('[data-ask]');
     if (ask) {
       const g = groups.get(current);
@@ -3323,7 +3367,30 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     const b = e.target.closest('button[data-from]');
     if (!b) return;
     const at = [...$('payList').children].indexOf(b.closest('.pay-row'));
-    recordPayment(b.dataset.from, b.dataset.to, Number(b.dataset.amount), true);
+    const sheet = pay, id = current, { from, to } = b.dataset, minor = Number(b.dataset.amount);
+    sheet.marking = { from, to, minor };
+    b.disabled = true;
+    b.setAttribute('aria-busy', 'true');
+    await upToDate(id);
+    sheet.marking = null;
+    const here = () => pay === sheet && current === id && $('payDlg').open;
+    const idle = () => { for (const still of $('payList').querySelectorAll('[aria-busy]')) { still.disabled = false; still.removeAttribute('aria-busy'); } };
+    const g = groups.get(id);
+    if (!g || g.deleted) return idle();
+    // The payment is recorded only if, by all this phone now knows, it is still one to make
+    // (with no answer from the server nothing has changed, and it is).
+    const net = netOf(g);
+    const due = L.settle(net).some(p => p.from === from && p.to === to && p.amount === minor);
+    try {
+      if (due) recordPayment(from, to, minor, true, g);
+      // Not this payment any more: settled by someone else, or the sums have moved since.
+      else if (current === id) toast(net[from] < 0 && net[to] > 0 ? 'Balances changed. Nothing recorded.' : 'Already settled');
+    } finally { if (here()) idle(); }
+    // The sheet closed, or moved on to something else, while this waited: nothing more to do there.
+    if (!here()) return;
+    // Typing in the sheet meanwhile: left alone.
+    const on = document.activeElement;
+    if (on && on !== document.body && on !== $('payDlg') && !$('payList').contains(on)) return;
     // Redrawn by now: on to the next payment, or done once none are left.
     const rows = $('payList').children;
     if (rows.length) return rows[Math.min(at, rows.length - 1)].querySelector('button[data-from]').focus();
@@ -3706,7 +3773,7 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
     $('invCode').hidden = failed && !code;
     $('invShare').hidden = failed && !code;
     $('invShare').disabled = !code;
-    $('invHint').textContent = failed && !code ? 'Can’t get a code right now. Send the link instead.' : 'Friends tap Join a group and enter this code. It works for a week.';
+    $('invHint').textContent = failed && !code ? 'Can’t get a code right now. Send the link instead.' : '';
     $('invLink').textContent = failed && !code ? 'Share link' : 'Share the link instead';
   }
   function openInvite() {
@@ -3952,13 +4019,16 @@ button.row:focus-visible, #people .bal-row:focus-visible { outline: 2px solid va
   const pathId = (location.pathname.match(/^\/g\/([A-Za-z0-9_-]{22})$/) || [])[1] || (location.hash.match(/g=([A-Za-z0-9_-]{22})/) || [])[1];
   // On iPhone a group opened from its link goes on top of Home, so Back, and a swipe from the edge, have Home to go to.
   // A page iOS started again inside a group may already have Home under it: then it stays as it is.
+  // In a browser too, for a group already on this device (one still to be joined keeps its address,
+  // so the page can be loaded again). The Android app has its own Back and is left as it was.
   const ios = !!app && app.ios === true;
-  const under = ios && !!pathId && !!history.state && history.state.own === true && history.state.g === pathId;
-  const overHome = ios && !!pathId && !under;
+  const mine = !app && !!pathId && groups.has(pathId) && !!groups.get(pathId).me;
+  const under = (ios || mine) && !!pathId && !!history.state && history.state.own === true && history.state.g === pathId;
+  const overHome = (ios || mine) && !!pathId && !under;
   // A join code's short link, /j/<code> (#j=<code> in the app): the address goes back to Home's, and the join sheet opens on it.
   const pathCode = pathId ? null : (location.pathname.match(/^\/j\/([A-Za-z]{4})\/?$/) || location.hash.match(/j=([A-Za-z]{4})$/) || [])[1];
   if (pathCode || location.pathname.startsWith('/j/')) history.replaceState({}, '', location.pathname.startsWith('/j/') ? '/' : '#');
-  else if (overHome) history.replaceState({}, '', '#');
+  else if (overHome) history.replaceState({}, '', ios || !onSite ? '#' : '/');
   else if (!under) history.replaceState(pathId ? { g: pathId } : {}, '');
   // Only in Android browsers: never inside the app, even on a WebView too old for the bridge.
   $('getApp').hidden = !!app || !onSite || !/Android/.test(navigator.userAgent);
